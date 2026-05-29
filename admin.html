@@ -511,13 +511,13 @@ async function saveAllScores() {
   }));
 
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/scores`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/scores?on_conflict=student_id,week_id`, {
       method: 'POST',
       headers: {
         'apikey': ANON_KEY,
         'Authorization': `Bearer ${ANON_KEY}`,
         'Content-Type': 'application/json',
-        'Prefer': 'resolution=merge-duplicates'
+        'Prefer': 'return=minimal,resolution=merge-duplicates'
       },
       body: JSON.stringify(upserts)
     });
