@@ -780,7 +780,7 @@ async function loadSmsTargets() {
 }
 
 function makeSmsText(name, weekLabel, hw, isEmpty) {
-  if (isEmpty) {
+  if (isEmpty || hw === null || hw === undefined) {
     return `[용산대성N학원 영어과]
 ${name} 학생의 ${weekLabel} 과제가 인증되지 않았습니다.
 토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.
