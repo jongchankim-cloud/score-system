@@ -295,6 +295,12 @@
       </div>
     </div>
 
+    <!-- 모의고사 -->
+    <div class="card" id="mock-card" style="display:none">
+      <div class="card-header"><div class="dot"></div><h2>모의고사 결과</h2></div>
+      <div class="card-body" id="mock-content"></div>
+    </div>
+
     <button class="btn btn-secondary" onclick="logout()">← 다른 학생 조회</button>
   </div>
 
@@ -390,6 +396,39 @@ async function showResult() {
   });
   const latestWeek = currentWeeks[currentWeeks.length - 1];
   if (latestWeek) loadScore(latestWeek.id);
+  loadMockResults();
+}
+
+async function loadMockResults() {
+  const exams = await supaFetch(`mock_exams?class_id=eq.${currentStudent.class_id}&order=id.desc&select=*`);
+  if (!exams || !exams.length) return;
+
+  const examIds = exams.map(e => e.id).join(',');
+  const scores = await supaFetch(`mock_scores?student_id=eq.${currentStudent.id}&exam_id=in.(${examIds})&select=*`);
+  if (!scores || !scores.length) return;
+
+  const scoreMap = {};
+  scores.forEach(s => { scoreMap[s.exam_id] = s; });
+
+  const card = document.getElementById('mock-card');
+  const content = document.getElementById('mock-content');
+  card.style.display = 'block';
+
+  content.innerHTML = exams.map(e => {
+    const s = scoreMap[e.id];
+    if (!s) return '';
+    const totalColor = s.total_score >= 80 ? '#27ae60' : s.total_score >= 60 ? '#e67e22' : '#c0392b';
+    return `<div style="border-bottom:1px solid var(--border);padding:12px 0;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:3px">${e.label || e.exam_date}</div>
+        <div style="font-size:12px;color:var(--gray)">객관식 ${s.multiple_score}점 · 서술형 ${s.essay_score}점</div>
+        ${s.memo ? `<div style="font-size:12px;color:var(--gray);margin-top:2px">${s.memo}</div>` : ''}
+      </div>
+      <div style="font-size:24px;font-weight:700;color:${totalColor}">${s.total_score}<span style="font-size:13px;color:var(--gray);font-weight:400"> / 200</span></div>
+    </div>`;
+  }).filter(Boolean).join('');
+
+  if (!content.innerHTML) card.style.display = 'none';
 }
 
 function renderChart() {
@@ -479,7 +518,7 @@ async function loadScore(weekId) {
           <div class="notice-icon">⚠️</div>
           <div>
             <div class="notice-title">과제 미제출 안내</div>
-            <div class="notice-body">이번 과제가 제출되지 않았습니다.<br>토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.<br>미인증 시 <strong>일요일</strong> 보충수업이 실시됩니다.</div>
+            <div class="notice-body">이번 과제가 제출되지 않았습니다.<br>주말까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.<br>미인증 시 <strong>일요일</strong> 보충수업이 실시됩니다.</div>
           </div>
         </div>`;
     } else if (hwRate < 70) {
@@ -488,7 +527,7 @@ async function loadScore(weekId) {
           <div class="notice-icon">📋</div>
           <div>
             <div class="notice-title">과제 보충 안내</div>
-            <div class="notice-body">이번 과제 수행이 미흡합니다.<br>토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.<br>미인증 시 <strong>일요일</strong> 보충수업이 실시됩니다.</div>
+            <div class="notice-body">이번 과제 수행이 미흡합니다.<br>주말까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.<br>미인증 시 <strong>일요일</strong> 보충수업이 실시됩니다.</div>
           </div>
         </div>`;
     } else if (hwRate < 100) {
@@ -497,7 +536,7 @@ async function loadScore(weekId) {
           <div class="notice-icon">📝</div>
           <div>
             <div class="notice-title">과제 안내</div>
-            <div class="notice-body">빠진 부분은 토요일까지 완료 후 영어알림톡으로 인증해 주세요.<br>미인증 시 <strong>일요일</strong> 보충수업이 실시됩니다.</div>
+            <div class="notice-body">빠진 부분은 주말까지 완료 후 영어알림톡으로 인증해 주세요.<br>미인증 시 <strong>일요일</strong> 보충수업이 실시됩니다.</div>
           </div>
         </div>`;
     } else {
@@ -565,6 +604,8 @@ function logout() {
   document.getElementById('login-section').style.display = 'block';
   document.getElementById('summary-grid').style.display = 'none';
   document.getElementById('chart-card').style.display = 'none';
+  document.getElementById('mock-card').style.display = 'none';
+  document.getElementById('mock-content').innerHTML = '';
   document.getElementById('input-name').value = '';
   document.getElementById('input-pin').value = '';
   document.getElementById('error-msg').classList.remove('show');
