@@ -411,8 +411,8 @@
               <option value="all">전체</option>
               <option value="empty">미기재</option>
               <option value="0">0%</option>
-              <option value="1-70" selected>1~70%</option>
-              <option value="71-99">71~99%</option>
+              <option value="1-79" selected>1~79%</option>
+              <option value="80-99">80~99%</option>
               <option value="100">100%</option>
             </select>
           </div>
@@ -732,8 +732,8 @@ async function loadSmsTargets() {
     if (threshold === 'all') return true;
     if (threshold === 'empty') return isEmpty;
     if (threshold === '0') return !isEmpty && hw === 0;
-    if (threshold === '1-70') return !isEmpty && hw >= 1 && hw <= 70;
-    if (threshold === '71-99') return !isEmpty && hw >= 71 && hw <= 99;
+    if (threshold === '1-79') return !isEmpty && hw >= 1 && hw <= 79;
+    if (threshold === '80-99') return !isEmpty && hw >= 80 && hw <= 99;
     if (threshold === '100') return !isEmpty && hw === 100;
     return false;
   }).map(st => {
@@ -794,7 +794,13 @@ ${name} 학생의 ${weekLabel} 과제가 인증되지 않았습니다.
 토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.
 미인증 시 일요일 보충수업이 실시됩니다.
 감사합니다.`;
-  } else if (hw <= 70) {
+  } else if (hw === 0) {
+    return `[용산대성N학원 영어과]
+${name} 학생의 ${weekLabel} 과제 수행이 전혀 되지 않았습니다.
+토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.
+미인증 시 일요일 보충수업이 실시됩니다.
+감사합니다.`;
+  } else if (hw <= 79) {
     return `[용산대성N학원 영어과]
 ${name} 학생의 ${weekLabel} 과제 수행률이 ${hw}%입니다.
 토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.
@@ -804,7 +810,7 @@ ${name} 학생의 ${weekLabel} 과제 수행률이 ${hw}%입니다.
     return `[용산대성N학원 영어과]
 ${name} 학생의 ${weekLabel} 과제 수행률이 ${hw}%입니다.
 빠진 부분은 토요일까지 완료 후 영어알림톡으로 인증해 주세요.
-미인증 시 일요일 보충수업이 실시됩니다.
+보충수업은 과제 미인증 및 개별 안내 학생을 대상으로 일요일에 실시됩니다.
 감사합니다.`;
   }
 }
