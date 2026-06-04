@@ -138,7 +138,7 @@
 
   /* 점수 입력 그리드 */
   .score-input-row {
-    display:grid; grid-template-columns:1fr 80px 80px 80px 80px 140px 60px; /* 평가 칸 너비 140px로 수정 */
+    display:grid; grid-template-columns:1fr 80px 80px 80px 80px 120px 60px;
     gap:8px; align-items:center; padding:8px 0;
     border-bottom:1px solid var(--light-gray);
   }
@@ -151,19 +151,8 @@
     transition:border-color 0.2s;
   }
   .score-input-row input:focus { border-color:var(--gold); background:var(--white); }
-  
-  /* 평가 여러 줄 입력을 위한 textarea 스타일 추가 */
-  .score-input-row textarea {
-    padding:8px; border:1.5px solid var(--border); border-radius:6px;
-    font-size:12px; font-family:'Noto Sans KR',sans-serif; color:var(--navy);
-    text-align:left; outline:none; width:100%;
-    transition:border-color 0.2s;
-    resize:vertical; min-height:38px; line-height:1.4; word-break:keep-all;
-  }
-  .score-input-row textarea:focus { border-color:var(--gold); background:var(--white); }
-
   .score-header {
-    display:grid; grid-template-columns:1fr 80px 80px 80px 80px 140px 60px; /* 평가 칸 너비 맞춤 */
+    display:grid; grid-template-columns:1fr 80px 80px 80px 80px 120px 60px;
     gap:8px; padding:8px 0 4px;
     font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px;
     border-bottom:2px solid var(--border); margin-bottom:4px;
@@ -180,14 +169,14 @@
 
   /* 반응형 */
   @media(max-width:480px) {
-    /* 모바일 그리드 7개 열로 수정 및 최적화 */
-    .score-input-row, .score-header { grid-template-columns:80px 50px 50px 50px 50px 110px 40px; gap:4px; }
-    .score-input-row input, .score-input-row textarea { padding:6px 4px; font-size:12px; }
+    .score-input-row, .score-header { grid-template-columns:80px 55px 55px 55px 55px 90px 44px 90px; gap:4px; }
+    .score-input-row input { padding:6px 4px; font-size:12px; }
   }
 </style>
 </head>
 <body>
 
+<!-- 로그인 -->
 <div id="login-screen">
   <div class="login-box">
     <h1>관리자 로그인</h1>
@@ -198,6 +187,7 @@
   </div>
 </div>
 
+<!-- 관리자 화면 -->
 <div id="admin-screen">
   <div class="top-bar">
     <h1>📋 관리자 페이지</h1>
@@ -212,7 +202,8 @@
     <button class="tab-btn" onclick="switchTab('tab-class')">반 관리</button>
   </div>
 
-    <div id="tab-score" class="tab-content active">
+  <!-- 탭1: 점수 입력 -->
+  <div id="tab-score" class="tab-content active">
     <div class="section-card">
       <div class="section-head"><h3>반 · 주차 선택</h3></div>
       <div class="section-body">
@@ -252,7 +243,8 @@
     </div>
   </div>
 
-    <div id="tab-week" class="tab-content">
+  <!-- 탭2: 주차 관리 -->
+  <div id="tab-week" class="tab-content">
     <div class="section-card">
       <div class="section-head"><h3>새 주차 추가</h3></div>
       <div class="section-body">
@@ -286,7 +278,8 @@
     </div>
   </div>
 
-    <div id="tab-student" class="tab-content">
+  <!-- 탭3: 학생 관리 -->
+  <div id="tab-student" class="tab-content">
     <div class="section-card">
       <div class="section-head"><h3>학생 추가</h3></div>
       <div class="section-body">
@@ -327,8 +320,10 @@
       </div>
     </div>
   </div>
+</div>
 
-    <div id="tab-mock" class="tab-content">
+  <!-- 탭4: 모의고사 -->
+  <div id="tab-mock" class="tab-content">
     <div class="section-card">
       <div class="section-head"><h3>모의고사 추가</h3></div>
       <div class="section-body">
@@ -395,7 +390,10 @@
     </div>
   </div>
 
-    <div id="tab-sms" class="tab-content">
+</div>
+
+  <!-- 탭5: 문자 발송 -->
+  <div id="tab-sms" class="tab-content">
     <div class="section-card">
       <div class="section-head"><h3>발송 대상 설정</h3></div>
       <div class="section-body">
@@ -442,7 +440,10 @@
     </div>
   </div>
 
-    <div id="tab-class" class="tab-content">
+</div>
+
+  <!-- 탭6: 반 관리 -->
+  <div id="tab-class" class="tab-content">
     <div class="section-card">
       <div class="section-head"><h3>반 추가</h3></div>
       <div class="section-body">
@@ -645,14 +646,13 @@ function renderScoreInputs(classId, weekId, scoreMap) {
 
   container.innerHTML = students.map(st => {
     const sc = scoreMap[st.id] || {};
-    // 여기에 textarea 태그로 변경되었습니다.
     return `<div class="score-input-row" data-student-id="${st.id}">
       <span class="student-name">${st.name}</span>
       <input type="number" class="inp-word" value="${sc.word_score ?? ''}" min="0" max="25" placeholder="">
       <input type="number" class="inp-reading" value="${sc.reading_score ?? ''}" min="0" max="30" placeholder="">
       <input type="number" class="inp-mc" value="${sc.mc_score ?? ''}" min="0" max="45" placeholder="">
       <input type="number" class="inp-hw" value="${sc.homework_rate ?? ''}" min="0" max="100" placeholder="">
-      <textarea class="inp-eval" placeholder="" rows="2">${sc.homework_eval ?? ''}</textarea>
+      <input type="text" class="inp-eval" value="${sc.homework_eval ?? ''}" placeholder="">
       <input type="checkbox" class="inp-attend" ${sc.attendance === false ? '' : 'checked'} title="출석">
     </div>`;
   }).join('');
@@ -1206,3 +1206,5 @@ async function deleteStudent(id, name) {
 </script>
 </body>
 </html>
+
+어디를 어떻게 수정하는 건지 알려주고, 붙여넣을 수있는 수정본도 알려줘
