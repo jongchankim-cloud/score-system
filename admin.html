@@ -45,7 +45,7 @@
   .tab-bar { background:var(--white); border-bottom:1px solid var(--border); display:flex; overflow-x:auto; gap:0; }
   .tab-btn { padding:13px 18px; font-size:13px; font-weight:500; color:var(--gray); background:none; border:none; border-bottom:2px solid transparent; cursor:pointer; white-space:nowrap; font-family:'Noto Sans KR',sans-serif; transition:all 0.15s; }
   .tab-btn.active { color:var(--navy); border-bottom-color:var(--gold); font-weight:700; }
-  .tab-content { display:none; padding:16px; max-width:700px; margin:0 auto; }
+  .tab-content { display:none; padding:16px; max-width:1200px; margin:0 auto; }
   .tab-content.active { display:block; }
   .section-card { background:var(--white); border-radius:14px; box-shadow:var(--shadow); margin-bottom:16px; overflow:hidden; }
   .section-head { padding:14px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
@@ -68,7 +68,7 @@
   .badge-inactive { background:var(--red-light); color:var(--red); }
   .score-input-row { display:grid; grid-template-columns:1fr 80px 80px 80px 80px 140px 60px; gap:8px; align-items:start; padding:8px 0; border-bottom:1px solid var(--light-gray); }
   .score-input-row:last-child { border-bottom:none; }
-  .score-input-row .student-name { font-size:13px; font-weight:500; color:var(--navy); padding-top:8px; }
+  .score-input-row .student-name { font-size:13px; font-weight:500; color:var(--navy); padding-top:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .score-input-row input { padding:8px; border:1.5px solid var(--border); border-radius:6px; font-size:13px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); text-align:center; outline:none; width:100%; transition:border-color 0.2s; }
   .score-input-row input:focus { border-color:var(--gold); background:var(--white); }
   .score-input-row textarea { padding:8px; border:1.5px solid var(--border); border-radius:6px; font-size:12px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); outline:none; width:100%; transition:border-color 0.2s; resize:none; overflow:hidden; min-height:36px; line-height:1.5; }
