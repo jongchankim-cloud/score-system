@@ -78,7 +78,7 @@
   .spinner-sm { width:20px; height:20px; border:2px solid var(--border); border-top-color:var(--gold); border-radius:50%; animation:spin 0.7s linear infinite; display:inline-block; vertical-align:middle; margin-right:8px; }
   @keyframes spin { to { transform:rotate(360deg); } }
   @media(max-width:480px) {
-    .score-input-row, .score-header { grid-template-columns:80px 50px 50px 50px 50px 110px 40px; gap:4px; }
+    .score-input-row, .score-header { grid-template-columns:70px 45px 45px 45px 45px 90px 80px 40px 40px 80px; gap:4px; }
     .score-input-row input, .score-input-row textarea { padding:6px 4px; font-size:12px; }
   }
 </style>
@@ -149,7 +149,10 @@
           <span style="text-align:center">객관식<br><small style="font-weight:400">/45</small></span>
           <span style="text-align:center">과제<br><small style="font-weight:400">%</small></span>
           <span style="text-align:center">과제평가</span>
+          <span style="text-align:center">잔여과제<br>인증</span>
           <span style="text-align:center">출석</span>
+          <span style="text-align:center">클리닉</span>
+          <span style="text-align:center">클리닉메모</span>
         </div>
         <div id="score-inputs-container"></div>
       </div>
@@ -477,7 +480,10 @@ function renderScoreInputs(classId, weekId, scoreMap) {
       <input type="number" class="inp-mc" value="${sc.mc_score ?? ''}" min="0" max="45" placeholder="" oninput="scoreDirty=true">
       <input type="number" class="inp-hw" value="${sc.homework_rate ?? ''}" min="0" max="100" placeholder="" oninput="scoreDirty=true">
       <textarea class="inp-eval" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.homework_eval ?? ''}</textarea>
+      <textarea class="inp-hwcert" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.hw_cert ?? ''}</textarea>
       <input type="checkbox" class="inp-attend" ${sc.attendance === false ? '' : 'checked'} title="출석" onchange="scoreDirty=true">
+      <input type="checkbox" class="inp-clinic" ${sc.clinic ? 'checked' : ''} title="클리닉" onchange="scoreDirty=true">
+      <textarea class="inp-clinic-memo" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.clinic_memo ?? ''}</textarea>
     </div>`;
   }).join('');
   scoreDirty = false;
@@ -503,7 +509,10 @@ async function saveAllScores() {
     mc_score: parseFloat(row.querySelector('.inp-mc').value) || 0,
     homework_rate: row.querySelector('.inp-hw').value !== '' ? parseInt(row.querySelector('.inp-hw').value) : null,
     homework_eval: row.querySelector('.inp-eval').value.trim(),
-    attendance: row.querySelector('.inp-attend').checked
+    hw_cert: row.querySelector('.inp-hwcert').value.trim(),
+    attendance: row.querySelector('.inp-attend').checked,
+    clinic: row.querySelector('.inp-clinic').checked,
+    clinic_memo: row.querySelector('.inp-clinic-memo').value.trim()
   }));
   try {
     const existing = await api(`scores?week_id=eq.${weekId}&select=id,student_id`);
