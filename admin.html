@@ -328,8 +328,6 @@
     </div>
   </div>
 
-</div>
-
   <!-- 탭7: 미인증 -->
   <div id="tab-uncert" class="tab-content">
     <div class="section-card">
@@ -368,8 +366,6 @@
       </div>
     </div>
   </div>
-
-</div>
 
   <!-- 탭8: 미인증 문자 발송 -->
   <div id="tab-student-sms" class="tab-content">
@@ -1008,6 +1004,7 @@ async function loadStudentSmsTargets() {
 
   if (!targets.length) {
     listEl.innerHTML = '<p style="font-size:13px;color:var(--gray)">발송 대상이 없습니다.</p>';
+    window._studentSmsTargets = [];
     return;
   }
 
@@ -1026,18 +1023,31 @@ async function loadStudentSmsTargets() {
   window._studentSmsTargets = targets;
 }
 
+function toggleAllStudentSms(checked) {
+  const boxes = document.querySelectorAll('.student-sms-check:not(:disabled)');
+  if (checked === undefined) {
+    // 버튼 클릭: 하나라도 해제돼 있으면 전체 선택, 아니면 전체 해제
+    checked = !Array.from(boxes).every(cb => cb.checked);
+  }
+  boxes.forEach(cb => { cb.checked = checked; });
+  const headerCheck = document.getElementById('check-all-student-sms');
+  if (headerCheck) headerCheck.checked = checked;
+}
+
 async function sendStudentSms() {
   const targets = window._studentSmsTargets || [];
-  const validTargets = targets.filter(t => t.student_phone);
-  if (!validTargets.length) { showToast('발송 가능한 대상이 없습니다.'); return; }
-  if (!confirm(`${validTargets.length}명에게 문자를 발송할까요?`)) return;
+  // 체크된 행만 발송 대상으로 수집
+  const selected = Array.from(document.querySelectorAll('.student-sms-check:checked'))
+    .map(cb => targets[parseInt(cb.dataset.idx)])
+    .filter(t => t && t.student_phone);
+  if (!selected.length) { showToast('선택된 발송 대상이 없습니다.'); return; }
+  if (!confirm(`${selected.length}명에게 문자를 발송할까요?`)) return;
+
+  // textarea에서 수정된 문구 사용
+  const text = document.getElementById('student-sms-text').value;
 
   showToast('발송 중...');
-  const messages = validTargets.map(t => ({
-    to: t.student_phone,
-    text: `[용산대성N학원 영어과]
-과제 못 한 부분 인증하세요.`
-  }));
+  const messages = selected.map(t => ({ to: t.student_phone, text }));
 
   try {
     const res = await fetch(SMS_FUNCTION_URL, {
