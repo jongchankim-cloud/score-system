@@ -389,6 +389,13 @@
               <option value="">주차를 선택하세요</option>
             </select>
           </div>
+          <div class="form-group">
+            <label>과제 수행률 기준</label>
+            <select id="student-sms-threshold" onchange="loadStudentSmsTargets()">
+              <option value="low" selected>미기재 + 0~79%</option>
+              <option value="mid">80~98%</option>
+            </select>
+          </div>
         </div>
       </div>
     </div>
@@ -400,8 +407,8 @@
       </div>
       <div class="section-body">
         <div class="form-group" style="margin-bottom:14px">
-          <label>문자 내용 미리보기</label>
-          <textarea rows="4" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:none;outline:none;line-height:1.7" readonly>[용산대성N학원 영어과]
+          <label>문자 내용 (직접 수정 가능)</label>
+          <textarea id="student-sms-text" rows="4" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7">[용산대성N학원 영어과]
 과제 못 한 부분 인증하세요.</textarea>
         </div>
         <div id="student-sms-list"></div>
@@ -837,11 +844,15 @@ async function loadStudentSmsTargets() {
   const scoreMap = {};
   (scores || []).forEach(s => { scoreMap[s.student_id] = s; });
 
-  // 과제 미기재 또는 0~90% 학생만
+  const threshold = document.getElementById('student-sms-threshold').value;
+
+  // 구간별 필터
   const targets = (students || []).filter(st => {
     const sc = scoreMap[st.id];
     const hw = sc ? sc.homework_rate : null;
-    return hw === null || hw <= 90;
+    if (threshold === 'low') return hw === null || hw <= 79;
+    if (threshold === 'mid') return hw !== null && hw >= 80 && hw <= 98;
+    return false;
   }).map(st => {
     const sc = scoreMap[st.id];
     return {
