@@ -167,14 +167,24 @@
       <div class="section-body">
         <div class="form-row">
           <div class="form-group">
-            <label>반 선택</label>
-            <select id="week-class"><option value="">반을 선택하세요</option></select>
+            <label>학년 선택</label>
+            <select id="week-grade">
+              <option value="">학년을 선택하세요</option>
+              <option value="고1">고1 (수요일+토요일)</option>
+              <option value="고2">고2 (목요일+금요일)</option>
+              <option value="single">단일 반 추가</option>
+            </select>
           </div>
-          <div class="form-group">
-            <label>수업 날짜</label>
+          <div class="form-group" id="week-date-group">
+            <label id="week-date-label">기준 날짜</label>
             <input type="text" id="week-date" placeholder="예: 6.3">
           </div>
+          <div class="form-group" id="week-class-group" style="display:none">
+            <label>반 선택 (단일)</label>
+            <select id="week-class"><option value="">반을 선택하세요</option></select>
+          </div>
         </div>
+        <div id="week-preview" style="font-size:12px;color:var(--gray);margin-bottom:10px;display:none"></div>
         <button class="btn btn-gold" onclick="addWeek()">주차 추가</button>
       </div>
     </div>
@@ -376,15 +386,75 @@ function switchTab(tabId) {
 }
 
 // ── 주차 관리
+function calcNextDate(dateStr, addDays) {
+  const dot = dateStr.indexOf('.');
+  if (dot < 0) return dateStr;
+  let month = parseInt(dateStr.slice(0, dot));
+  let day = parseInt(dateStr.slice(dot + 1)) + addDays;
+  const daysInMonth = [0,31,28,31,30,31,30,31,31,30,31,30,31];
+  if (day > daysInMonth[month]) { day -= daysInMonth[month]; month++; }
+  return `${month}.${day}`;
+}
+
+document.getElementById('week-grade').addEventListener('change', function() {
+  const grade = this.value;
+  const preview = document.getElementById('week-preview');
+  const classGroup = document.getElementById('week-class-group');
+  const dateLabel = document.getElementById('week-date-label');
+  if (grade === '고1') {
+    dateLabel.textContent = '수요일 날짜 입력';
+    classGroup.style.display = 'none';
+    preview.style.display = 'block';
+    preview.textContent = '토요일 날짜는 자동 계산됩니다 (+3일)';
+  } else if (grade === '고2') {
+    dateLabel.textContent = '목요일 날짜 입력';
+    classGroup.style.display = 'none';
+    preview.style.display = 'block';
+    preview.textContent = '금요일 날짜는 자동 계산됩니다 (+1일)';
+  } else if (grade === 'single') {
+    dateLabel.textContent = '수업 날짜';
+    classGroup.style.display = 'flex';
+    preview.style.display = 'none';
+  } else {
+    dateLabel.textContent = '기준 날짜';
+    classGroup.style.display = 'none';
+    preview.style.display = 'none';
+  }
+});
+
 async function addWeek() {
-  const classId = document.getElementById('week-class').value;
+  const grade = document.getElementById('week-grade').value;
   const date = document.getElementById('week-date').value.trim();
-  if (!classId || !date) { showToast('반과 날짜를 입력해주세요.'); return; }
-  const className = classes.find(c => c.id == classId)?.name || '';
-  await api('weeks', 'POST', { class_id: parseInt(classId), test_date: date, label: date });
-  showToast(`✅ ${className} — ${date} 주차가 추가됐어요.`);
+  if (!grade || !date) { showToast('학년과 날짜를 입력해주세요.'); return; }
+
+  const groupId = `${grade}-${date}-${Date.now()}`;
+
+  if (grade === '고1') {
+    const satDate = calcNextDate(date, 3);
+    const wedClasses = classes.filter(c => c.grade === '고1' && c.day === '수');
+    const satClasses = classes.filter(c => c.grade === '고1' && c.day === '토');
+    for (const c of wedClasses) await api('weeks', 'POST', { class_id: c.id, test_date: date, label: date, group_id: groupId });
+    for (const c of satClasses) await api('weeks', 'POST', { class_id: c.id, test_date: satDate, label: satDate, group_id: groupId });
+    showToast(`✅ 고1 주차 추가 — 수요일 ${date} / 토요일 ${satDate}`);
+
+  } else if (grade === '고2') {
+    const friDate = calcNextDate(date, 1);
+    const thuClasses = classes.filter(c => c.grade === '고2' && c.day === '목');
+    const friClasses = classes.filter(c => c.grade === '고2' && c.day === '금');
+    for (const c of thuClasses) await api('weeks', 'POST', { class_id: c.id, test_date: date, label: date, group_id: groupId });
+    for (const c of friClasses) await api('weeks', 'POST', { class_id: c.id, test_date: friDate, label: friDate, group_id: groupId });
+    showToast(`✅ 고2 주차 추가 — 목요일 ${date} / 금요일 ${friDate}`);
+
+  } else if (grade === 'single') {
+    const classId = document.getElementById('week-class').value;
+    if (!classId) { showToast('반을 선택해주세요.'); return; }
+    const className = classes.find(c => c.id == classId)?.name || '';
+    await api('weeks', 'POST', { class_id: parseInt(classId), test_date: date, label: date, group_id: groupId });
+    showToast(`✅ ${className} — ${date} 주차가 추가됐어요.`);
+  }
+
   document.getElementById('week-date').value = '';
-  if (document.getElementById('week-list-class').value == classId) loadWeekList();
+  loadWeekList();
 }
 
 async function loadWeekList() {
