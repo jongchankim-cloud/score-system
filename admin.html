@@ -1333,6 +1333,7 @@ async function loadStudentList() {
       <td><input type="text" value="${s.note || ''}" placeholder="특이사항" onblur="updateStudentNote(${s.id}, this.value)" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;width:150px;outline:none"></td>
       <td style="display:flex;gap:6px">
         ${s.is_active ? `<button class="btn btn-danger btn-sm" onclick="toggleStudent(${s.id}, false)">퇴원</button>` : `<button class="btn btn-sm" style="background:var(--green-light);color:var(--green);border:1px solid #b7efd1" onclick="toggleStudent(${s.id}, true)">복귀</button>`}
+        <button class="btn btn-sm" style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe" onclick="showMoveStudent(${s.id},'${s.name}',${s.class_id})">반 이동</button>
         <button class="btn btn-danger btn-sm" onclick="deleteStudent(${s.id},'${s.name}')">삭제</button>
       </td>
     </tr>`).join('')}</tbody></table>`;
