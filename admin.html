@@ -60,7 +60,7 @@
   .toast.show { opacity:1; }
   .data-table { width:100%; border-collapse:collapse; }
   .data-table th { font-size:11px; font-weight:600; color:var(--gray); padding:8px 10px; border-bottom:1px solid var(--border); text-align:left; letter-spacing:0.5px; }
-  .data-table td { font-size:13px; color:var(--navy); padding:10px; border-bottom:1px solid var(--light-gray); vertical-align:middle; }
+  .data-table td { font-size:13px; color:var(--navy); padding:12px 10px; border-bottom:1px solid var(--light-gray); vertical-align:middle; }
   .data-table tr:last-child td { border-bottom:none; }
   .data-table tr:hover td { background:var(--cream); }
   .badge { display:inline-block; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:600; }
@@ -328,6 +328,8 @@
     </div>
   </div>
 
+</div>
+
   <!-- 탭7: 미인증 -->
   <div id="tab-uncert" class="tab-content">
     <div class="section-card">
@@ -366,6 +368,8 @@
       </div>
     </div>
   </div>
+
+</div>
 
   <!-- 탭8: 미인증 문자 발송 -->
   <div id="tab-student-sms" class="tab-content">
@@ -1004,7 +1008,6 @@ async function loadStudentSmsTargets() {
 
   if (!targets.length) {
     listEl.innerHTML = '<p style="font-size:13px;color:var(--gray)">발송 대상이 없습니다.</p>';
-    window._studentSmsTargets = [];
     return;
   }
 
@@ -1023,31 +1026,18 @@ async function loadStudentSmsTargets() {
   window._studentSmsTargets = targets;
 }
 
-function toggleAllStudentSms(checked) {
-  const boxes = document.querySelectorAll('.student-sms-check:not(:disabled)');
-  if (checked === undefined) {
-    // 버튼 클릭: 하나라도 해제돼 있으면 전체 선택, 아니면 전체 해제
-    checked = !Array.from(boxes).every(cb => cb.checked);
-  }
-  boxes.forEach(cb => { cb.checked = checked; });
-  const headerCheck = document.getElementById('check-all-student-sms');
-  if (headerCheck) headerCheck.checked = checked;
-}
-
 async function sendStudentSms() {
   const targets = window._studentSmsTargets || [];
-  // 체크된 행만 발송 대상으로 수집
-  const selected = Array.from(document.querySelectorAll('.student-sms-check:checked'))
-    .map(cb => targets[parseInt(cb.dataset.idx)])
-    .filter(t => t && t.student_phone);
-  if (!selected.length) { showToast('선택된 발송 대상이 없습니다.'); return; }
-  if (!confirm(`${selected.length}명에게 문자를 발송할까요?`)) return;
-
-  // textarea에서 수정된 문구 사용
-  const text = document.getElementById('student-sms-text').value;
+  const validTargets = targets.filter(t => t.student_phone);
+  if (!validTargets.length) { showToast('발송 가능한 대상이 없습니다.'); return; }
+  if (!confirm(`${validTargets.length}명에게 문자를 발송할까요?`)) return;
 
   showToast('발송 중...');
-  const messages = selected.map(t => ({ to: t.student_phone, text }));
+  const messages = validTargets.map(t => ({
+    to: t.student_phone,
+    text: `[용산대성N학원 영어과]
+과제 못 한 부분 인증하세요.`
+  }));
 
   try {
     const res = await fetch(SMS_FUNCTION_URL, {
@@ -1338,14 +1328,13 @@ async function loadStudentList() {
   container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
   const students = await api(`students?class_id=eq.${classId}&order=name.asc&select=*`) || [];
   if (!students.length) { container.innerHTML = '<p style="font-size:13px;color:var(--gray)">등록된 학생이 없습니다.</p>'; return; }
-  container.innerHTML = `<table class="data-table"><thead><tr><th>이름</th><th>PIN</th><th>학부모 연락처</th><th>학생 연락처</th><th>상태</th><th>특이사항</th><th></th></tr></thead><tbody>${students.map(s => `
+  container.innerHTML = `<table class="data-table"><thead><tr><th>이름</th><th>PIN</th><th>연락처</th><th>상태</th><th>특이사항</th><th></th></tr></thead><tbody>${students.map(s => `
     <tr>
-      <td><input type="text" value="${s.name}" onblur="updateStudentName(${s.id}, this.value)" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'Noto Sans KR',sans-serif;width:80px;outline:none;font-weight:600"></td>
-      <td><input type="text" value="${s.pin || ''}" placeholder="PIN" onblur="updateStudentPin(${s.id}, this.value)" maxlength="4" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:monospace;width:60px;outline:none;text-align:center"></td>
-      <td><input type="text" value="${s.phone || ''}" placeholder="학부모 연락처" onblur="updateStudentPhone(${s.id}, this.value)" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;width:120px;outline:none"></td>
-      <td><input type="text" value="${s.student_phone || ''}" placeholder="학생 연락처" onblur="updateStudentStudentPhone(${s.id}, this.value)" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;width:120px;outline:none"></td>
+      <td><input type="text" value="${s.name}" onblur="updateStudentName(${s.id}, this.value)" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'Noto Sans KR',sans-serif;width:80px;outline:none;font-weight:600"></td>
+      <td><input type="text" value="${s.pin || ''}" placeholder="PIN" onblur="updateStudentPin(${s.id}, this.value)" maxlength="4" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:monospace;width:65px;outline:none;text-align:center"></td>
+      <td><input type="text" value="${s.phone || ''}" placeholder="연락처" onblur="updateStudentPhone(${s.id}, this.value)" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;width:120px;outline:none"></td>
       <td><span class="badge ${s.is_active ? 'badge-active' : 'badge-inactive'}">${s.is_active ? '재원' : '퇴원'}</span></td>
-      <td><input type="text" value="${s.note || ''}" placeholder="특이사항" onblur="updateStudentNote(${s.id}, this.value)" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;width:150px;outline:none"></td>
+      <td><input type="text" value="${s.note || ''}" placeholder="특이사항" onblur="updateStudentNote(${s.id}, this.value)" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;width:160px;outline:none"></td>
       <td style="display:flex;gap:6px">
         ${s.is_active ? `<button class="btn btn-danger btn-sm" onclick="toggleStudent(${s.id}, false)">퇴원</button>` : `<button class="btn btn-sm" style="background:var(--green-light);color:var(--green);border:1px solid #b7efd1" onclick="toggleStudent(${s.id}, true)">복귀</button>`}
         <button class="btn btn-sm" style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe" onclick="showMoveStudent(${s.id},'${s.name}',${s.class_id})">반 이동</button>
