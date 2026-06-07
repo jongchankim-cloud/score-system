@@ -1058,6 +1058,12 @@ async function loadStudentList() {
     </tr>`).join('')}</tbody></table>`;
 }
 
+async function updateStudentPin(id, pin) {
+  if (!pin.trim()) { showToast('PIN을 입력해주세요.'); loadStudentList(); return; }
+  await api(`students?id=eq.${id}`, 'PATCH', { pin: pin.trim().padStart(4, '0') });
+  showToast('✅ PIN이 수정됐어요.');
+}
+
 async function updateStudentName(id, name) {
   if (!name.trim()) { showToast('이름을 입력해주세요.'); loadStudentList(); return; }
   await api(`students?id=eq.${id}`, 'PATCH', { name: name.trim() });
