@@ -426,10 +426,35 @@ async function loadScore(weekId) {
     const s = scoreData;
     const avg = avgs && avgs.length ? avgs[0] : null;
     let rank = '-', total_students = '-';
-    if (allWeekSc) {
-      const sorted = allWeekSc.map(x => x.total_score).filter(x => x !== null).sort((a,b) => b-a);
+
+    // group_id가 있으면 같은 그룹 전체 기준으로 평균/석차 계산
+    const weekInfo = await supaFetch(`weeks?id=eq.${weekId}&select=group_id`);
+    const groupId = weekInfo?.[0]?.group_id;
+
+    let groupScores = null;
+    if (groupId) {
+      // 같은 group_id를 가진 모든 주차 찾기
+      const groupWeeks = await supaFetch(`weeks?group_id=eq.${encodeURIComponent(groupId)}&select=id`);
+      if (groupWeeks && groupWeeks.length > 0) {
+        const weekIds = groupWeeks.map(w => w.id).join(',');
+        groupScores = await supaFetch(`scores?week_id=in.(${weekIds})&select=total_score`);
+      }
+    }
+
+    const scoresForRank = groupScores || allWeekSc;
+    if (scoresForRank) {
+      const sorted = scoresForRank.map(x => x.total_score).filter(x => x !== null).sort((a,b) => b-a);
       total_students = sorted.length;
       rank = sorted.findIndex(v => v === s.total_score) + 1;
+    }
+
+    // 그룹 평균 계산
+    let displayAvg = avg ? avg.avg_total + '점' : '-';
+    if (groupId && groupScores) {
+      const totals = groupScores.map(x => x.total_score).filter(x => x !== null);
+      if (totals.length > 0) {
+        displayAvg = (totals.reduce((a,b) => a+b, 0) / totals.length).toFixed(1) + '점';
+      }
     }
 
     // homework_rate가 null이면 미기재 처리
@@ -511,7 +536,7 @@ async function loadScore(weekId) {
           <div class="meta-grid">
             <div class="meta-item">
               <div class="meta-label">반 평균</div>
-              <div class="meta-value">${avg ? avg.avg_total + '점' : '-'}</div>
+              <div class="meta-value">${displayAvg}</div>
             </div>
             <div class="meta-item">
               <div class="meta-label">석차</div>
