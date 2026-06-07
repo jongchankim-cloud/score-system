@@ -107,6 +107,7 @@
     <button class="tab-btn" onclick="switchTab('tab-mock')">모의고사</button>
     <button class="tab-btn" onclick="switchTab('tab-sms')">문자 발송</button>
     <button class="tab-btn" onclick="switchTab('tab-class')">반 관리</button>
+    <button class="tab-btn" onclick="switchTab('tab-uncert')">미인증</button>
   </div>
 
   <!-- 탭1: 점수 입력 -->
@@ -327,6 +328,47 @@
 
 </div>
 
+  <!-- 탭7: 미인증 -->
+  <div id="tab-uncert" class="tab-content">
+    <div class="section-card">
+      <div class="section-head"><h3>미인증 학생 조회</h3></div>
+      <div class="section-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label>반 선택</label>
+            <select id="uncert-class" onchange="loadUncertWeeks()">
+              <option value="">반을 선택하세요</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>주차 선택</label>
+            <select id="uncert-week" onchange="loadUncertList()">
+              <option value="">주차를 선택하세요</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-card" id="uncert-result-card" style="display:none">
+      <div class="section-head">
+        <h3 id="uncert-title">미인증 학생</h3>
+        <button class="btn btn-primary btn-sm" onclick="saveUncertList()">저장</button>
+      </div>
+      <div class="section-body" style="overflow-x:auto">
+        <div style="display:grid;grid-template-columns:90px 60px 1fr 100px;gap:8px;padding:6px 0 8px;font-size:11px;color:var(--gray);font-weight:600;border-bottom:2px solid var(--border);margin-bottom:4px;">
+          <span>이름</span>
+          <span style="text-align:center">과제%</span>
+          <span>과제평가</span>
+          <span>잔여과제 인증</span>
+        </div>
+        <div id="uncert-list"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -363,7 +405,7 @@ function adminLogin() {
 let classes = [];
 async function initAdmin() {
   classes = await api('classes?order=id.asc&select=*') || [];
-  ['score-class','week-class','week-list-class','new-class','student-list-class','mock-class','mock-score-class','mock-list-class','sms-class'].forEach(id => {
+  ['score-class','week-class','week-list-class','new-class','student-list-class','mock-class','mock-score-class','mock-list-class','sms-class','uncert-class'].forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
     sel.innerHTML = '<option value="">반을 선택하세요</option>';
@@ -620,6 +662,114 @@ async function saveAllScores() {
   } catch(e) { showToast('❌ 오류 발생: ' + e.message); }
 }
 
+// ── 미인증 탭 ─────────────────────────────────────────
+async function loadUncertWeeks() {
+  const classId = document.getElementById('uncert-class').value;
+  const sel = document.getElementById('uncert-week');
+  sel.innerHTML = '<option value="">주차를 선택하세요</option>';
+  document.getElementById('uncert-result-card').style.display = 'none';
+  if (!classId) return;
+  const weeks = await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`) || [];
+  weeks.forEach(w => {
+    const opt = document.createElement('option');
+    opt.value = w.id; opt.textContent = w.label || w.test_date;
+    sel.appendChild(opt);
+  });
+  if (weeks.length > 0) { sel.value = weeks[0].id; loadUncertList(); }
+}
+
+async function loadUncertList() {
+  const classId = document.getElementById('uncert-class').value;
+  const weekId = document.getElementById('uncert-week').value;
+  if (!classId || !weekId) return;
+
+  const card = document.getElementById('uncert-result-card');
+  const listEl = document.getElementById('uncert-list');
+  card.style.display = 'block';
+  listEl.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
+
+  const [students, scores] = await Promise.all([
+    api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`),
+    api(`scores?week_id=eq.${weekId}&select=*`)
+  ]);
+
+  const scoreMap = {};
+  (scores || []).forEach(s => { scoreMap[s.student_id] = s; });
+
+  // 필터: 과제평가 메모 있거나 수행률 79% 이하, 단 잔여과제인증이 100이면 제외
+  const targets = (students || []).filter(st => {
+    const sc = scoreMap[st.id];
+    if (!sc) return false;
+    const hw = sc.homework_rate;
+    const hasMemo = sc.homework_eval && sc.homework_eval.trim() !== '';
+    const lowHw = hw === null || hw <= 79;
+    const certified = sc.hw_cert && sc.hw_cert.trim() === '100';
+    return (hasMemo || lowHw) && !certified;
+  });
+
+  const className = classes.find(c => c.id == classId)?.name || '';
+  const weekSel = document.getElementById('uncert-week');
+  const weekLabel = weekSel.options[weekSel.selectedIndex]?.text || '';
+  document.getElementById('uncert-title').textContent = `미인증 학생 — ${targets.length}명 (${className} ${weekLabel})`;
+
+  if (!targets.length) {
+    listEl.innerHTML = '<p style="font-size:13px;color:var(--gray);padding:12px 0">미인증 학생이 없습니다. 🎉</p>';
+    return;
+  }
+
+  listEl.innerHTML = targets.map(st => {
+    const sc = scoreMap[st.id] || {};
+    const hw = sc.homework_rate !== null && sc.homework_rate !== undefined ? sc.homework_rate + '%' : '미기재';
+    return `<div style="display:grid;grid-template-columns:90px 60px 1fr 100px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--light-gray)" data-student-id="${st.id}" data-score-id="${sc.id || ''}">
+      <span style="font-size:13px;font-weight:600;color:var(--navy)">${st.name}</span>
+      <span style="font-size:13px;text-align:center;color:${sc.homework_rate <= 0 || sc.homework_rate === null ? 'var(--red)' : 'var(--navy)'}">${hw}</span>
+      <span style="font-size:12px;color:var(--gray)">${sc.homework_eval || '-'}</span>
+      <input type="text" class="uncert-cert" value="${sc.hw_cert || ''}" placeholder="인증메모 or 100" style="padding:7px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;outline:none;width:100%">
+    </div>`;
+  }).join('');
+
+  window._uncertWeekId = parseInt(weekId);
+  window._uncertScoreMap = scoreMap;
+}
+
+async function saveUncertList() {
+  const weekId = window._uncertWeekId;
+  const scoreMap = window._uncertScoreMap || {};
+  const rows = document.querySelectorAll('#uncert-list [data-student-id]');
+  if (!rows.length) return;
+
+  const existing = await api(`scores?week_id=eq.${weekId}&select=id,student_id`);
+  const existMap = {};
+  (existing || []).forEach(e => { existMap[e.student_id] = e.id; });
+
+  const updates = Array.from(rows).map(row => ({
+    student_id: parseInt(row.dataset.studentId),
+    hw_cert: row.querySelector('.uncert-cert').value.trim()
+  }));
+
+  try {
+    const results = await Promise.all(updates.map(async u => {
+      if (existMap[u.student_id]) {
+        return fetch(`${SUPABASE_URL}/rest/v1/scores?id=eq.${existMap[u.student_id]}`, {
+          method: 'PATCH',
+          headers: { 'apikey': ANON_KEY, 'Authorization': `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ hw_cert: u.hw_cert })
+        });
+      }
+    }).filter(Boolean));
+
+    // 점수 입력 탭 캐시 갱신
+    delete scoreCache[weekId];
+
+    showToast('✅ 저장됐어요!');
+
+    // 목록 새로고침 (100 입력된 학생 자동 제거)
+    loadUncertList();
+  } catch(e) {
+    showToast('❌ 오류: ' + e.message);
+  }
+}
+
 // ── 반 관리
 async function loadClassList() {
   const container = document.getElementById('class-list');
@@ -636,7 +786,7 @@ async function loadClassList() {
 }
 
 function refreshClassSelects() {
-  ['score-class','week-class','week-list-class','new-class','student-list-class','mock-class','mock-score-class','mock-list-class','sms-class'].forEach(id => {
+  ['score-class','week-class','week-list-class','new-class','student-list-class','mock-class','mock-score-class','mock-list-class','sms-class','uncert-class'].forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
     sel.innerHTML = '<option value="">반을 선택하세요</option>';
