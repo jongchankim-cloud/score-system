@@ -403,7 +403,10 @@
     <div class="section-card" id="student-sms-preview-card" style="display:none">
       <div class="section-head">
         <h3 id="student-sms-title">발송 대상</h3>
-        <button class="btn btn-primary btn-sm" onclick="sendStudentSms()">전체 발송</button>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="toggleAllStudentSms()">전체 선택/해제</button>
+          <button class="btn btn-primary btn-sm" onclick="sendStudentSms()">선택 발송</button>
+        </div>
       </div>
       <div class="section-body">
         <div class="form-group" style="margin-bottom:14px">
@@ -1009,9 +1012,10 @@ async function loadStudentSmsTargets() {
   }
 
   listEl.innerHTML = `<table class="data-table">
-    <thead><tr><th>이름</th><th>과제(%)</th><th>학생 연락처</th><th>상태</th></tr></thead>
-    <tbody>${targets.map(t => `
+    <thead><tr><th style="width:36px"><input type="checkbox" id="check-all-student-sms" checked onchange="toggleAllStudentSms(this.checked)"></th><th>이름</th><th>과제(%)</th><th>학생 연락처</th><th>상태</th></tr></thead>
+    <tbody>${targets.map((t, i) => `
       <tr>
+        <td><input type="checkbox" class="student-sms-check" data-idx="${i}" ${t.student_phone ? 'checked' : ''} ${!t.student_phone ? 'disabled' : ''}></td>
         <td><strong>${t.name}</strong></td>
         <td>${t.hw !== null ? t.hw + '%' : '미기재'}</td>
         <td style="font-size:12px;font-family:monospace">${t.student_phone || '번호없음'}</td>
