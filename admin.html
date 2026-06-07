@@ -565,6 +565,14 @@ function renderScoreInputs(classId, weekId, scoreMap) {
     </div>`;
   }).join('');
   scoreDirty = false;
+
+  // 기존 내용 있는 textarea 높이 초기화
+  setTimeout(() => {
+    document.querySelectorAll('#score-inputs-container textarea').forEach(ta => {
+      ta.style.height = 'auto';
+      ta.style.height = ta.scrollHeight + 'px';
+    });
+  }, 50);
 }
 
 async function saveWeekMemo() {
