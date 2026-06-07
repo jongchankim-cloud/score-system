@@ -1047,7 +1047,7 @@ async function loadStudentList() {
   container.innerHTML = `<table class="data-table"><thead><tr><th>이름</th><th>PIN</th><th>연락처</th><th>상태</th><th>특이사항</th><th></th></tr></thead><tbody>${students.map(s => `
     <tr>
       <td><input type="text" value="${s.name}" onblur="updateStudentName(${s.id}, this.value)" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'Noto Sans KR',sans-serif;width:80px;outline:none;font-weight:600"></td>
-      <td style="font-family:monospace">${s.pin || '-'}</td>
+      <td><input type="text" value="${s.pin || ''}" placeholder="PIN" onblur="updateStudentPin(${s.id}, this.value)" maxlength="4" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:monospace;width:60px;outline:none;text-align:center"></td>
       <td><input type="text" value="${s.phone || ''}" placeholder="연락처" onblur="updateStudentPhone(${s.id}, this.value)" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;width:120px;outline:none"></td>
       <td><span class="badge ${s.is_active ? 'badge-active' : 'badge-inactive'}">${s.is_active ? '재원' : '퇴원'}</span></td>
       <td><input type="text" value="${s.note || ''}" placeholder="특이사항" onblur="updateStudentNote(${s.id}, this.value)" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;width:150px;outline:none"></td>
