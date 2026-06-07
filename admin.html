@@ -105,9 +105,10 @@
     <button class="tab-btn" onclick="switchTab('tab-week')">주차 관리</button>
     <button class="tab-btn" onclick="switchTab('tab-student')">학생 관리</button>
     <button class="tab-btn" onclick="switchTab('tab-mock')">모의고사</button>
-    <button class="tab-btn" onclick="switchTab('tab-sms')">문자 발송</button>
+    <button class="tab-btn" onclick="switchTab('tab-sms')">학부모 문자 발송</button>
     <button class="tab-btn" onclick="switchTab('tab-class')">반 관리</button>
     <button class="tab-btn" onclick="switchTab('tab-uncert')">미인증</button>
+    <button class="tab-btn" onclick="switchTab('tab-student-sms')">미인증 문자 발송</button>
   </div>
 
   <!-- 탭1: 점수 입력 -->
@@ -209,7 +210,8 @@
         <div class="form-row">
           <div class="form-group"><label>이름</label><input type="text" id="new-name" placeholder="학생 이름"></div>
           <div class="form-group"><label>PIN (연락처 뒷 4자리)</label><input type="text" id="new-pin" placeholder="4자리 숫자" maxlength="4"></div>
-          <div class="form-group"><label>연락처</label><input type="text" id="new-phone" placeholder="01012345678"></div>
+          <div class="form-group"><label>학부모 연락처</label><input type="text" id="new-phone" placeholder="01012345678"></div>
+          <div class="form-group"><label>학생 연락처</label><input type="text" id="new-student-phone" placeholder="01012345678"></div>
           <div class="form-group"><label>반</label><select id="new-class"><option value="">반 선택</option></select></div>
         </div>
         <button class="btn btn-gold" onclick="addStudent()">학생 추가</button>
@@ -369,6 +371,46 @@
 
 </div>
 
+  <!-- 탭8: 미인증 문자 발송 -->
+  <div id="tab-student-sms" class="tab-content">
+    <div class="section-card">
+      <div class="section-head"><h3>발송 대상 설정</h3></div>
+      <div class="section-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label>반 선택</label>
+            <select id="student-sms-class" onchange="loadStudentSmsWeeks()">
+              <option value="">반을 선택하세요</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>주차 선택</label>
+            <select id="student-sms-week" onchange="loadStudentSmsTargets()">
+              <option value="">주차를 선택하세요</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-card" id="student-sms-preview-card" style="display:none">
+      <div class="section-head">
+        <h3 id="student-sms-title">발송 대상</h3>
+        <button class="btn btn-primary btn-sm" onclick="sendStudentSms()">전체 발송</button>
+      </div>
+      <div class="section-body">
+        <div class="form-group" style="margin-bottom:14px">
+          <label>문자 내용 미리보기</label>
+          <textarea rows="4" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:none;outline:none;line-height:1.7" readonly>[용산대성N학원 영어과]
+과제 못 한 부분 인증하세요.</textarea>
+        </div>
+        <div id="student-sms-list"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -405,7 +447,7 @@ function adminLogin() {
 let classes = [];
 async function initAdmin() {
   classes = await api('classes?order=id.asc&select=*') || [];
-  ['score-class','week-class','week-list-class','new-class','student-list-class','mock-class','mock-score-class','mock-list-class','sms-class','uncert-class'].forEach(id => {
+  ['score-class','week-class','week-list-class','new-class','student-list-class','mock-class','mock-score-class','mock-list-class','sms-class','uncert-class','student-sms-class'].forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
     sel.innerHTML = '<option value="">반을 선택하세요</option>';
@@ -770,6 +812,102 @@ async function saveUncertList() {
   }
 }
 
+// ── 미인증 문자 발송 ──────────────────────────────────────
+async function loadStudentSmsWeeks() {
+  const classId = document.getElementById('student-sms-class').value;
+  const sel = document.getElementById('student-sms-week');
+  sel.innerHTML = '<option value="">주차를 선택하세요</option>';
+  document.getElementById('student-sms-preview-card').style.display = 'none';
+  if (!classId) return;
+  const weeks = await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`) || [];
+  weeks.forEach(w => { const opt = document.createElement('option'); opt.value = w.id; opt.textContent = w.label || w.test_date; sel.appendChild(opt); });
+  if (weeks.length > 0) { sel.value = weeks[0].id; loadStudentSmsTargets(); }
+}
+
+async function loadStudentSmsTargets() {
+  const classId = document.getElementById('student-sms-class').value;
+  const weekId = document.getElementById('student-sms-week').value;
+  if (!classId || !weekId) return;
+
+  const [students, scores] = await Promise.all([
+    api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`),
+    api(`scores?week_id=eq.${weekId}&select=*`)
+  ]);
+
+  const scoreMap = {};
+  (scores || []).forEach(s => { scoreMap[s.student_id] = s; });
+
+  // 과제 미기재 또는 0~90% 학생만
+  const targets = (students || []).filter(st => {
+    const sc = scoreMap[st.id];
+    const hw = sc ? sc.homework_rate : null;
+    return hw === null || hw <= 90;
+  }).map(st => {
+    const sc = scoreMap[st.id];
+    return {
+      id: st.id,
+      name: st.name,
+      student_phone: st.student_phone || '',
+      hw: sc ? sc.homework_rate : null
+    };
+  });
+
+  const weekSel = document.getElementById('student-sms-week');
+  const weekLabel = weekSel.options[weekSel.selectedIndex]?.text || '';
+  const className = classes.find(c => c.id == classId)?.name || '';
+
+  const card = document.getElementById('student-sms-preview-card');
+  const titleEl = document.getElementById('student-sms-title');
+  const listEl = document.getElementById('student-sms-list');
+
+  card.style.display = 'block';
+  titleEl.textContent = `발송 대상 — ${targets.length}명 (${className} ${weekLabel})`;
+
+  if (!targets.length) {
+    listEl.innerHTML = '<p style="font-size:13px;color:var(--gray)">발송 대상이 없습니다.</p>';
+    return;
+  }
+
+  listEl.innerHTML = `<table class="data-table">
+    <thead><tr><th>이름</th><th>과제(%)</th><th>학생 연락처</th><th>상태</th></tr></thead>
+    <tbody>${targets.map(t => `
+      <tr>
+        <td><strong>${t.name}</strong></td>
+        <td>${t.hw !== null ? t.hw + '%' : '미기재'}</td>
+        <td style="font-size:12px;font-family:monospace">${t.student_phone || '번호없음'}</td>
+        <td><span class="badge ${t.student_phone ? 'badge-active' : 'badge-inactive'}">${t.student_phone ? '발송가능' : '번호없음'}</span></td>
+      </tr>`).join('')}
+    </tbody></table>`;
+
+  window._studentSmsTargets = targets;
+}
+
+async function sendStudentSms() {
+  const targets = window._studentSmsTargets || [];
+  const validTargets = targets.filter(t => t.student_phone);
+  if (!validTargets.length) { showToast('발송 가능한 대상이 없습니다.'); return; }
+  if (!confirm(`${validTargets.length}명에게 문자를 발송할까요?`)) return;
+
+  showToast('발송 중...');
+  const messages = validTargets.map(t => ({
+    to: t.student_phone,
+    text: `[용산대성N학원 영어과]
+과제 못 한 부분 인증하세요.`
+  }));
+
+  try {
+    const res = await fetch(SMS_FUNCTION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
+      body: JSON.stringify({ messages })
+    });
+    const data = await res.json();
+    showToast(`✅ 발송 완료 — 성공 ${data.success}건 / 실패 ${data.fail}건`, 4000);
+  } catch(e) {
+    showToast('❌ 발송 오류: ' + e.message);
+  }
+}
+
 // ── 반 관리
 async function loadClassList() {
   const container = document.getElementById('class-list');
@@ -786,7 +924,7 @@ async function loadClassList() {
 }
 
 function refreshClassSelects() {
-  ['score-class','week-class','week-list-class','new-class','student-list-class','mock-class','mock-score-class','mock-list-class','sms-class','uncert-class'].forEach(id => {
+  ['score-class','week-class','week-list-class','new-class','student-list-class','mock-class','mock-score-class','mock-list-class','sms-class','uncert-class','student-sms-class'].forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
     sel.innerHTML = '<option value="">반을 선택하세요</option>';
@@ -1029,11 +1167,13 @@ async function addStudent() {
   const classId = document.getElementById('new-class').value;
   if (!name || !pin || !classId) { showToast('이름, PIN, 반을 모두 입력해주세요.'); return; }
   const phone = document.getElementById('new-phone').value.trim();
-  await api('students', 'POST', { name, pin, phone: phone || null, class_id: parseInt(classId), is_active: true });
+  const studentPhone = document.getElementById('new-student-phone').value.trim();
+  await api('students', 'POST', { name, pin, phone: phone || null, student_phone: studentPhone || null, class_id: parseInt(classId), is_active: true });
   showToast(`✅ ${name} 학생이 추가됐어요.`);
   document.getElementById('new-name').value = '';
   document.getElementById('new-pin').value = '';
   document.getElementById('new-phone').value = '';
+  document.getElementById('new-student-phone').value = '';
   if (document.getElementById('student-list-class').value == classId) loadStudentList();
 }
 
@@ -1073,6 +1213,11 @@ async function updateStudentName(id, name) {
 async function updateStudentNote(id, note) {
   await api(`students?id=eq.${id}`, 'PATCH', { note });
   showToast('✅ 특이사항이 저장됐어요.');
+}
+
+async function updateStudentStudentPhone(id, phone) {
+  await api(`students?id=eq.${id}`, 'PATCH', { student_phone: phone || null });
+  showToast('✅ 학생 연락처가 저장됐어요.');
 }
 
 async function updateStudentPhone(id, phone) {
