@@ -418,6 +418,23 @@
 
 </div>
 
+<!-- 반 이동 모달 -->
+<div id="move-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:var(--white);border-radius:16px;padding:28px;width:90%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+    <h3 style="font-size:16px;font-weight:700;color:var(--navy);margin-bottom:6px" id="move-modal-title">반 이동</h3>
+    <p style="font-size:13px;color:var(--gray);margin-bottom:20px">이동할 반을 선택하면 기존 점수 데이터도 함께 이전됩니다.</p>
+    <div style="margin-bottom:16px">
+      <label style="display:block;font-size:11px;color:var(--gray);font-weight:500;margin-bottom:5px">이동할 반</label>
+      <select id="move-target-class" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'Noto Sans KR',sans-serif;color:var(--navy);background:var(--cream);outline:none"></select>
+    </div>
+    <div id="move-match-preview" style="font-size:12px;color:var(--gray);margin-bottom:16px;background:var(--light-gray);border-radius:8px;padding:10px;display:none"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" style="flex:1" onclick="confirmMoveStudent()">이동 확인</button>
+      <button class="btn" style="flex:1;background:var(--light-gray);color:var(--navy)" onclick="closeMoveModal()">취소</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -817,6 +834,118 @@ async function saveUncertList() {
   } catch(e) {
     showToast('❌ 오류: ' + e.message);
   }
+}
+
+// ── 반 이동 ──────────────────────────────────────────────
+let _moveStudentId = null;
+let _moveCurrentClassId = null;
+
+async function showMoveStudent(studentId, studentName, currentClassId) {
+  _moveStudentId = studentId;
+  _moveCurrentClassId = currentClassId;
+
+  document.getElementById('move-modal-title').textContent = `${studentName} — 반 이동`;
+  document.getElementById('move-match-preview').style.display = 'none';
+
+  // 현재 반 제외한 반 목록
+  const sel = document.getElementById('move-target-class');
+  sel.innerHTML = '<option value="">이동할 반을 선택하세요</option>';
+  classes.filter(c => c.id != currentClassId).forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.id; opt.textContent = c.name;
+    sel.appendChild(opt);
+  });
+
+  sel.onchange = () => previewMoveMatch(studentId, currentClassId, sel.value);
+
+  document.getElementById('move-modal').style.display = 'flex';
+}
+
+async function previewMoveMatch(studentId, fromClassId, toClassId) {
+  if (!toClassId) return;
+  const preview = document.getElementById('move-match-preview');
+  preview.style.display = 'block';
+  preview.textContent = '매칭 확인 중...';
+
+  // 현재 반의 주차 목록
+  const fromWeeks = await api(`weeks?class_id=eq.${fromClassId}&order=id.asc&select=*`) || [];
+  // 이동할 반의 주차 목록
+  const toWeeks = await api(`weeks?class_id=eq.${toClassId}&order=id.asc&select=*`) || [];
+  // 학생 점수 목록
+  const scores = await api(`scores?student_id=eq.${studentId}&select=week_id`) || [];
+  const scoredWeekIds = new Set(scores.map(s => s.week_id));
+
+  // group_id 기준으로 매칭
+  let matched = 0, unmatched = 0;
+  const matchLines = [];
+
+  fromWeeks.filter(w => scoredWeekIds.has(w.id)).forEach(fw => {
+    if (fw.group_id) {
+      const tw = toWeeks.find(w => w.group_id === fw.group_id);
+      if (tw) {
+        matched++;
+        matchLines.push(`✅ ${fw.label || fw.test_date} → ${tw.label || tw.test_date}`);
+      } else {
+        unmatched++;
+        matchLines.push(`⚠️ ${fw.label || fw.test_date} → 매칭 주차 없음`);
+      }
+    } else {
+      unmatched++;
+      matchLines.push(`⚠️ ${fw.label || fw.test_date} → group_id 없음`);
+    }
+  });
+
+  if (matchLines.length === 0) {
+    preview.textContent = '이전할 점수 데이터가 없습니다.';
+  } else {
+    preview.innerHTML = matchLines.join('<br>') + `<br><strong style="color:var(--navy)">매칭 ${matched}건 / 미매칭 ${unmatched}건</strong>`;
+  }
+
+  window._moveFromWeeks = fromWeeks;
+  window._moveToWeeks = toWeeks;
+  window._moveScoreedWeekIds = scoredWeekIds;
+}
+
+async function confirmMoveStudent() {
+  const toClassId = parseInt(document.getElementById('move-target-class').value);
+  if (!toClassId) { showToast('이동할 반을 선택해주세요.'); return; }
+
+  const fromWeeks = window._moveFromWeeks || [];
+  const toWeeks = window._moveToWeeks || [];
+  const scoredWeekIds = window._moveScoreedWeekIds || new Set();
+
+  // group_id 기준으로 week_id 업데이트
+  const updates = [];
+  fromWeeks.filter(w => scoredWeekIds.has(w.id)).forEach(fw => {
+    if (fw.group_id) {
+      const tw = toWeeks.find(w => w.group_id === fw.group_id);
+      if (tw) updates.push({ from_week_id: fw.id, to_week_id: tw.id });
+    }
+  });
+
+  try {
+    // 점수 week_id 업데이트
+    for (const u of updates) {
+      await api(`scores?student_id=eq.${_moveStudentId}&week_id=eq.${u.from_week_id}`, 'PATCH', { week_id: u.to_week_id });
+    }
+    // 학생 class_id 업데이트
+    await api(`students?id=eq.${_moveStudentId}`, 'PATCH', { class_id: toClassId });
+
+    showToast(`✅ 반 이동 완료 — ${updates.length}개 주차 데이터 이전됐어요.`);
+    closeMoveModal();
+    loadStudentList();
+  } catch(e) {
+    showToast('❌ 오류: ' + e.message);
+  }
+}
+
+function closeMoveModal() {
+  document.getElementById('move-modal').style.display = 'none';
+  _moveStudentId = null;
+  _moveCurrentClassId = null;
+  window._moveFromWeeks = null;
+  window._moveToWeeks = null;
+  window._moveScoreedWeekIds = null;
 }
 
 // ── 미인증 문자 발송 ──────────────────────────────────────
