@@ -496,6 +496,12 @@ async function loadWeeksForScore() {
   if (!classId) return;
   const weeks = await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`) || [];
   weeks.forEach(w => { const opt = document.createElement('option'); opt.value = w.id; opt.textContent = w.label || w.test_date; sel.appendChild(opt); });
+
+  // 가장 최근 주차 자동 선택
+  if (weeks.length > 0) {
+    sel.value = weeks[0].id;
+    loadScoreInputs();
+  }
 }
 
 async function loadScoreInputs() {
@@ -593,7 +599,7 @@ async function saveAllScores() {
     (existing || []).forEach(e => { existMap[e.student_id] = e.id; });
     const results = await Promise.all(upserts.map(async u => {
       if (existMap[u.student_id]) {
-        return fetch(`${SUPABASE_URL}/rest/v1/scores?id=eq.${existMap[u.student_id]}`, { method:'PATCH', headers:{'apikey':ANON_KEY,'Authorization':`Bearer ${ANON_KEY}`,'Content-Type':'application/json','Prefer':'return=minimal'}, body:JSON.stringify({word_score:u.word_score,reading_score:u.reading_score,mc_score:u.mc_score,homework_rate:u.homework_rate,homework_eval:u.homework_eval,attendance:u.attendance}) });
+        return fetch(`${SUPABASE_URL}/rest/v1/scores?id=eq.${existMap[u.student_id]}`, { method:'PATCH', headers:{'apikey':ANON_KEY,'Authorization':`Bearer ${ANON_KEY}`,'Content-Type':'application/json','Prefer':'return=minimal'}, body:JSON.stringify({word_score:u.word_score,reading_score:u.reading_score,mc_score:u.mc_score,homework_rate:u.homework_rate,homework_eval:u.homework_eval,hw_cert:u.hw_cert,attendance:u.attendance,clinic_target:u.clinic_target,clinic_attend:u.clinic_attend,clinic_memo:u.clinic_memo}) });
       } else {
         return fetch(`${SUPABASE_URL}/rest/v1/scores`, { method:'POST', headers:{'apikey':ANON_KEY,'Authorization':`Bearer ${ANON_KEY}`,'Content-Type':'application/json','Prefer':'return=minimal'}, body:JSON.stringify(u) });
       }
