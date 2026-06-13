@@ -701,9 +701,9 @@ async function saveAllScores() {
   const upserts = Array.from(rows).map(row => ({
     student_id: parseInt(row.dataset.studentId),
     week_id: weekId,
-    word_score: parseFloat(row.querySelector('.inp-word').value) || 0,
-    reading_score: parseFloat(row.querySelector('.inp-reading').value) || 0,
-    mc_score: parseFloat(row.querySelector('.inp-mc').value) || 0,
+    word_score: row.querySelector('.inp-word').value !== '' ? parseFloat(row.querySelector('.inp-word').value) : null,
+    reading_score: row.querySelector('.inp-reading').value !== '' ? parseFloat(row.querySelector('.inp-reading').value) : null,
+    mc_score: row.querySelector('.inp-mc').value !== '' ? parseFloat(row.querySelector('.inp-mc').value) : null,
     homework_rate: row.querySelector('.inp-hw').value !== '' ? parseInt(row.querySelector('.inp-hw').value) : null,
     homework_eval: row.querySelector('.inp-eval').value.trim(),
     hw_cert: row.querySelector('.inp-hwcert').value.trim(),
