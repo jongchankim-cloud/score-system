@@ -295,7 +295,10 @@
     <div class="section-card" id="sms-preview-card" style="display:none">
       <div class="section-head">
         <h3 id="sms-preview-title">발송 대상</h3>
-        <button class="btn btn-primary btn-sm" onclick="sendAllSms()">전체 발송</button>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="toggleAllSms()">전체 선택/해제</button>
+          <button class="btn btn-primary btn-sm" onclick="sendAllSms()">선택 발송</button>
+        </div>
       </div>
       <div class="section-body">
         <div class="form-group" style="margin-bottom:14px">
@@ -1177,7 +1180,7 @@ async function loadSmsTargets() {
   if (targets.length === 0) { listEl.innerHTML = '<p style="font-size:13px;color:var(--gray)">해당 조건의 발송 대상이 없습니다.</p>'; previewEl.value = ''; return; }
   const first = targets[0];
   previewEl.value = makeSmsText(first.name, weekLabel, first.hw, first.isEmpty);
-  listEl.innerHTML = `<table class="data-table"><thead><tr><th>이름</th><th>과제(%)</th><th>연락처</th><th>상태</th></tr></thead><tbody>${targets.map(t => `<tr><td><strong>${t.name}</strong></td><td>${t.hw !== null && !t.isEmpty ? t.hw + '%' : '미기재'}</td><td style="font-size:12px;font-family:monospace">${t.phone || '번호없음'}</td><td><span class="badge ${t.phone ? 'badge-active' : 'badge-inactive'}">${t.phone ? '발송가능' : '번호없음'}</span></td></tr>`).join('')}</tbody></table>`;
+  listEl.innerHTML = `<table class="data-table"><thead><tr><th style="width:36px"><input type="checkbox" id="check-all-sms" checked onchange="toggleAllSms(this.checked)"></th><th>이름</th><th>과제(%)</th><th>연락처</th><th>상태</th></tr></thead><tbody>${targets.map((t, i) => `<tr><td><input type="checkbox" class="sms-check" data-idx="${i}" ${t.phone ? 'checked' : ''} ${!t.phone ? 'disabled' : ''}></td><td><strong>${t.name}</strong></td><td>${t.hw !== null && !t.isEmpty ? t.hw + '%' : '미기재'}</td><td style="font-size:12px;font-family:monospace">${t.phone || '번호없음'}</td><td><span class="badge ${t.phone ? 'badge-active' : 'badge-inactive'}">${t.phone ? '발송가능' : '번호없음'}</span></td></tr>`).join('')}</tbody></table>`;
   window._smsTargets = targets;
   window._smsWeekLabel = weekLabel;
 }
@@ -1194,14 +1197,27 @@ function makeSmsText(name, weekLabel, hw, isEmpty) {
   }
 }
 
+function toggleAllSms(checked) {
+  const boxes = document.querySelectorAll('.sms-check:not(:disabled)');
+  if (checked === undefined) {
+    checked = !Array.from(boxes).every(cb => cb.checked);
+  }
+  boxes.forEach(cb => { cb.checked = checked; });
+  const headerCheck = document.getElementById('check-all-sms');
+  if (headerCheck) headerCheck.checked = checked;
+}
+
 async function sendAllSms() {
   const targets = window._smsTargets || [];
   const weekLabel = window._smsWeekLabel || '';
-  const validTargets = targets.filter(t => t.phone);
-  if (!validTargets.length) { showToast('발송 가능한 대상이 없습니다.'); return; }
-  if (!confirm(`${validTargets.length}명에게 문자를 발송할까요?`)) return;
+  // 체크된 행만 발송
+  const selected = Array.from(document.querySelectorAll('.sms-check:checked'))
+    .map(cb => targets[parseInt(cb.dataset.idx)])
+    .filter(t => t && t.phone);
+  if (!selected.length) { showToast('선택된 발송 대상이 없습니다.'); return; }
+  if (!confirm(`${selected.length}명에게 문자를 발송할까요?`)) return;
   showToast('발송 중...');
-  const messages = validTargets.map(t => ({ to: t.phone, text: makeSmsText(t.name, weekLabel, t.hw, t.isEmpty) }));
+  const messages = selected.map(t => ({ to: t.phone, text: makeSmsText(t.name, weekLabel, t.hw, t.isEmpty) }));
   try {
     const res = await fetch(SMS_FUNCTION_URL, { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`}, body:JSON.stringify({ messages }) });
     const data = await res.json();
