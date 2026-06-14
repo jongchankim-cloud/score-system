@@ -235,7 +235,16 @@
       <div class="section-head"><h3>모의고사 추가</h3></div>
       <div class="section-body">
         <div class="form-row">
-          <div class="form-group"><label>반 선택</label><select id="mock-class"><option value="">반을 선택하세요</option></select></div>
+          <div class="form-group">
+            <label>학년 선택</label>
+            <select id="mock-grade">
+              <option value="">학년을 선택하세요</option>
+              <option value="고1">고1 (수요일+토요일)</option>
+              <option value="고2">고2 (목요일+금요일)</option>
+              <option value="single">단일 반</option>
+            </select>
+          </div>
+          <div class="form-group" id="mock-class-group" style="display:none"><label>반 선택 (단일)</label><select id="mock-class"><option value="">반을 선택하세요</option></select></div>
           <div class="form-group"><label>시험 날짜</label><input type="text" id="mock-date" placeholder="예: 6.10"></div>
           <div class="form-group"><label>시험명 (선택)</label><input type="text" id="mock-label" placeholder="예: 6월 모의고사"></div>
         </div>
@@ -1229,16 +1238,35 @@ async function sendAllSms() {
 const mockScoreCache = {};
 
 async function addMockExam() {
-  const classId = document.getElementById('mock-class').value;
+  const grade = document.getElementById('mock-grade').value;
   const date = document.getElementById('mock-date').value.trim();
   const label = document.getElementById('mock-label').value.trim();
-  if (!classId || !date) { showToast('반과 날짜를 입력해주세요.'); return; }
-  await api('mock_exams', 'POST', { class_id: parseInt(classId), exam_date: date, label: label || date });
-  showToast('✅ 모의고사가 추가됐어요.');
+  if (!grade || !date) { showToast('학년과 날짜를 입력해주세요.'); return; }
+
+  const groupId = `${grade}-${date}-mock-${Date.now()}`;
+
+  if (grade === '고1' || grade === '고2') {
+    const gradeClasses = classes.filter(c => c.grade === grade);
+    if (!gradeClasses.length) { showToast(`${grade} 반이 없습니다.`); return; }
+    for (const c of gradeClasses) {
+      await api('mock_exams', 'POST', { class_id: c.id, exam_date: date, label: label || date, group_id: groupId });
+    }
+    showToast(`✅ ${grade} 모의고사가 추가됐어요. (${gradeClasses.length}개 반)`);
+  } else if (grade === 'single') {
+    const classId = document.getElementById('mock-class').value;
+    if (!classId) { showToast('반을 선택해주세요.'); return; }
+    await api('mock_exams', 'POST', { class_id: parseInt(classId), exam_date: date, label: label || date, group_id: groupId });
+    showToast('✅ 모의고사가 추가됐어요.');
+  }
+
   document.getElementById('mock-date').value = '';
   document.getElementById('mock-label').value = '';
-  if (document.getElementById('mock-list-class').value == classId) loadMockList();
+  loadMockList();
 }
+
+document.getElementById('mock-grade').addEventListener('change', function() {
+  document.getElementById('mock-class-group').style.display = this.value === 'single' ? 'flex' : 'none';
+});
 
 async function loadMockExams() {
   const classId = document.getElementById('mock-score-class').value;
@@ -1248,6 +1276,8 @@ async function loadMockExams() {
   if (!classId) return;
   const exams = await api(`mock_exams?class_id=eq.${classId}&order=id.desc&select=*`) || [];
   exams.forEach(e => { const opt = document.createElement('option'); opt.value = e.id; opt.textContent = e.label || e.exam_date; sel.appendChild(opt); });
+  // 최근 회차 자동 선택
+  if (exams.length > 0) { sel.value = exams[0].id; loadMockScoreInputs(); }
 }
 
 async function loadMockScoreInputs() {
@@ -1286,7 +1316,7 @@ async function saveMockScores() {
   const existing = await api(`mock_scores?exam_id=eq.${examId}&select=id,student_id`) || [];
   const existMap = {};
   existing.forEach(e => { existMap[e.student_id] = e.id; });
-  const upserts = Array.from(rows).map(row => ({ student_id: parseInt(row.dataset.studentId), exam_id: examId, score: parseFloat(row.querySelector('.mock-score').value) || 0, memo: row.querySelector('.mock-memo').value.trim() }));
+  const upserts = Array.from(rows).map(row => ({ student_id: parseInt(row.dataset.studentId), exam_id: examId, score: row.querySelector('.mock-score').value !== '' ? parseFloat(row.querySelector('.mock-score').value) : null, memo: row.querySelector('.mock-memo').value.trim() }));
   try {
     const results = await Promise.all(upserts.map(async u => {
       if (existMap[u.student_id]) {
