@@ -68,7 +68,7 @@
   .badge-inactive { background:var(--red-light); color:var(--red); }
   .score-input-row { display:grid; grid-template-columns:90px 44px 62px 62px 62px 62px 110px 90px 46px 46px 1fr; gap:6px; align-items:center; padding:8px 0; border-bottom:1px solid var(--light-gray); }
   .score-input-row:last-child { border-bottom:none; }
-  .score-input-row .student-name { font-size:13px; font-weight:500; color:var(--navy); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .score-input-row .student-name { font-size:13px; font-weight:500; color:var(--navy); line-height:1.3; word-break:keep-all; }
   .score-input-row input { padding:8px; border:1.5px solid var(--border); border-radius:6px; font-size:13px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); text-align:center; outline:none; width:100%; transition:border-color 0.2s; }
   .score-input-row input:focus { border-color:var(--gold); background:var(--white); }
   .score-input-row textarea { padding:6px 8px; border:1.5px solid var(--border); border-radius:6px; font-size:12px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); outline:none; width:100%; transition:border-color 0.2s; resize:none; overflow:hidden; min-height:34px; line-height:1.5; }
@@ -665,7 +665,7 @@ function renderScoreInputs(classId, weekId, scoreMap) {
   container.innerHTML = students.map(st => {
     const sc = scoreMap[st.id] || {};
     return `<div class="score-input-row" data-student-id="${st.id}">
-      <span class="student-name">${st.name}</span>
+      <span class="student-name">${st.name}${st.note ? `<br><small style="color:var(--red);font-weight:400;font-size:10px">${st.note}</small>` : ''}</span>
       <input type="checkbox" class="inp-attend" ${sc.attendance === false ? '' : 'checked'} title="출석" onchange="scoreDirty=true">
       <input type="number" class="inp-word" value="${sc.word_score ?? ''}" min="0" max="25" placeholder="" oninput="scoreDirty=true">
       <input type="number" class="inp-reading" value="${sc.reading_score ?? ''}" min="0" max="30" placeholder="" oninput="scoreDirty=true">
@@ -1350,7 +1350,7 @@ async function loadStudentList() {
       <td><input type="text" value="${s.pin || ''}" placeholder="PIN" onblur="updateStudentPin(${s.id}, this.value)" maxlength="4" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:monospace;width:65px;outline:none;text-align:center"></td>
       <td><input type="text" value="${s.phone || ''}" placeholder="연락처" onblur="updateStudentPhone(${s.id}, this.value)" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;width:120px;outline:none"></td>
       <td><span class="badge ${s.is_active ? 'badge-active' : 'badge-inactive'}">${s.is_active ? '재원' : '퇴원'}</span></td>
-      <td><input type="text" value="${s.note || ''}" placeholder="특이사항" onblur="updateStudentNote(${s.id}, this.value)" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;width:160px;outline:none"></td>
+      <td><input type="text" value="${s.note || ''}" placeholder="" onblur="updateStudentNote(${s.id}, this.value)" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;width:160px;outline:none"></td>
       <td style="display:flex;gap:6px">
         ${s.is_active ? `<button class="btn btn-danger btn-sm" onclick="toggleStudent(${s.id}, false)">퇴원</button>` : `<button class="btn btn-sm" style="background:var(--green-light);color:var(--green);border:1px solid #b7efd1" onclick="toggleStudent(${s.id}, true)">복귀</button>`}
         <button class="btn btn-sm" style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe" onclick="showMoveStudent(${s.id},'${s.name}',${s.class_id})">반 이동</button>
