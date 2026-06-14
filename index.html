@@ -342,9 +342,25 @@ async function showMockScore(examId) {
     return;
   }
 
-  const allMockScores = await supaFetch(`mock_scores?exam_id=eq.${examId}&select=score`);
+  // group_id가 있으면 같은 학년 전체 기준으로 평균/석차 계산
+  const examInfo = await supaFetch(`mock_exams?id=eq.${examId}&select=group_id`);
+  const groupId = examInfo?.[0]?.group_id;
+
+  let allMockScores;
+  if (groupId) {
+    const groupExams = await supaFetch(`mock_exams?group_id=eq.${encodeURIComponent(groupId)}&select=id`);
+    const examIds = (groupExams || []).map(e => e.id).join(',');
+    allMockScores = await supaFetch(`mock_scores?exam_id=in.(${examIds})&select=score`);
+  } else {
+    allMockScores = await supaFetch(`mock_scores?exam_id=eq.${examId}&select=score`);
+  }
+
   const validScores = (allMockScores || []).map(x => x.score).filter(x => x !== null && x > 0);
   const avg = validScores.length ? (validScores.reduce((a,b) => a+b, 0) / validScores.length).toFixed(1) : null;
+
+  // 석차 계산
+  const sorted = validScores.slice().sort((a,b) => b-a);
+  const rank = s.score > 0 ? sorted.findIndex(v => v === s.score) + 1 : '-';
 
   section.innerHTML = `
     <div class="card">
@@ -356,8 +372,12 @@ async function showMockScore(examId) {
         </div>
         <div class="meta-grid">
           <div class="meta-item">
-            <div class="meta-label">반 평균</div>
+            <div class="meta-label">평균</div>
             <div class="meta-value">${avg ? avg + '점' : '-'}</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">석차</div>
+            <div class="meta-value">${rank !== '-' ? rank + '등' : '-'}</div>
           </div>
           <div class="meta-item">
             <div class="meta-label">응시 인원</div>
