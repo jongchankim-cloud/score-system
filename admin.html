@@ -252,7 +252,10 @@
       </div>
     </div>
     <div class="section-card">
-      <div class="section-head"><h3>모의고사 점수 입력</h3></div>
+      <div class="section-head">
+        <h3>모의고사 점수 입력</h3>
+        <button class="btn btn-primary btn-sm" id="mock-save-btn" onclick="saveMockScores()" style="display:none">전체 저장</button>
+      </div>
       <div class="section-body">
         <div class="form-row">
           <div class="form-group"><label>반 선택</label><select id="mock-score-class" onchange="loadMockExams()"><option value="">반을 선택하세요</option></select></div>
@@ -263,7 +266,6 @@
             <span>이름</span><span style="text-align:center">점수<br><small>/100</small></span><span style="text-align:center">메모</span>
           </div>
           <div id="mock-score-inputs"></div>
-          <button class="btn btn-primary" style="margin-top:12px" onclick="saveMockScores()">전체 저장</button>
         </div>
       </div>
     </div>
@@ -500,6 +502,12 @@ function switchTab(tabId) {
       return;
     }
     scoreDirty = false;
+  }
+  if (mockDirty && tabId !== 'tab-mock') {
+    if (!confirm('저장하지 않은 모의고사 점수가 있습니다.\n탭을 이동하면 변경사항이 사라집니다.\n계속할까요?')) {
+      return;
+    }
+    mockDirty = false;
   }
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -1236,6 +1244,7 @@ async function sendAllSms() {
 
 // ── 모의고사
 const mockScoreCache = {};
+let mockDirty = false;
 
 async function addMockExam() {
   const grade = document.getElementById('mock-grade').value;
@@ -1269,6 +1278,10 @@ document.getElementById('mock-grade').addEventListener('change', function() {
 });
 
 async function loadMockExams() {
+  if (mockDirty) {
+    if (!confirm('저장하지 않은 모의고사 점수가 있습니다.\n반을 이동하면 변경사항이 사라집니다.\n계속할까요?')) { return; }
+    mockDirty = false;
+  }
   const classId = document.getElementById('mock-score-class').value;
   const sel = document.getElementById('mock-score-exam');
   sel.innerHTML = '<option value="">모의고사를 선택하세요</option>';
@@ -1281,6 +1294,10 @@ async function loadMockExams() {
 }
 
 async function loadMockScoreInputs() {
+  if (mockDirty) {
+    if (!confirm('저장하지 않은 모의고사 점수가 있습니다.\n시험을 변경하면 변경사항이 사라집니다.\n계속할까요?')) { return; }
+    mockDirty = false;
+  }
   const classId = document.getElementById('mock-score-class').value;
   const examId = document.getElementById('mock-score-exam').value;
   if (!classId || !examId) return;
@@ -1303,10 +1320,12 @@ function renderMockInputs(classId, examId, scoreMap) {
     const sc = scoreMap[st.id] || {};
     return `<div style="display:grid;grid-template-columns:1fr 100px 150px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--light-gray)" data-student-id="${st.id}">
       <span style="font-size:13px;font-weight:500">${st.name}</span>
-      <input type="number" class="mock-score" value="${sc.score ?? ''}" min="0" max="100" placeholder="" style="padding:8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;text-align:center;outline:none;width:100%">
-      <input type="text" class="mock-memo" value="${sc.memo ?? ''}" placeholder="" style="padding:8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;outline:none;width:100%">
+      <input type="number" class="mock-score" value="${sc.score ?? ''}" min="0" max="100" placeholder="" oninput="mockDirty=true" style="padding:8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;text-align:center;outline:none;width:100%">
+      <input type="text" class="mock-memo" value="${sc.memo ?? ''}" placeholder="" oninput="mockDirty=true" style="padding:8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;outline:none;width:100%">
     </div>`;
   }).join('');
+  mockDirty = false;
+  document.getElementById('mock-save-btn').style.display = 'block';
 }
 
 async function saveMockScores() {
@@ -1328,6 +1347,7 @@ async function saveMockScores() {
     const failed = results.filter(r => !r.ok);
     if (failed.length > 0) { showToast(`❌ ${failed.length}건 저장 실패`); return; }
     delete mockScoreCache[examId];
+    mockDirty = false;
     showToast('✅ 모의고사 점수가 저장됐어요!');
   } catch(e) { showToast('❌ 오류 발생: ' + e.message); }
 }
