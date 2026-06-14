@@ -337,8 +337,8 @@ async function showMockScore(examId) {
   const s = window._mockScoreMap?.[examId];
   const section = document.getElementById('mock-score-section');
   section.style.display = 'block';
-  if (!s) {
-    section.innerHTML = '<div class="empty-msg">해당 모의고사 점수가 아직 입력되지 않았습니다.</div>';
+  if (!s || s.score === null || s.score === undefined) {
+    section.innerHTML = '<div class="empty-msg">해당 모의고사에 응시하지 않았습니다.</div>';
     return;
   }
 
