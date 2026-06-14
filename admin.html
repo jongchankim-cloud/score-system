@@ -3,15 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>용산대성N학원 [영어과] 점수 확인</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<title>관리자 페이지 — 용산대성N학원 영어과</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
   :root {
     --navy: #0f1f3d;
     --navy-light: #1a3060;
     --gold: #c8a96e;
-    --gold-light: #e8c98e;
     --cream: #f8f5f0;
     --white: #ffffff;
     --gray: #8a8a8a;
@@ -19,582 +17,1438 @@
     --border: #e8e4df;
     --red: #c0392b;
     --red-light: #fdf0ef;
-    --orange: #e67e22;
-    --orange-light: #fef5ec;
     --green: #27ae60;
     --green-light: #eafaf1;
-    --shadow: 0 4px 20px rgba(15,31,61,0.10);
-    --shadow-lg: 0 8px 32px rgba(15,31,61,0.14);
+    --shadow: 0 4px 20px rgba(15,31,61,0.1);
   }
   * { margin:0; padding:0; box-sizing:border-box; }
-  body {
-    font-family:'Noto Sans KR',sans-serif;
-    background:var(--cream);
-    min-height:100vh;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    -webkit-text-size-adjust:100%;
-  }
-  header {
-    width:100%; background:var(--navy);
-    padding:24px 20px 20px; text-align:center;
-    position:relative; overflow:hidden;
-  }
-  header::before {
-    content:''; position:absolute; top:-40px; right:-40px;
-    width:180px; height:180px; border-radius:50%;
-    background:rgba(200,169,110,0.08);
-  }
-  .header-sub { font-size:10px; color:var(--gold); letter-spacing:3px; text-transform:uppercase; margin-bottom:5px; font-weight:500; }
-  header h1 { font-family:'DM Serif Display',serif; font-size:20px; color:var(--white); font-weight:400; }
-  header h1 span { color:var(--gold); }
-  .container { width:100%; max-width:520px; padding:20px 14px 60px; }
-  .card { background:var(--white); border-radius:16px; box-shadow:var(--shadow); overflow:hidden; margin-bottom:14px; }
-  .card-header { background:var(--navy); padding:13px 18px; display:flex; align-items:center; gap:8px; }
-  .card-header .dot { width:7px; height:7px; border-radius:50%; background:var(--gold); }
-  .card-header h2 { font-size:12px; color:var(--white); font-weight:600; letter-spacing:1px; }
-  .card-body { padding:16px 18px; }
-  .form-group { margin-bottom:12px; }
-  .form-group label { display:block; font-size:11px; color:var(--gray); font-weight:500; letter-spacing:1px; margin-bottom:5px; }
-  .form-group input {
-    width:100%; padding:12px 14px;
-    border:1.5px solid var(--border); border-radius:10px;
-    font-size:16px; font-family:'Noto Sans KR',sans-serif;
-    color:var(--navy); background:var(--cream);
-    outline:none; transition:border-color 0.2s, box-shadow 0.2s;
-  }
-  .form-group input:focus { border-color:var(--gold); box-shadow:0 0 0 3px rgba(200,169,110,0.15); background:var(--white); }
-  .btn { width:100%; padding:14px; border:none; border-radius:10px; font-size:14px; font-weight:700; font-family:'Noto Sans KR',sans-serif; cursor:pointer; transition:all 0.2s; letter-spacing:0.3px; }
+  body { font-family:'Noto Sans KR',sans-serif; background:var(--cream); min-height:100vh; }
+  #login-screen { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .login-box { background:var(--white); border-radius:20px; box-shadow:var(--shadow); padding:40px 32px; width:100%; max-width:360px; text-align:center; }
+  .login-box h1 { font-size:18px; color:var(--navy); font-weight:700; margin-bottom:6px; }
+  .login-box p { font-size:12px; color:var(--gray); margin-bottom:28px; }
+  .login-box input { width:100%; padding:13px 16px; border:1.5px solid var(--border); border-radius:10px; font-size:15px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); background:var(--cream); outline:none; margin-bottom:12px; transition:border-color 0.2s; }
+  .login-box input:focus { border-color:var(--gold); background:var(--white); }
+  .btn { padding:11px 18px; border:none; border-radius:8px; font-size:13px; font-weight:600; font-family:'Noto Sans KR',sans-serif; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
   .btn-primary { background:var(--navy); color:var(--white); }
   .btn-primary:hover { background:var(--navy-light); }
-  .btn-secondary { background:var(--light-gray); color:var(--navy); margin-top:10px; }
-  .error-msg { display:none; background:var(--red-light); border:1px solid #f5c6c2; border-radius:8px; padding:10px 14px; font-size:13px; color:var(--red); margin-top:12px; text-align:center; }
-  .error-msg.show { display:block; }
-  .loading { display:none; text-align:center; padding:28px; color:var(--gray); font-size:13px; }
-  .loading.show { display:block; }
-  .spinner { width:28px; height:28px; border:3px solid var(--light-gray); border-top-color:var(--gold); border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 10px; }
+  .btn-gold { background:var(--gold); color:var(--white); }
+  .btn-gold:hover { background:#b8996e; }
+  .btn-danger { background:var(--red-light); color:var(--red); border:1px solid #f5c6c2; }
+  .btn-danger:hover { background:#fae0de; }
+  .btn-sm { padding:7px 12px; font-size:12px; }
+  .btn-full { width:100%; }
+  #admin-screen { display:none; }
+  .top-bar { background:var(--navy); padding:14px 20px; display:flex; align-items:center; justify-content:space-between; }
+  .top-bar h1 { font-size:15px; color:var(--white); font-weight:600; }
+  .top-bar span { font-size:11px; color:var(--gold); }
+  .tab-bar { background:var(--white); border-bottom:1px solid var(--border); display:flex; overflow-x:auto; gap:0; }
+  .tab-btn { padding:13px 18px; font-size:13px; font-weight:500; color:var(--gray); background:none; border:none; border-bottom:2px solid transparent; cursor:pointer; white-space:nowrap; font-family:'Noto Sans KR',sans-serif; transition:all 0.15s; }
+  .tab-btn.active { color:var(--navy); border-bottom-color:var(--gold); font-weight:700; }
+  .tab-content { display:none; padding:16px; max-width:900px; margin:0 auto; }
+  .tab-content.active { display:block; }
+  .section-card { background:var(--white); border-radius:14px; box-shadow:var(--shadow); margin-bottom:16px; overflow:hidden; }
+  .section-head { padding:14px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  .section-head h3 { font-size:14px; font-weight:700; color:var(--navy); }
+  .section-body { padding:16px 18px; }
+  .form-row { display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+  .form-group { flex:1; min-width:120px; }
+  .form-group label { display:block; font-size:11px; color:var(--gray); font-weight:500; margin-bottom:5px; letter-spacing:0.5px; }
+  .form-group input, .form-group select { width:100%; padding:10px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:14px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); background:var(--cream); outline:none; transition:border-color 0.2s; }
+  .form-group input:focus, .form-group select:focus { border-color:var(--gold); background:var(--white); }
+  .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--navy); color:var(--white); padding:12px 24px; border-radius:24px; font-size:13px; font-weight:500; box-shadow:0 8px 24px rgba(0,0,0,0.2); z-index:999; opacity:0; transition:opacity 0.3s; pointer-events:none; }
+  .toast.show { opacity:1; }
+  .data-table { width:100%; border-collapse:collapse; }
+  .data-table th { font-size:11px; font-weight:600; color:var(--gray); padding:8px 10px; border-bottom:1px solid var(--border); text-align:left; letter-spacing:0.5px; }
+  .data-table td { font-size:13px; color:var(--navy); padding:12px 10px; border-bottom:1px solid var(--light-gray); vertical-align:middle; }
+  .data-table tr:last-child td { border-bottom:none; }
+  .data-table tr:hover td { background:var(--cream); }
+  .badge { display:inline-block; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:600; }
+  .badge-active { background:var(--green-light); color:var(--green); }
+  .badge-inactive { background:var(--red-light); color:var(--red); }
+  .score-input-row { display:grid; grid-template-columns:90px 44px 62px 62px 62px 62px 110px 90px 46px 46px 1fr; gap:6px; align-items:center; padding:8px 0; border-bottom:1px solid var(--light-gray); }
+  .score-input-row:last-child { border-bottom:none; }
+  .score-input-row .student-name { font-size:13px; font-weight:500; color:var(--navy); line-height:1.3; word-break:keep-all; }
+  .score-input-row input { padding:8px; border:1.5px solid var(--border); border-radius:6px; font-size:13px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); text-align:center; outline:none; width:100%; transition:border-color 0.2s; }
+  .score-input-row input:focus { border-color:var(--gold); background:var(--white); }
+  .score-input-row textarea { padding:6px 8px; border:1.5px solid var(--border); border-radius:6px; font-size:12px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); outline:none; width:100%; transition:border-color 0.2s; resize:none; overflow:hidden; min-height:34px; line-height:1.5; }
+  .score-input-row textarea:focus { border-color:var(--gold); background:var(--white); }
+  .score-header { display:grid; grid-template-columns:90px 44px 62px 62px 62px 62px 110px 90px 46px 46px 1fr; gap:6px; padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; }
+  .mini-loading { text-align:center; padding:20px; color:var(--gray); font-size:13px; }
+  .spinner-sm { width:20px; height:20px; border:2px solid var(--border); border-top-color:var(--gold); border-radius:50%; animation:spin 0.7s linear infinite; display:inline-block; vertical-align:middle; margin-right:8px; }
   @keyframes spin { to { transform:rotate(360deg); } }
-  #result-section { display:none; }
-  .student-info { background:var(--navy); border-radius:14px; padding:18px; margin-bottom:14px; position:relative; overflow:hidden; }
-  .student-info::after { content:''; position:absolute; right:-20px; top:-20px; width:90px; height:90px; border-radius:50%; background:rgba(200,169,110,0.1); }
-  .student-name { font-size:22px; font-weight:700; color:var(--white); margin-bottom:3px; }
-  .student-class { font-size:12px; color:var(--gold); letter-spacing:1px; }
-  .summary-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
-  .summary-item { background:var(--white); border:1.5px solid var(--border); border-radius:12px; padding:13px; text-align:center; }
-  .summary-label { font-size:11px; color:var(--gray); margin-bottom:4px; }
-  .summary-value { font-size:18px; font-weight:700; color:var(--navy); }
-  .chart-wrap { padding:16px 18px 12px; }
-  .chart-wrap canvas { max-height:180px; }
-  .week-selector { display:flex; gap:7px; flex-wrap:wrap; }
-  .week-btn { padding:6px 13px; border:1.5px solid var(--border); border-radius:18px; font-size:12px; font-family:'Noto Sans KR',sans-serif; font-weight:500; color:var(--gray); background:var(--white); cursor:pointer; transition:all 0.15s; }
-  .week-btn:hover { border-color:var(--gold); color:var(--navy); }
-  .week-btn.active { background:var(--navy); border-color:var(--navy); color:var(--white); }
-  .score-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
-  .score-item { background:var(--light-gray); border-radius:12px; padding:13px; }
-  .score-item.total { grid-column:1/-1; background:var(--navy); display:flex; align-items:center; justify-content:space-between; padding:14px 16px; }
-  .score-label { font-size:11px; color:var(--gray); font-weight:500; margin-bottom:5px; }
-  .score-item.total .score-label { color:var(--gold); margin:0; }
-  .score-value { font-size:22px; font-weight:700; color:var(--navy); }
-  .score-item.total .score-value { color:var(--white); font-size:26px; }
-  .score-max { font-size:12px; color:var(--gray); font-weight:400; }
-  .score-item.total .score-max { color:rgba(255,255,255,0.5); font-size:13px; }
-  .meta-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
-  .meta-item { background:var(--white); border:1.5px solid var(--border); border-radius:12px; padding:13px; text-align:center; }
-  .meta-label { font-size:11px; color:var(--gray); margin-bottom:3px; }
-  .meta-value { font-size:15px; font-weight:700; color:var(--navy); }
-  .homework-card { background:var(--white); border:1.5px solid var(--border); border-radius:12px; padding:13px 16px; display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
-  .homework-label { font-size:12px; color:var(--gray); font-weight:500; margin-bottom:2px; }
-  .homework-rate { font-size:20px; font-weight:700; }
-  .homework-eval { font-size:12px; color:var(--gray); margin-top:2px; text-align:right; }
-  .notice-card { border-radius:12px; padding:13px 16px; margin-bottom:10px; display:flex; align-items:flex-start; gap:10px; }
-  .notice-card.warning { background:var(--orange-light); border:1.5px solid #fad4a8; }
-  .notice-card.danger { background:var(--red-light); border:1.5px solid #f5c6c2; }
-  .notice-icon { font-size:16px; margin-top:1px; flex-shrink:0; }
-  .notice-title { font-size:12px; font-weight:700; margin-bottom:3px; }
-  .notice-card.warning .notice-title { color:var(--orange); }
-  .notice-card.danger .notice-title { color:var(--red); }
-  .notice-body { font-size:12px; line-height:1.6; color:#555; }
-  .empty-msg { text-align:center; padding:28px; color:var(--gray); font-size:13px; }
-  footer { width:100%; text-align:center; padding:18px; font-size:11px; color:var(--gray); letter-spacing:0.5px; }
+  @media(max-width:480px) {
+    .score-input-row, .score-header { grid-template-columns:60px 36px 50px 50px 50px 50px 90px 80px 36px 36px 80px; gap:4px; }
+    .score-input-row input, .score-input-row textarea { padding:6px 4px; font-size:12px; }
+  }
 </style>
 </head>
 <body>
 
-<header>
-  <p class="header-sub">Yongsan Daesung N Academy</p>
-  <h1>영어과 <span>점수 확인</span></h1>
-</header>
+<div id="login-screen">
+  <div class="login-box">
+    <h1>관리자 로그인</h1>
+    <p>용산대성N학원 영어과 선생님 전용</p>
+    <input type="password" id="admin-pw" placeholder="비밀번호 입력" onkeydown="if(event.key==='Enter')adminLogin()">
+    <button class="btn btn-primary btn-full" onclick="adminLogin()">로그인</button>
+    <p id="login-err" style="color:var(--red);font-size:12px;margin-top:10px;display:none">비밀번호가 올바르지 않습니다.</p>
+  </div>
+</div>
 
-<div class="container">
+<div id="admin-screen">
+  <div class="top-bar">
+    <h1>📋 관리자 페이지</h1>
+    <span onclick="location.reload()" style="cursor:pointer">로그아웃</span>
+  </div>
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('tab-score')">점수 입력</button>
+    <button class="tab-btn" onclick="switchTab('tab-sms')">학부모 문자 발송</button>
+    <button class="tab-btn" onclick="switchTab('tab-uncert')">미인증</button>
+    <button class="tab-btn" onclick="switchTab('tab-student-sms')">미인증 문자 발송</button>
+    <button class="tab-btn" onclick="switchTab('tab-mock')">모의고사</button>
+    <button class="tab-btn" onclick="switchTab('tab-week')">주차 관리</button>
+    <button class="tab-btn" onclick="switchTab('tab-student')">학생 관리</button>
+    <button class="tab-btn" onclick="switchTab('tab-class')">반 관리</button>
+  </div>
 
-  <div id="login-section">
-    <div class="card">
-      <div class="card-header"><div class="dot"></div><h2>학생 로그인</h2></div>
-      <div class="card-body">
-        <div class="form-group">
-          <label>학생 이름</label>
-          <input type="text" id="input-name" placeholder="이름을 입력하세요" autocomplete="off" lang="ko" inputmode="text">
+  <!-- 탭1: 점수 입력 -->
+  <div id="tab-score" class="tab-content active">
+    <div class="section-card">
+      <div class="section-head"><h3>반 · 주차 선택</h3></div>
+      <div class="section-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label>반 선택</label>
+            <select id="score-class" onchange="loadWeeksForScore()">
+              <option value="">반을 선택하세요</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>주차 선택</label>
+            <select id="score-week" onchange="loadScoreInputs()">
+              <option value="">주차를 선택하세요</option>
+            </select>
+          </div>
         </div>
-        <div class="form-group">
-          <label>학부모 연락처 뒷 4자리</label>
-          <input type="password" id="input-pin" placeholder="숫자 4자리" maxlength="4" inputmode="numeric">
-        </div>
-        <button class="btn btn-primary" onclick="login()">점수 확인하기</button>
-        <div class="error-msg" id="error-msg">이름 또는 PIN이 올바르지 않습니다.</div>
       </div>
     </div>
-    <div class="loading" id="login-loading">
-      <div class="spinner"></div>확인 중...
+    <div class="section-card" id="score-input-card" style="display:none">
+      <div class="section-head">
+        <h3 id="score-input-title">점수 입력</h3>
+        <button class="btn btn-primary btn-sm" onclick="saveAllScores()">전체 저장</button>
+      </div>
+      <div class="section-body">
+        <div style="margin-bottom:12px">
+          <label style="display:block;font-size:11px;color:var(--gray);font-weight:500;letter-spacing:0.5px;margin-bottom:5px">이번 주 과제 내용</label>
+          <textarea id="week-memo" rows="2" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'" onblur="saveWeekMemo()" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;outline:none;resize:none;line-height:1.6;min-height:44px" placeholder="예: 워크북 p.30~35, 단어 암기 1~30번"></textarea>
+        </div>
+      </div>
+      <div class="section-body" style="overflow-x:auto">
+        <div class="score-header">
+          <span>이름</span>
+          <span style="text-align:center">출석</span>
+          <span style="text-align:center">단어<br><small style="font-weight:400">/25</small></span>
+          <span style="text-align:center">해석<br><small style="font-weight:400">/30</small></span>
+          <span style="text-align:center">객관식<br><small style="font-weight:400">/45</small></span>
+          <span style="text-align:center">과제<br><small style="font-weight:400">%</small></span>
+          <span style="text-align:center">과제평가</span>
+          <span style="text-align:center">잔여과제<br>인증</span>
+          <span style="text-align:center">클리닉<br>대상</span>
+          <span style="text-align:center">클리닉<br>참석</span>
+          <span style="text-align:center">클리닉메모</span>
+        </div>
+        <div id="score-inputs-container"></div>
+      </div>
     </div>
   </div>
 
-  <div id="result-section">
-    <div class="student-info">
-      <div class="student-name" id="result-name"></div>
-      <div class="student-class" id="result-class"></div>
-    </div>
-
-    <div class="card">
-      <div class="card-header"><div class="dot"></div><h2>주차 선택</h2></div>
-      <div class="card-body">
-        <div class="week-selector" id="week-selector"></div>
+  <!-- 탭2: 주차 관리 -->
+  <div id="tab-week" class="tab-content">
+    <div class="section-card">
+      <div class="section-head"><h3>새 주차 추가</h3></div>
+      <div class="section-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label>학년 선택</label>
+            <select id="week-grade">
+              <option value="">학년을 선택하세요</option>
+              <option value="고1">고1 (수요일+토요일)</option>
+              <option value="고2">고2 (목요일+금요일)</option>
+              <option value="single">단일 반 추가</option>
+            </select>
+          </div>
+          <div class="form-group" id="week-date-group">
+            <label id="week-date-label">기준 날짜</label>
+            <input type="text" id="week-date" placeholder="예: 6.3">
+          </div>
+          <div class="form-group" id="week-class-group" style="display:none">
+            <label>반 선택 (단일)</label>
+            <select id="week-class"><option value="">반을 선택하세요</option></select>
+          </div>
+        </div>
+        <div id="week-preview" style="font-size:12px;color:var(--gray);margin-bottom:10px;display:none"></div>
+        <button class="btn btn-gold" onclick="addWeek()">주차 추가</button>
       </div>
     </div>
-
-    <div id="score-content">
-      <div class="empty-msg">주차를 선택해주세요.</div>
-    </div>
-
-    <div id="mock-score-section" style="display:none"></div>
-
-    <div class="summary-grid" id="summary-grid" style="display:none">
-      <div class="summary-item">
-        <div class="summary-label">누적 평균</div>
-        <div class="summary-value" id="cum-avg">-</div>
-      </div>
-      <div class="summary-item">
-        <div class="summary-label">최고 점수</div>
-        <div class="summary-value" id="cum-best">-</div>
+    <div class="section-card">
+      <div class="section-head"><h3>주차 목록</h3></div>
+      <div class="section-body">
+        <div class="form-group" style="margin-bottom:12px">
+          <label>반 선택</label>
+          <select id="week-list-class" onchange="loadWeekList()"><option value="">반을 선택하세요</option></select>
+        </div>
+        <div id="week-list"><p style="font-size:13px;color:var(--gray)">반을 선택하면 주차 목록이 표시됩니다.</p></div>
       </div>
     </div>
+  </div>
 
-    <div class="card" id="chart-card" style="display:none">
-      <div class="card-header"><div class="dot"></div><h2>점수 추이</h2></div>
-      <div class="chart-wrap">
-        <canvas id="score-chart"></canvas>
+  <!-- 탭3: 학생 관리 -->
+  <div id="tab-student" class="tab-content">
+    <div class="section-card">
+      <div class="section-head"><h3>학생 추가</h3></div>
+      <div class="section-body">
+        <div class="form-row">
+          <div class="form-group"><label>이름</label><input type="text" id="new-name" placeholder="학생 이름"></div>
+          <div class="form-group"><label>PIN (연락처 뒷 4자리)</label><input type="text" id="new-pin" placeholder="4자리 숫자" maxlength="4"></div>
+          <div class="form-group"><label>학부모 연락처</label><input type="text" id="new-phone" placeholder="01012345678"></div>
+          <div class="form-group"><label>학생 연락처</label><input type="text" id="new-student-phone" placeholder="01012345678"></div>
+          <div class="form-group"><label>반</label><select id="new-class"><option value="">반 선택</option></select></div>
+        </div>
+        <button class="btn btn-gold" onclick="addStudent()">학생 추가</button>
       </div>
     </div>
+    <div class="section-card">
+      <div class="section-head"><h3>학생 목록</h3></div>
+      <div class="section-body">
+        <div class="form-group" style="margin-bottom:12px">
+          <label>반 선택</label>
+          <select id="student-list-class" onchange="loadStudentList()"><option value="">반을 선택하세요</option></select>
+        </div>
+        <div id="student-list"><p style="font-size:13px;color:var(--gray)">반을 선택하면 학생 목록이 표시됩니다.</p></div>
+      </div>
+    </div>
+  </div>
 
-    <button class="btn btn-secondary" onclick="logout()">← 다른 학생 조회</button>
+  <!-- 탭4: 모의고사 -->
+  <div id="tab-mock" class="tab-content">
+    <div class="section-card">
+      <div class="section-head"><h3>모의고사 추가</h3></div>
+      <div class="section-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label>학년 선택</label>
+            <select id="mock-grade">
+              <option value="">학년을 선택하세요</option>
+              <option value="고1">고1 (수요일+토요일)</option>
+              <option value="고2">고2 (목요일+금요일)</option>
+              <option value="single">단일 반</option>
+            </select>
+          </div>
+          <div class="form-group" id="mock-class-group" style="display:none"><label>반 선택 (단일)</label><select id="mock-class"><option value="">반을 선택하세요</option></select></div>
+          <div class="form-group"><label>시험 날짜</label><input type="text" id="mock-date" placeholder="예: 6.10"></div>
+          <div class="form-group"><label>시험명 (선택)</label><input type="text" id="mock-label" placeholder="예: 6월 모의고사"></div>
+        </div>
+        <button class="btn btn-gold" onclick="addMockExam()">모의고사 추가</button>
+      </div>
+    </div>
+    <div class="section-card">
+      <div class="section-head">
+        <h3>모의고사 점수 입력</h3>
+        <button class="btn btn-primary btn-sm" id="mock-save-btn" onclick="saveMockScores()" style="display:none">전체 저장</button>
+      </div>
+      <div class="section-body">
+        <div class="form-row">
+          <div class="form-group"><label>반 선택</label><select id="mock-score-class" onchange="loadMockExams()"><option value="">반을 선택하세요</option></select></div>
+          <div class="form-group"><label>모의고사 선택</label><select id="mock-score-exam" onchange="loadMockScoreInputs()"><option value="">모의고사를 선택하세요</option></select></div>
+        </div>
+        <div id="mock-score-card" style="display:none">
+          <div style="display:grid;grid-template-columns:1fr 100px 150px;gap:8px;padding:8px 0 4px;font-size:11px;color:var(--gray);font-weight:600;border-bottom:2px solid var(--border);margin-bottom:4px;">
+            <span>이름</span><span style="text-align:center">점수<br><small>/100</small></span><span style="text-align:center">메모</span>
+          </div>
+          <div id="mock-score-inputs"></div>
+        </div>
+      </div>
+    </div>
+    <div class="section-card">
+      <div class="section-head"><h3>모의고사 목록</h3></div>
+      <div class="section-body">
+        <div class="form-group" style="margin-bottom:12px">
+          <label>반 선택</label>
+          <select id="mock-list-class" onchange="loadMockList()"><option value="">반을 선택하세요</option></select>
+        </div>
+        <div id="mock-list"><p style="font-size:13px;color:var(--gray)">반을 선택하면 목록이 표시됩니다.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 탭5: 문자 발송 -->
+  <div id="tab-sms" class="tab-content">
+    <div class="section-card">
+      <div class="section-head"><h3>발송 대상 설정</h3></div>
+      <div class="section-body">
+        <div class="form-row">
+          <div class="form-group"><label>반 선택</label><select id="sms-class" onchange="loadSmsWeeks()"><option value="">반을 선택하세요</option></select></div>
+          <div class="form-group"><label>주차 선택</label><select id="sms-week" onchange="loadSmsTargets()"><option value="">주차를 선택하세요</option></select></div>
+          <div class="form-group">
+            <label>과제 수행률 기준</label>
+            <select id="sms-threshold" onchange="loadSmsTargets()">
+              <option value="all">전체</option>
+              <option value="empty">미기재</option>
+              <option value="0">0%</option>
+              <option value="1-79" selected>1~79%</option>
+              <option value="80-99">80~99%</option>
+              <option value="100">100%</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="section-card" id="sms-preview-card" style="display:none">
+      <div class="section-head">
+        <h3 id="sms-preview-title">발송 대상</h3>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="toggleAllSms()">전체 선택/해제</button>
+          <button class="btn btn-primary btn-sm" onclick="sendAllSms()">선택 발송</button>
+        </div>
+      </div>
+      <div class="section-body">
+        <div class="form-group" style="margin-bottom:14px">
+          <label>문자 내용 미리보기 (첫 번째 학생 기준)</label>
+          <textarea id="sms-preview-text" rows="6" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7" readonly></textarea>
+        </div>
+        <div id="sms-target-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 탭6: 반 관리 -->
+  <div id="tab-class" class="tab-content">
+    <div class="section-card">
+      <div class="section-head"><h3>반 추가</h3></div>
+      <div class="section-body">
+        <div class="form-row">
+          <div class="form-group"><label>반 이름</label><input type="text" id="new-class-name" placeholder="예: 고3 화요일반"></div>
+          <div class="form-group"><label>수업 요일</label><input type="text" id="new-class-day" placeholder="예: 화"></div>
+          <div class="form-group"><label>수업 시간 (선택)</label><input type="text" id="new-class-time" placeholder="예: 15:30"></div>
+        </div>
+        <button class="btn btn-gold" onclick="addClass()">반 추가</button>
+      </div>
+    </div>
+    <div class="section-card">
+      <div class="section-head"><h3>반 목록</h3></div>
+      <div class="section-body">
+        <div id="class-list"><div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div></div>
+      </div>
+    </div>
   </div>
 
 </div>
 
-<footer>© 용산대성N학원 영어과</footer>
+  <!-- 탭7: 미인증 -->
+  <div id="tab-uncert" class="tab-content">
+    <div class="section-card">
+      <div class="section-head"><h3>미인증 학생 조회</h3></div>
+      <div class="section-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label>반 선택</label>
+            <select id="uncert-class" onchange="loadUncertWeeks()">
+              <option value="">반을 선택하세요</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>주차 선택</label>
+            <select id="uncert-week" onchange="loadUncertList()">
+              <option value="">주차를 선택하세요</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-card" id="uncert-result-card" style="display:none">
+      <div class="section-head">
+        <h3 id="uncert-title">미인증 학생</h3>
+        <button class="btn btn-primary btn-sm" onclick="saveUncertList()">저장</button>
+      </div>
+      <div class="section-body" style="overflow-x:auto">
+        <div style="display:grid;grid-template-columns:90px 60px 1fr 100px;gap:8px;padding:6px 0 8px;font-size:11px;color:var(--gray);font-weight:600;border-bottom:2px solid var(--border);margin-bottom:4px;">
+          <span>이름</span>
+          <span style="text-align:center">과제%</span>
+          <span>과제평가</span>
+          <span>잔여과제 인증</span>
+        </div>
+        <div id="uncert-list"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+  <!-- 탭8: 미인증 문자 발송 -->
+  <div id="tab-student-sms" class="tab-content">
+    <div class="section-card">
+      <div class="section-head"><h3>발송 대상 설정</h3></div>
+      <div class="section-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label>반 선택</label>
+            <select id="student-sms-class" onchange="loadStudentSmsWeeks()">
+              <option value="">반을 선택하세요</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>주차 선택</label>
+            <select id="student-sms-week" onchange="loadStudentSmsTargets()">
+              <option value="">주차를 선택하세요</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>과제 수행률 기준</label>
+            <select id="student-sms-threshold" onchange="loadStudentSmsTargets()">
+              <option value="low" selected>미기재 + 0~79%</option>
+              <option value="mid">80~98%</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-card" id="student-sms-preview-card" style="display:none">
+      <div class="section-head">
+        <h3 id="student-sms-title">발송 대상</h3>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="toggleAllStudentSms()">전체 선택/해제</button>
+          <button class="btn btn-primary btn-sm" onclick="sendStudentSms()">선택 발송</button>
+        </div>
+      </div>
+      <div class="section-body">
+        <div class="form-group" style="margin-bottom:14px">
+          <label>문자 내용 (직접 수정 가능)</label>
+          <textarea id="student-sms-text" rows="4" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7">[용산대성N학원 영어과]
+과제 못 한 부분 인증하세요.</textarea>
+        </div>
+        <div id="student-sms-list"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 반 이동 모달 -->
+<div id="move-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:var(--white);border-radius:16px;padding:28px;width:90%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+    <h3 style="font-size:16px;font-weight:700;color:var(--navy);margin-bottom:6px" id="move-modal-title">반 이동</h3>
+    <p style="font-size:13px;color:var(--gray);margin-bottom:20px">이동할 반을 선택하면 기존 점수 데이터도 함께 이전됩니다.</p>
+    <div style="margin-bottom:16px">
+      <label style="display:block;font-size:11px;color:var(--gray);font-weight:500;margin-bottom:5px">이동할 반</label>
+      <select id="move-target-class" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'Noto Sans KR',sans-serif;color:var(--navy);background:var(--cream);outline:none"></select>
+    </div>
+    <div id="move-match-preview" style="font-size:12px;color:var(--gray);margin-bottom:16px;background:var(--light-gray);border-radius:8px;padding:10px;display:none"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" style="flex:1" onclick="confirmMoveStudent()">이동 확인</button>
+      <button class="btn" style="flex:1;background:var(--light-gray);color:var(--navy)" onclick="closeMoveModal()">취소</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
 
 <script>
 const SUPABASE_URL = 'https://rcpzinsdocmpnfxkfbil.supabase.co';
 const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjcHppbnNkb2NtcG5meGtmYmlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwMzM2NzksImV4cCI6MjA5NTYwOTY3OX0.f_HsTsM4_z2qKeMtIXZ0G8vRuXFmHkXomIdQzFFXHb0';
+const ADMIN_PASSWORD = '1357';
+const SMS_FUNCTION_URL = 'https://rcpzinsdocmpnfxkfbil.supabase.co/functions/v1/send-sms';
 
-let currentStudent = null;
-let currentWeeks = [];
-let allScores = [];
-let chartInstance = null;
-
-async function supaFetch(path) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    cache: 'no-store',
-    headers: {
-      'apikey': ANON_KEY,
-      'Authorization': `Bearer ${ANON_KEY}`,
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache'
-    }
-  });
+async function api(path, method='GET', body=null) {
+  const opts = { method, headers: { 'apikey': ANON_KEY, 'Authorization': `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json', 'Prefer': method==='POST' ? 'return=representation' : '' } };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, opts);
   const text = await res.text();
   return text ? JSON.parse(text) : null;
 }
 
-async function login() {
-  const name = document.getElementById('input-name').value.trim();
-  const pin  = document.getElementById('input-pin').value.trim();
-  const err  = document.getElementById('error-msg');
-  const load = document.getElementById('login-loading');
-  err.classList.remove('show');
-  if (!name || !pin) { err.textContent = '이름과 PIN을 모두 입력해주세요.'; err.classList.add('show'); return; }
-  load.classList.add('show');
-  try {
-    const data = await supaFetch(`students?name=eq.${encodeURIComponent(name)}&pin=eq.${pin}&is_active=eq.true&select=*,classes(name)`);
-    if (!data || !data.length) { err.textContent = '이름 또는 PIN이 올바르지 않습니다.'; err.classList.add('show'); return; }
-    currentStudent = data[0];
-    await showResult();
-  } catch(e) {
-    err.textContent = '오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
-    err.classList.add('show');
-  } finally { load.classList.remove('show'); }
+function showToast(msg, dur=2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
 }
 
-function showChartAndSummary() {
-  if (allScores.length > 0) {
-    document.getElementById('summary-grid').style.display = 'grid';
-    document.getElementById('chart-card').style.display = 'block';
-  }
-}
-
-function hideChartAndSummary() {
-  document.getElementById('summary-grid').style.display = 'none';
-  document.getElementById('chart-card').style.display = 'none';
-}
-
-async function showResult() {
-  document.getElementById('login-section').style.display = 'none';
-  document.getElementById('result-section').style.display = 'block';
-  document.getElementById('result-name').textContent = currentStudent.name;
-  document.getElementById('result-class').textContent = currentStudent.classes?.name || '';
-
-  const weeks = await supaFetch(`weeks?class_id=eq.${currentStudent.class_id}&order=id.asc&select=*`);
-  currentWeeks = weeks || [];
-
-  if (currentWeeks.length > 0) {
-    const weekIds = currentWeeks.map(w => w.id).join(',');
-    allScores = await supaFetch(`scores?student_id=eq.${currentStudent.id}&week_id=in.(${weekIds})&select=*`) || [];
-  }
-
-  if (allScores.length > 0) {
-    const totals = allScores.map(s => s.total_score).filter(v => v !== null);
-    const avg = totals.length ? (totals.reduce((a,b)=>a+b,0)/totals.length).toFixed(1) : '-';
-    const best = totals.length ? Math.max(...totals) : '-';
-    document.getElementById('cum-avg').textContent = avg + (avg !== '-' ? '점' : '');
-    document.getElementById('cum-best').textContent = best + (best !== '-' ? '점' : '');
-    showChartAndSummary();
-    renderChart();
-  }
-
-  const selector = document.getElementById('week-selector');
-  selector.innerHTML = '';
-  if (!currentWeeks.length) {
-    selector.innerHTML = '<span style="font-size:13px;color:#8a8a8a">등록된 주차가 없습니다.</span>';
-    return;
-  }
-
-  currentWeeks.slice().reverse().forEach((w, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'week-btn' + (i === 0 ? ' active' : '');
-    btn.textContent = w.label || w.test_date;
-    btn.onclick = () => {
-      document.querySelectorAll('.week-btn').forEach(b => {
-        b.classList.remove('active');
-        if (b.dataset.mock) b.style.cssText = 'border-color:#c8a96e;color:#c8a96e;';
-      });
-      btn.classList.add('active');
-      document.getElementById('score-content').style.display = 'block';
-      document.getElementById('mock-score-section').style.display = 'none';
-      showChartAndSummary();
-      loadScore(w.id);
-    };
-    selector.appendChild(btn);
-  });
-
-  await addMockButtons(selector);
-
-  const latestWeek = currentWeeks[currentWeeks.length - 1];
-  if (latestWeek) loadScore(latestWeek.id);
-}
-
-async function addMockButtons(selector) {
-  const exams = await supaFetch(`mock_exams?class_id=eq.${currentStudent.class_id}&order=id.asc&select=*`);
-  if (!exams || !exams.length) return;
-
-  const examIds = exams.map(e => e.id).join(',');
-  const scores = await supaFetch(`mock_scores?student_id=eq.${currentStudent.id}&exam_id=in.(${examIds})&select=*`);
-  window._mockScoreMap = {};
-  (scores || []).forEach(s => { window._mockScoreMap[s.exam_id] = s; });
-
-  exams.forEach(e => {
-    const btn = document.createElement('button');
-    btn.className = 'week-btn';
-    btn.textContent = e.label || e.exam_date;
-    btn.style.cssText = 'border-color:#c8a96e;color:#c8a96e;';
-    btn.onclick = () => {
-      document.querySelectorAll('.week-btn').forEach(b => {
-        b.classList.remove('active');
-        if (b.dataset.mock) b.style.cssText = 'border-color:#c8a96e;color:#c8a96e;';
-      });
-      btn.classList.add('active');
-      btn.style.cssText = '';
-      document.getElementById('score-content').style.display = 'none';
-      document.getElementById('mock-score-section').style.display = 'none';
-      hideChartAndSummary();
-      showMockScore(e.id);
-    };
-    btn.dataset.mock = '1';
-    selector.appendChild(btn);
-  });
-}
-
-async function showMockScore(examId) {
-  const s = window._mockScoreMap?.[examId];
-  const section = document.getElementById('mock-score-section');
-  section.style.display = 'block';
-  if (!s || s.score === null || s.score === undefined) {
-    section.innerHTML = '<div class="empty-msg">해당 모의고사에 응시하지 않았습니다.</div>';
-    return;
-  }
-
-  // group_id가 있으면 같은 학년 전체 기준으로 평균/석차 계산
-  const examInfo = await supaFetch(`mock_exams?id=eq.${examId}&select=group_id`);
-  const groupId = examInfo?.[0]?.group_id;
-
-  let allMockScores;
-  if (groupId) {
-    const groupExams = await supaFetch(`mock_exams?group_id=eq.${encodeURIComponent(groupId)}&select=id`);
-    const examIds = (groupExams || []).map(e => e.id).join(',');
-    allMockScores = await supaFetch(`mock_scores?exam_id=in.(${examIds})&select=score`);
+function adminLogin() {
+  const pw = document.getElementById('admin-pw').value;
+  if (pw === ADMIN_PASSWORD) {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('admin-screen').style.display = 'block';
+    initAdmin();
   } else {
-    allMockScores = await supaFetch(`mock_scores?exam_id=eq.${examId}&select=score`);
+    document.getElementById('login-err').style.display = 'block';
   }
-
-  const validScores = (allMockScores || []).map(x => x.score).filter(x => x !== null && x > 0);
-  const avg = validScores.length ? (validScores.reduce((a,b) => a+b, 0) / validScores.length).toFixed(1) : null;
-
-  // 석차 계산
-  const sorted = validScores.slice().sort((a,b) => b-a);
-  const rank = s.score > 0 ? sorted.findIndex(v => v === s.score) + 1 : '-';
-
-  section.innerHTML = `
-    <div class="card">
-      <div class="card-header"><div class="dot"></div><h2>모의고사 점수</h2></div>
-      <div class="card-body">
-        <div class="score-item total" style="border-radius:12px;margin-bottom:10px">
-          <div class="score-label">점수</div>
-          <div><span class="score-value" style="color:white">${s.score}</span><span class="score-max"> / 100</span></div>
-        </div>
-        <div class="meta-grid">
-          <div class="meta-item">
-            <div class="meta-label">평균</div>
-            <div class="meta-value">${avg ? avg + '점' : '-'}</div>
-          </div>
-          <div class="meta-item">
-            <div class="meta-label">석차</div>
-            <div class="meta-value">${rank !== '-' ? rank + '등' : '-'}</div>
-          </div>
-          <div class="meta-item">
-            <div class="meta-label">응시 인원</div>
-            <div class="meta-value">${validScores.length}명</div>
-          </div>
-        </div>
-        ${s.memo ? `<div style="margin-top:6px;font-size:13px;color:var(--gray)">${s.memo}</div>` : ''}
-      </div>
-    </div>`;
 }
 
-function renderChart() {
-  const card = document.getElementById('chart-card');
-  card.style.display = 'block';
-  const scoreMap = {};
-  allScores.forEach(s => { scoreMap[s.week_id] = s.total_score; });
-  const labels = currentWeeks.map(w => w.label || w.test_date);
-  const data   = currentWeeks.map(w => scoreMap[w.id] ?? null);
-  if (chartInstance) chartInstance.destroy();
-  const ctx = document.getElementById('score-chart').getContext('2d');
-  chartInstance = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [{
-        label: '총점',
-        data,
-        borderColor: '#c8a96e',
-        backgroundColor: 'rgba(200,169,110,0.12)',
-        borderWidth: 2.5,
-        pointBackgroundColor: '#0f1f3d',
-        pointRadius: 5,
-        pointHoverRadius: 7,
-        tension: 0.35,
-        fill: true,
-        spanGaps: true
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: ctx => `${ctx.parsed.y}점` } }
-      },
-      scales: {
-        y: { min:0, max:100, ticks:{ font:{size:11}, color:'#8a8a8a' }, grid:{ color:'rgba(0,0,0,0.05)' } },
-        x: { ticks:{ font:{size:11}, color:'#8a8a8a' }, grid:{ display:false } }
-      }
-    }
+let classes = [];
+async function initAdmin() {
+  classes = await api('classes?order=id.asc&select=*') || [];
+  ['score-class','week-class','week-list-class','new-class','student-list-class','mock-class','mock-score-class','mock-list-class','sms-class','uncert-class','student-sms-class'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = '<option value="">반을 선택하세요</option>';
+    classes.forEach(c => { const opt = document.createElement('option'); opt.value = c.id; opt.textContent = c.name; sel.appendChild(opt); });
   });
 }
 
-async function loadScore(weekId) {
-  const content = document.getElementById('score-content');
-  content.innerHTML = '<div class="loading show"><div class="spinner"></div>불러오는 중...</div>';
-  try {
-    const scoreData = allScores.find(s => s.week_id === weekId);
-    const avgs      = await supaFetch(`week_averages?week_id=eq.${weekId}&select=*`);
-    const allWeekSc = await supaFetch(`scores?week_id=eq.${weekId}&select=total_score`);
-
-    if (!scoreData) {
-      content.innerHTML = '<div class="empty-msg">해당 주차 점수가 아직 입력되지 않았습니다.</div>';
+function switchTab(tabId) {
+  if (scoreDirty && tabId !== 'tab-score') {
+    if (!confirm('저장하지 않은 변경사항이 있습니다.\n탭을 이동하면 변경사항이 사라집니다.\n계속할까요?')) {
       return;
     }
-
-    const s = scoreData;
-    const avg = avgs && avgs.length ? avgs[0] : null;
-    let rank = '-', total_students = '-';
-
-    // group_id가 있으면 같은 그룹 전체 기준으로 평균/석차 계산
-    const weekInfo = await supaFetch(`weeks?id=eq.${weekId}&select=group_id`);
-    const groupId = weekInfo?.[0]?.group_id;
-
-    let groupScores = null;
-    if (groupId) {
-      // 같은 group_id를 가진 모든 주차 찾기
-      const groupWeeks = await supaFetch(`weeks?group_id=eq.${encodeURIComponent(groupId)}&select=id`);
-      if (groupWeeks && groupWeeks.length > 0) {
-        const weekIds = groupWeeks.map(w => w.id).join(',');
-        groupScores = await supaFetch(`scores?week_id=in.(${weekIds})&select=total_score`);
-      }
+    scoreDirty = false;
+  }
+  if (mockDirty && tabId !== 'tab-mock') {
+    if (!confirm('저장하지 않은 모의고사 점수가 있습니다.\n탭을 이동하면 변경사항이 사라집니다.\n계속할까요?')) {
+      return;
     }
+    mockDirty = false;
+  }
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  event.target.classList.add('active');
+  if (tabId === 'tab-class') loadClassList();
+}
 
-    const scoresForRank = groupScores || allWeekSc;
-    if (scoresForRank) {
-      const sorted = scoresForRank.map(x => x.total_score).filter(x => x !== null).sort((a,b) => b-a);
-      total_students = sorted.length;
-      rank = sorted.findIndex(v => v === s.total_score) + 1;
+// ── 주차 관리
+function calcNextDate(dateStr, addDays) {
+  const dot = dateStr.indexOf('.');
+  if (dot < 0) return dateStr;
+  let month = parseInt(dateStr.slice(0, dot));
+  let day = parseInt(dateStr.slice(dot + 1)) + addDays;
+  const daysInMonth = [0,31,28,31,30,31,30,31,31,30,31,30,31];
+  if (day > daysInMonth[month]) { day -= daysInMonth[month]; month++; }
+  return `${month}.${day}`;
+}
+
+document.getElementById('week-grade').addEventListener('change', function() {
+  const grade = this.value;
+  const preview = document.getElementById('week-preview');
+  const classGroup = document.getElementById('week-class-group');
+  const dateLabel = document.getElementById('week-date-label');
+  if (grade === '고1') {
+    dateLabel.textContent = '수요일 날짜 입력';
+    classGroup.style.display = 'none';
+    preview.style.display = 'block';
+    preview.textContent = '토요일 날짜는 자동 계산됩니다 (+3일)';
+  } else if (grade === '고2') {
+    dateLabel.textContent = '목요일 날짜 입력';
+    classGroup.style.display = 'none';
+    preview.style.display = 'block';
+    preview.textContent = '금요일 날짜는 자동 계산됩니다 (+1일)';
+  } else if (grade === 'single') {
+    dateLabel.textContent = '수업 날짜';
+    classGroup.style.display = 'flex';
+    preview.style.display = 'none';
+  } else {
+    dateLabel.textContent = '기준 날짜';
+    classGroup.style.display = 'none';
+    preview.style.display = 'none';
+  }
+});
+
+async function addWeek() {
+  const grade = document.getElementById('week-grade').value;
+  const date = document.getElementById('week-date').value.trim();
+  if (!grade || !date) { showToast('학년과 날짜를 입력해주세요.'); return; }
+
+  const groupId = `${grade}-${date}-${Date.now()}`;
+
+  if (grade === '고1') {
+    const satDate = calcNextDate(date, 3);
+    const wedClasses = classes.filter(c => c.grade === '고1' && c.day === '수');
+    const satClasses = classes.filter(c => c.grade === '고1' && c.day === '토');
+    for (const c of wedClasses) await api('weeks', 'POST', { class_id: c.id, test_date: date, label: date, group_id: groupId });
+    for (const c of satClasses) await api('weeks', 'POST', { class_id: c.id, test_date: satDate, label: satDate, group_id: groupId });
+    showToast(`✅ 고1 주차 추가 — 수요일 ${date} / 토요일 ${satDate}`);
+
+  } else if (grade === '고2') {
+    const friDate = calcNextDate(date, 1);
+    const thuClasses = classes.filter(c => c.grade === '고2' && c.day === '목');
+    const friClasses = classes.filter(c => c.grade === '고2' && c.day === '금');
+    for (const c of thuClasses) await api('weeks', 'POST', { class_id: c.id, test_date: date, label: date, group_id: groupId });
+    for (const c of friClasses) await api('weeks', 'POST', { class_id: c.id, test_date: friDate, label: friDate, group_id: groupId });
+    showToast(`✅ 고2 주차 추가 — 목요일 ${date} / 금요일 ${friDate}`);
+
+  } else if (grade === 'single') {
+    const classId = document.getElementById('week-class').value;
+    if (!classId) { showToast('반을 선택해주세요.'); return; }
+    const className = classes.find(c => c.id == classId)?.name || '';
+    await api('weeks', 'POST', { class_id: parseInt(classId), test_date: date, label: date, group_id: groupId });
+    showToast(`✅ ${className} — ${date} 주차가 추가됐어요.`);
+  }
+
+  document.getElementById('week-date').value = '';
+  loadWeekList();
+}
+
+async function loadWeekList() {
+  const classId = document.getElementById('week-list-class').value;
+  const container = document.getElementById('week-list');
+  if (!classId) { container.innerHTML = '<p style="font-size:13px;color:var(--gray)">반을 선택하면 주차 목록이 표시됩니다.</p>'; return; }
+  container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
+  const weeks = await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`) || [];
+  if (!weeks.length) { container.innerHTML = '<p style="font-size:13px;color:var(--gray)">등록된 주차가 없습니다.</p>'; return; }
+  container.innerHTML = `<table class="data-table"><thead><tr><th>날짜</th><th>등록일</th><th></th></tr></thead><tbody>${weeks.map(w => `<tr><td><strong>${w.label || w.test_date}</strong></td><td style="color:var(--gray);font-size:12px">${w.created_at?.slice(0,10) || ''}</td><td><button class="btn btn-danger btn-sm" onclick="deleteWeek(${w.id})">삭제</button></td></tr>`).join('')}</tbody></table>`;
+}
+
+async function deleteWeek(id) {
+  if (!confirm('이 주차를 삭제하면 해당 주차의 모든 점수도 삭제됩니다. 계속할까요?')) return;
+  await api(`scores?week_id=eq.${id}`, 'DELETE');
+  await api(`weeks?id=eq.${id}`, 'DELETE');
+  showToast('🗑 주차가 삭제됐어요.');
+  loadWeekList();
+}
+
+// ── 점수 입력
+const scoreCache = {};
+let scoreDirty = false; // 저장 안 된 변경사항 추적
+const studentCache = {};
+
+async function loadWeeksForScore() {
+  const classId = document.getElementById('score-class').value;
+  const sel = document.getElementById('score-week');
+
+  // 저장 안 된 변경사항 경고
+  if (scoreDirty) {
+    if (!confirm('저장하지 않은 변경사항이 있습니다.\n반을 이동하면 변경사항이 사라집니다.\n계속할까요?')) {
+      return;
     }
+    scoreDirty = false;
+  }
 
-    // 그룹 평균 계산
-    let displayAvg = avg ? avg.avg_total + '점' : '-';
-    if (groupId && groupScores) {
-      const totals = groupScores.map(x => x.total_score).filter(x => x !== null);
-      if (totals.length > 0) {
-        displayAvg = (totals.reduce((a,b) => a+b, 0) / totals.length).toFixed(1) + '점';
-      }
-    }
+  sel.innerHTML = '<option value="">주차를 선택하세요</option>';
+  if (!classId) return;
+  const weeks = await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`) || [];
+  weeks.forEach(w => { const opt = document.createElement('option'); opt.value = w.id; opt.textContent = w.label || w.test_date; sel.appendChild(opt); });
 
-    // homework_rate가 null이면 미기재 처리
-    const hwNull = s.homework_rate === null || s.homework_rate === undefined;
-    const hwRate = hwNull ? null : s.homework_rate;
-    const hwColor = hwRate === null ? '#8a8a8a' : hwRate >= 90 ? '#27ae60' : hwRate >= 70 ? '#e67e22' : '#c0392b';
-    const hwDisplay = hwRate === null ? '미기재' : hwRate + '%';
-
-    let noticeHtml = '';
-    if (hwNull) {
-      noticeHtml = `
-        <div class="notice-card danger">
-          <div class="notice-icon">⚠️</div>
-          <div>
-            <div class="notice-title">과제 미제출 안내</div>
-            <div class="notice-body">이번 과제가 제출되지 않았습니다.<br>토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.<br>미인증 시 <strong>일요일</strong> 보충수업이 실시됩니다.</div>
-          </div>
-        </div>`;
-    } else if (hwRate === 0) {
-      noticeHtml = `
-        <div class="notice-card danger">
-          <div class="notice-icon">⚠️</div>
-          <div>
-            <div class="notice-title">과제 미제출 안내</div>
-            <div class="notice-body">이번 과제 수행이 전혀 되지 않았습니다.<br>토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.<br>미인증 시 <strong>일요일</strong> 보충수업이 실시됩니다.</div>
-          </div>
-        </div>`;
-    } else if (hwRate < 80) {
-      noticeHtml = `
-        <div class="notice-card danger">
-          <div class="notice-icon">📋</div>
-          <div>
-            <div class="notice-title">과제 보충 안내</div>
-            <div class="notice-body">이번 과제 수행이 미흡합니다.<br>토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.<br>미인증 시 <strong>일요일</strong> 보충수업이 실시됩니다.</div>
-          </div>
-        </div>`;
-    } else if (hwRate < 100) {
-      noticeHtml = `
-        <div class="notice-card warning">
-          <div class="notice-icon">📝</div>
-          <div>
-            <div class="notice-title">과제 안내</div>
-            <div class="notice-body">빠진 부분은 토요일까지 완료 후 영어알림톡으로 인증해 주세요.<br>보충수업은 과제 미인증 및 개별 안내 학생을 대상으로 <strong>일요일</strong>에 실시됩니다.</div>
-          </div>
-        </div>`;
-    } else {
-      noticeHtml = `
-        <div class="notice-card" style="background:var(--green-light);border:1.5px solid #b7efd1">
-          <div class="notice-icon">✅</div>
-          <div>
-            <div class="notice-title" style="color:var(--green)">과제 완료</div>
-            <div class="notice-body">이번 주 과제를 모두 완료했습니다.<br>보충수업은 과제 미인증 및 개별 안내 학생을 대상으로 <strong>일요일</strong>에 실시됩니다.</div>
-          </div>
-        </div>`;
-    }
-
-    content.innerHTML = `
-      <div class="card">
-        <div class="card-header"><div class="dot"></div><h2>점수 결과</h2></div>
-        <div class="card-body">
-          <div class="score-grid">
-            <div class="score-item">
-              <div class="score-label">단어</div>
-              <div class="score-value">${s.word_score}<span class="score-max"> / 25</span></div>
-            </div>
-            <div class="score-item">
-              <div class="score-label">해석</div>
-              <div class="score-value">${s.reading_score}<span class="score-max"> / 30</span></div>
-            </div>
-            <div class="score-item">
-              <div class="score-label">객관식</div>
-              <div class="score-value">${s.mc_score}<span class="score-max"> / 45</span></div>
-            </div>
-            <div class="score-item total">
-              <div class="score-label">총점</div>
-              <div><span class="score-value">${s.total_score}</span><span class="score-max"> / 100</span></div>
-            </div>
-          </div>
-          <div class="meta-grid">
-            <div class="meta-item">
-              <div class="meta-label">반 평균</div>
-              <div class="meta-value">${displayAvg}</div>
-            </div>
-            <div class="meta-item">
-              <div class="meta-label">석차</div>
-              <div class="meta-value">${rank}등 / ${total_students}명</div>
-            </div>
-          </div>
-          <div class="homework-card">
-            <div><div class="homework-label">과제 수행률</div></div>
-            <div style="text-align:right">
-              <div class="homework-rate" style="color:${hwColor}">${hwDisplay}</div>
-              
-            </div>
-          </div>
-          ${noticeHtml}
-        </div>
-      </div>`;
-  } catch(e) {
-    content.innerHTML = '<div class="empty-msg">데이터를 불러오는 중 오류가 발생했습니다.</div>';
+  // 가장 최근 주차 자동 선택
+  if (weeks.length > 0) {
+    sel.value = weeks[0].id;
+    loadScoreInputs();
   }
 }
 
-function logout() {
-  currentStudent = null; currentWeeks = []; allScores = [];
-  if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
-  document.getElementById('result-section').style.display = 'none';
-  document.getElementById('login-section').style.display = 'block';
-  document.getElementById('summary-grid').style.display = 'none';
-  document.getElementById('chart-card').style.display = 'none';
-  document.getElementById('mock-score-section').style.display = 'none';
-  document.getElementById('mock-score-section').innerHTML = '';
-  document.getElementById('input-name').value = '';
-  document.getElementById('input-pin').value = '';
-  document.getElementById('error-msg').classList.remove('show');
+async function loadScoreInputs() {
+  const classId = document.getElementById('score-class').value;
+  const weekId = document.getElementById('score-week').value;
+  if (!classId || !weekId) return;
+
+  // 저장 안 된 변경사항 경고
+  if (scoreDirty) {
+    if (!confirm('저장하지 않은 변경사항이 있습니다.\n주차를 이동하면 변경사항이 사라집니다.\n계속할까요?')) {
+      // 이전 선택으로 되돌리기
+      const sel = document.getElementById('score-week');
+      return;
+    }
+    scoreDirty = false;
+  }
+  const card = document.getElementById('score-input-card');
+  const container = document.getElementById('score-inputs-container');
+  card.style.display = 'block';
+
+  // 주차 메모 불러오기
+  const weekData = await api(`weeks?id=eq.${weekId}&select=memo`);
+  const memoEl = document.getElementById('week-memo');
+  memoEl.value = weekData?.[0]?.memo || '';
+  memoEl.style.height = 'auto';
+  memoEl.style.height = memoEl.scrollHeight + 'px';
+  memoEl.dataset.weekId = weekId;
+
+  if (scoreCache[weekId]) { renderScoreInputs(classId, weekId, scoreCache[weekId]); return; }
+  container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
+  if (!studentCache[classId]) {
+    studentCache[classId] = await api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`) || [];
+  }
+  const scores = await api(`scores?week_id=eq.${weekId}&select=*`) || [];
+  scoreCache[weekId] = {};
+  scores.forEach(s => { scoreCache[weekId][s.student_id] = s; });
+  renderScoreInputs(classId, weekId, scoreCache[weekId]);
 }
 
-document.getElementById('input-pin').addEventListener('keydown', e => { if(e.key==='Enter') login(); });
-document.getElementById('input-name').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('input-pin').focus(); });
-window.addEventListener('load', () => { document.getElementById('input-name').focus(); });
+function renderScoreInputs(classId, weekId, scoreMap) {
+  const container = document.getElementById('score-inputs-container');
+  const students = studentCache[classId] || [];
+  const className = classes.find(c => c.id == classId)?.name || '';
+  const weekSel = document.getElementById('score-week');
+  const weekLabel = weekSel.options[weekSel.selectedIndex]?.text || '';
+  document.getElementById('score-input-title').textContent = `${className} — ${weekLabel}`;
+  container.innerHTML = students.map(st => {
+    const sc = scoreMap[st.id] || {};
+    return `<div class="score-input-row" data-student-id="${st.id}">
+      <span class="student-name">${st.name}${st.note ? `<br><small style="color:var(--red);font-weight:400;font-size:10px">${st.note}</small>` : ''}</span>
+      <input type="checkbox" class="inp-attend" ${sc.attendance === false ? '' : 'checked'} title="출석" onchange="scoreDirty=true">
+      <input type="number" class="inp-word" value="${sc.word_score ?? ''}" min="0" max="25" placeholder="" oninput="scoreDirty=true">
+      <input type="number" class="inp-reading" value="${sc.reading_score ?? ''}" min="0" max="30" placeholder="" oninput="scoreDirty=true">
+      <input type="number" class="inp-mc" value="${sc.mc_score ?? ''}" min="0" max="45" placeholder="" oninput="scoreDirty=true">
+      <input type="number" class="inp-hw" value="${sc.homework_rate ?? ''}" min="0" max="100" placeholder="" oninput="scoreDirty=true">
+      <textarea class="inp-eval" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.homework_eval ?? ''}</textarea>
+      <textarea class="inp-hwcert" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.hw_cert ?? ''}</textarea>
+      <input type="checkbox" class="inp-clinic-target" ${sc.clinic_target ? 'checked' : ''} title="클리닉 대상" onchange="scoreDirty=true">
+      <input type="checkbox" class="inp-clinic-attend" ${sc.clinic_attend ? 'checked' : ''} title="클리닉 참석" onchange="scoreDirty=true">
+      <textarea class="inp-clinic-memo" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.clinic_memo ?? ''}</textarea>
+    </div>`;
+  }).join('');
+  scoreDirty = false;
+
+  // 기존 내용 있는 textarea 높이 초기화
+  setTimeout(() => {
+    document.querySelectorAll('#score-inputs-container textarea').forEach(ta => {
+      ta.style.height = 'auto';
+      ta.style.height = ta.scrollHeight + 'px';
+    });
+  }, 50);
+}
+
+async function saveWeekMemo() {
+  const memoEl = document.getElementById('week-memo');
+  const weekId = memoEl.dataset.weekId;
+  if (!weekId) return;
+  await api(`weeks?id=eq.${weekId}`, 'PATCH', { memo: memoEl.value.trim() });
+  showToast('✅ 과제 내용이 저장됐어요.');
+}
+
+async function saveAllScores() {
+  const weekId = parseInt(document.getElementById('score-week').value);
+  const rows = document.querySelectorAll('#score-inputs-container .score-input-row');
+  if (!rows.length) return;
+  const upserts = Array.from(rows).map(row => ({
+    student_id: parseInt(row.dataset.studentId),
+    week_id: weekId,
+    word_score: row.querySelector('.inp-word').value !== '' ? parseFloat(row.querySelector('.inp-word').value) : null,
+    reading_score: row.querySelector('.inp-reading').value !== '' ? parseFloat(row.querySelector('.inp-reading').value) : null,
+    mc_score: row.querySelector('.inp-mc').value !== '' ? parseFloat(row.querySelector('.inp-mc').value) : null,
+    homework_rate: row.querySelector('.inp-hw').value !== '' ? parseInt(row.querySelector('.inp-hw').value) : null,
+    homework_eval: row.querySelector('.inp-eval').value.trim(),
+    hw_cert: row.querySelector('.inp-hwcert').value.trim(),
+    attendance: row.querySelector('.inp-attend').checked,
+    clinic_target: row.querySelector('.inp-clinic-target').checked,
+    clinic_attend: row.querySelector('.inp-clinic-attend').checked,
+    clinic_memo: row.querySelector('.inp-clinic-memo').value.trim()
+  }));
+  try {
+    const existing = await api(`scores?week_id=eq.${weekId}&select=id,student_id`);
+    const existMap = {};
+    (existing || []).forEach(e => { existMap[e.student_id] = e.id; });
+    const results = await Promise.all(upserts.map(async u => {
+      if (existMap[u.student_id]) {
+        return fetch(`${SUPABASE_URL}/rest/v1/scores?id=eq.${existMap[u.student_id]}`, { method:'PATCH', headers:{'apikey':ANON_KEY,'Authorization':`Bearer ${ANON_KEY}`,'Content-Type':'application/json','Prefer':'return=minimal'}, body:JSON.stringify({word_score:u.word_score,reading_score:u.reading_score,mc_score:u.mc_score,homework_rate:u.homework_rate,homework_eval:u.homework_eval,hw_cert:u.hw_cert,attendance:u.attendance,clinic_target:u.clinic_target,clinic_attend:u.clinic_attend,clinic_memo:u.clinic_memo}) });
+      } else {
+        return fetch(`${SUPABASE_URL}/rest/v1/scores`, { method:'POST', headers:{'apikey':ANON_KEY,'Authorization':`Bearer ${ANON_KEY}`,'Content-Type':'application/json','Prefer':'return=minimal'}, body:JSON.stringify(u) });
+      }
+    }));
+    const failed = results.filter(r => !r.ok);
+    if (failed.length > 0) { showToast(`❌ ${failed.length}건 저장 실패`); return; }
+    delete scoreCache[weekId];
+    scoreDirty = false;
+    showToast('✅ 점수가 저장됐어요!');
+  } catch(e) { showToast('❌ 오류 발생: ' + e.message); }
+}
+
+// ── 미인증 탭 ─────────────────────────────────────────
+async function loadUncertWeeks() {
+  const classId = document.getElementById('uncert-class').value;
+  const sel = document.getElementById('uncert-week');
+  sel.innerHTML = '<option value="">주차를 선택하세요</option>';
+  document.getElementById('uncert-result-card').style.display = 'none';
+  if (!classId) return;
+  const weeks = await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`) || [];
+  weeks.forEach(w => {
+    const opt = document.createElement('option');
+    opt.value = w.id; opt.textContent = w.label || w.test_date;
+    sel.appendChild(opt);
+  });
+  if (weeks.length > 0) { sel.value = weeks[0].id; loadUncertList(); }
+}
+
+async function loadUncertList() {
+  const classId = document.getElementById('uncert-class').value;
+  const weekId = document.getElementById('uncert-week').value;
+  if (!classId || !weekId) return;
+
+  const card = document.getElementById('uncert-result-card');
+  const listEl = document.getElementById('uncert-list');
+  card.style.display = 'block';
+  listEl.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
+
+  const [students, scores] = await Promise.all([
+    api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`),
+    api(`scores?week_id=eq.${weekId}&select=*`)
+  ]);
+
+  const scoreMap = {};
+  (scores || []).forEach(s => { scoreMap[s.student_id] = s; });
+
+  // 필터: 과제평가 메모 있거나 수행률 79% 이하, 단 잔여과제인증이 100이면 제외
+  const targets = (students || []).filter(st => {
+    const sc = scoreMap[st.id];
+    if (!sc) return false;
+    const hw = sc.homework_rate;
+    const hasMemo = sc.homework_eval && sc.homework_eval.trim() !== '';
+    const lowHw = hw === null || hw <= 79;
+    const certified = sc.hw_cert && sc.hw_cert.trim() === '100';
+    return (hasMemo || lowHw) && !certified;
+  });
+
+  const className = classes.find(c => c.id == classId)?.name || '';
+  const weekSel = document.getElementById('uncert-week');
+  const weekLabel = weekSel.options[weekSel.selectedIndex]?.text || '';
+  document.getElementById('uncert-title').textContent = `미인증 학생 — ${targets.length}명 (${className} ${weekLabel})`;
+
+  if (!targets.length) {
+    listEl.innerHTML = '<p style="font-size:13px;color:var(--gray);padding:12px 0">미인증 학생이 없습니다. 🎉</p>';
+    return;
+  }
+
+  listEl.innerHTML = targets.map(st => {
+    const sc = scoreMap[st.id] || {};
+    const hw = sc.homework_rate !== null && sc.homework_rate !== undefined ? sc.homework_rate + '%' : '미기재';
+    return `<div style="display:grid;grid-template-columns:90px 60px 1fr 100px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--light-gray)" data-student-id="${st.id}" data-score-id="${sc.id || ''}">
+      <span style="font-size:13px;font-weight:600;color:var(--navy)">${st.name}</span>
+      <span style="font-size:13px;text-align:center;color:${sc.homework_rate <= 0 || sc.homework_rate === null ? 'var(--red)' : 'var(--navy)'}">${hw}</span>
+      <span style="font-size:12px;color:var(--gray)">${sc.homework_eval || '-'}</span>
+      <input type="text" class="uncert-cert" value="${sc.hw_cert || ''}" placeholder="" style="padding:7px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;outline:none;width:100%">
+    </div>`;
+  }).join('');
+
+  window._uncertWeekId = parseInt(weekId);
+  window._uncertScoreMap = scoreMap;
+}
+
+async function saveUncertList() {
+  const weekId = window._uncertWeekId;
+  const scoreMap = window._uncertScoreMap || {};
+  const rows = document.querySelectorAll('#uncert-list [data-student-id]');
+  if (!rows.length) return;
+
+  const existing = await api(`scores?week_id=eq.${weekId}&select=id,student_id`);
+  const existMap = {};
+  (existing || []).forEach(e => { existMap[e.student_id] = e.id; });
+
+  const updates = Array.from(rows).map(row => ({
+    student_id: parseInt(row.dataset.studentId),
+    hw_cert: row.querySelector('.uncert-cert').value.trim()
+  }));
+
+  try {
+    const results = await Promise.all(updates.map(async u => {
+      if (existMap[u.student_id]) {
+        return fetch(`${SUPABASE_URL}/rest/v1/scores?id=eq.${existMap[u.student_id]}`, {
+          method: 'PATCH',
+          headers: { 'apikey': ANON_KEY, 'Authorization': `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ hw_cert: u.hw_cert })
+        });
+      }
+    }).filter(Boolean));
+
+    // 점수 입력 탭 캐시 갱신
+    delete scoreCache[weekId];
+
+    showToast('✅ 저장됐어요!');
+
+    // 목록 새로고침 (100 입력된 학생 자동 제거)
+    loadUncertList();
+  } catch(e) {
+    showToast('❌ 오류: ' + e.message);
+  }
+}
+
+// ── 반 이동 ──────────────────────────────────────────────
+let _moveStudentId = null;
+let _moveCurrentClassId = null;
+
+async function showMoveStudent(studentId, studentName, currentClassId) {
+  _moveStudentId = studentId;
+  _moveCurrentClassId = currentClassId;
+
+  document.getElementById('move-modal-title').textContent = `${studentName} — 반 이동`;
+  document.getElementById('move-match-preview').style.display = 'none';
+
+  // 현재 반 제외한 반 목록
+  const sel = document.getElementById('move-target-class');
+  sel.innerHTML = '<option value="">이동할 반을 선택하세요</option>';
+  classes.filter(c => c.id != currentClassId).forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.id; opt.textContent = c.name;
+    sel.appendChild(opt);
+  });
+
+  sel.onchange = () => previewMoveMatch(studentId, currentClassId, sel.value);
+
+  document.getElementById('move-modal').style.display = 'flex';
+}
+
+async function previewMoveMatch(studentId, fromClassId, toClassId) {
+  if (!toClassId) return;
+  const preview = document.getElementById('move-match-preview');
+  preview.style.display = 'block';
+  preview.textContent = '매칭 확인 중...';
+
+  // 현재 반의 주차 목록
+  const fromWeeks = await api(`weeks?class_id=eq.${fromClassId}&order=id.asc&select=*`) || [];
+  // 이동할 반의 주차 목록
+  const toWeeks = await api(`weeks?class_id=eq.${toClassId}&order=id.asc&select=*`) || [];
+  // 학생 점수 목록
+  const scores = await api(`scores?student_id=eq.${studentId}&select=week_id`) || [];
+  const scoredWeekIds = new Set(scores.map(s => s.week_id));
+
+  // group_id 기준으로 매칭
+  let matched = 0, unmatched = 0;
+  const matchLines = [];
+
+  fromWeeks.filter(w => scoredWeekIds.has(w.id)).forEach(fw => {
+    if (fw.group_id) {
+      const tw = toWeeks.find(w => w.group_id === fw.group_id);
+      if (tw) {
+        matched++;
+        matchLines.push(`✅ ${fw.label || fw.test_date} → ${tw.label || tw.test_date}`);
+      } else {
+        unmatched++;
+        matchLines.push(`⚠️ ${fw.label || fw.test_date} → 매칭 주차 없음`);
+      }
+    } else {
+      unmatched++;
+      matchLines.push(`⚠️ ${fw.label || fw.test_date} → group_id 없음`);
+    }
+  });
+
+  if (matchLines.length === 0) {
+    preview.textContent = '이전할 점수 데이터가 없습니다.';
+  } else {
+    preview.innerHTML = matchLines.join('<br>') + `<br><strong style="color:var(--navy)">매칭 ${matched}건 / 미매칭 ${unmatched}건</strong>`;
+  }
+
+  window._moveFromWeeks = fromWeeks;
+  window._moveToWeeks = toWeeks;
+  window._moveScoreedWeekIds = scoredWeekIds;
+}
+
+async function confirmMoveStudent() {
+  const toClassId = parseInt(document.getElementById('move-target-class').value);
+  if (!toClassId) { showToast('이동할 반을 선택해주세요.'); return; }
+
+  const fromWeeks = window._moveFromWeeks || [];
+  const toWeeks = window._moveToWeeks || [];
+  const scoredWeekIds = window._moveScoreedWeekIds || new Set();
+
+  // group_id 기준으로 week_id 업데이트
+  const updates = [];
+  fromWeeks.filter(w => scoredWeekIds.has(w.id)).forEach(fw => {
+    if (fw.group_id) {
+      const tw = toWeeks.find(w => w.group_id === fw.group_id);
+      if (tw) updates.push({ from_week_id: fw.id, to_week_id: tw.id });
+    }
+  });
+
+  try {
+    // 점수 week_id 업데이트
+    for (const u of updates) {
+      await api(`scores?student_id=eq.${_moveStudentId}&week_id=eq.${u.from_week_id}`, 'PATCH', { week_id: u.to_week_id });
+    }
+    // 학생 class_id 업데이트
+    await api(`students?id=eq.${_moveStudentId}`, 'PATCH', { class_id: toClassId });
+
+    showToast(`✅ 반 이동 완료 — ${updates.length}개 주차 데이터 이전됐어요.`);
+    closeMoveModal();
+    loadStudentList();
+  } catch(e) {
+    showToast('❌ 오류: ' + e.message);
+  }
+}
+
+function closeMoveModal() {
+  document.getElementById('move-modal').style.display = 'none';
+  _moveStudentId = null;
+  _moveCurrentClassId = null;
+  window._moveFromWeeks = null;
+  window._moveToWeeks = null;
+  window._moveScoreedWeekIds = null;
+}
+
+// ── 미인증 문자 발송 ──────────────────────────────────────
+async function loadStudentSmsWeeks() {
+  const classId = document.getElementById('student-sms-class').value;
+  const sel = document.getElementById('student-sms-week');
+  sel.innerHTML = '<option value="">주차를 선택하세요</option>';
+  document.getElementById('student-sms-preview-card').style.display = 'none';
+  if (!classId) return;
+  const weeks = await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`) || [];
+  weeks.forEach(w => { const opt = document.createElement('option'); opt.value = w.id; opt.textContent = w.label || w.test_date; sel.appendChild(opt); });
+  if (weeks.length > 0) { sel.value = weeks[0].id; loadStudentSmsTargets(); }
+}
+
+async function loadStudentSmsTargets() {
+  const classId = document.getElementById('student-sms-class').value;
+  const weekId = document.getElementById('student-sms-week').value;
+  if (!classId || !weekId) return;
+
+  const [students, scores] = await Promise.all([
+    api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`),
+    api(`scores?week_id=eq.${weekId}&select=*`)
+  ]);
+
+  const scoreMap = {};
+  (scores || []).forEach(s => { scoreMap[s.student_id] = s; });
+
+  const threshold = document.getElementById('student-sms-threshold').value;
+
+  // 구간별 필터
+  const targets = (students || []).filter(st => {
+    const sc = scoreMap[st.id];
+    const hw = sc ? sc.homework_rate : null;
+    if (threshold === 'low') return hw === null || hw <= 79;
+    if (threshold === 'mid') return hw !== null && hw >= 80 && hw <= 98;
+    return false;
+  }).map(st => {
+    const sc = scoreMap[st.id];
+    return {
+      id: st.id,
+      name: st.name,
+      student_phone: st.student_phone || '',
+      hw: sc ? sc.homework_rate : null
+    };
+  });
+
+  const weekSel = document.getElementById('student-sms-week');
+  const weekLabel = weekSel.options[weekSel.selectedIndex]?.text || '';
+  const className = classes.find(c => c.id == classId)?.name || '';
+
+  const card = document.getElementById('student-sms-preview-card');
+  const titleEl = document.getElementById('student-sms-title');
+  const listEl = document.getElementById('student-sms-list');
+
+  card.style.display = 'block';
+  titleEl.textContent = `발송 대상 — ${targets.length}명 (${className} ${weekLabel})`;
+
+  if (!targets.length) {
+    listEl.innerHTML = '<p style="font-size:13px;color:var(--gray)">발송 대상이 없습니다.</p>';
+    return;
+  }
+
+  listEl.innerHTML = `<table class="data-table">
+    <thead><tr><th style="width:36px"><input type="checkbox" id="check-all-student-sms" checked onchange="toggleAllStudentSms(this.checked)"></th><th>이름</th><th>과제(%)</th><th>학생 연락처</th><th>상태</th></tr></thead>
+    <tbody>${targets.map((t, i) => `
+      <tr>
+        <td><input type="checkbox" class="student-sms-check" data-idx="${i}" ${t.student_phone ? 'checked' : ''} ${!t.student_phone ? 'disabled' : ''}></td>
+        <td><strong>${t.name}</strong></td>
+        <td>${t.hw !== null ? t.hw + '%' : '미기재'}</td>
+        <td style="font-size:12px;font-family:monospace">${t.student_phone || '번호없음'}</td>
+        <td><span class="badge ${t.student_phone ? 'badge-active' : 'badge-inactive'}">${t.student_phone ? '발송가능' : '번호없음'}</span></td>
+      </tr>`).join('')}
+    </tbody></table>`;
+
+  window._studentSmsTargets = targets;
+}
+
+async function sendStudentSms() {
+  const targets = window._studentSmsTargets || [];
+  const validTargets = targets.filter(t => t.student_phone);
+  if (!validTargets.length) { showToast('발송 가능한 대상이 없습니다.'); return; }
+  if (!confirm(`${validTargets.length}명에게 문자를 발송할까요?`)) return;
+
+  showToast('발송 중...');
+  const messages = validTargets.map(t => ({
+    to: t.student_phone,
+    text: `[용산대성N학원 영어과]
+과제 못 한 부분 인증하세요.`
+  }));
+
+  try {
+    const res = await fetch(SMS_FUNCTION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
+      body: JSON.stringify({ messages })
+    });
+    const data = await res.json();
+    showToast(`✅ 발송 완료 — 성공 ${data.success}건 / 실패 ${data.fail}건`, 4000);
+  } catch(e) {
+    showToast('❌ 발송 오류: ' + e.message);
+  }
+}
+
+// ── 반 관리
+async function loadClassList() {
+  const container = document.getElementById('class-list');
+  if (!container) return;
+  const classList = await api('classes?order=id.asc&select=*') || [];
+  if (!classList.length) { container.innerHTML = '<p style="font-size:13px;color:var(--gray)">등록된 반이 없습니다.</p>'; return; }
+  container.innerHTML = `<table class="data-table"><thead><tr><th>반 이름</th><th>요일</th><th>시간</th><th></th></tr></thead><tbody>${classList.map(c => `
+    <tr>
+      <td><input type="text" value="${c.name}" onblur="updateClassName(${c.id}, this.value)" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'Noto Sans KR',sans-serif;width:160px;outline:none;font-weight:600"></td>
+      <td><input type="text" value="${c.day || ''}" onblur="updateClassDay(${c.id}, this.value)" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'Noto Sans KR',sans-serif;width:50px;outline:none;text-align:center"></td>
+      <td><input type="text" value="${c.time || ''}" onblur="updateClassTime(${c.id}, this.value)" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'Noto Sans KR',sans-serif;width:80px;outline:none;text-align:center"></td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteClass(${c.id}, '${c.name}')">삭제</button></td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+function refreshClassSelects() {
+  ['score-class','week-class','week-list-class','new-class','student-list-class','mock-class','mock-score-class','mock-list-class','sms-class','uncert-class','student-sms-class'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = '<option value="">반을 선택하세요</option>';
+    classes.forEach(c => { const opt = document.createElement('option'); opt.value = c.id; opt.textContent = c.name; sel.appendChild(opt); });
+  });
+}
+
+async function updateClassName(id, name) {
+  if (!name.trim()) { showToast('반 이름을 입력해주세요.'); loadClassList(); return; }
+  await api(`classes?id=eq.${id}`, 'PATCH', { name: name.trim() });
+  classes = await api('classes?order=id.asc&select=*') || [];
+  refreshClassSelects();
+  showToast('✅ 반 이름이 수정됐어요.');
+}
+
+async function updateClassDay(id, day) {
+  await api(`classes?id=eq.${id}`, 'PATCH', { day: day.trim() || null });
+  showToast('✅ 요일이 수정됐어요.');
+}
+
+async function updateClassTime(id, time) {
+  await api(`classes?id=eq.${id}`, 'PATCH', { time: time.trim() || null });
+  showToast('✅ 시간이 수정됐어요.');
+}
+
+async function addClass() {
+  const name = document.getElementById('new-class-name').value.trim();
+  const day  = document.getElementById('new-class-day').value.trim();
+  const time = document.getElementById('new-class-time').value.trim();
+  if (!name || !day) { showToast('반 이름과 요일을 입력해주세요.'); return; }
+  await api('classes', 'POST', { name, day, time: time || null });
+  showToast(`✅ ${name}이 추가됐어요.`);
+  document.getElementById('new-class-name').value = '';
+  document.getElementById('new-class-day').value = '';
+  document.getElementById('new-class-time').value = '';
+  classes = await api('classes?order=id.asc&select=*') || [];
+  refreshClassSelects();
+  loadClassList();
+}
+
+async function deleteClass(id, name) {
+  if (!confirm(`"${name}" 반을 삭제할까요?\n해당 반의 학생, 주차, 점수 데이터도 모두 삭제됩니다.`)) return;
+  const students = await api(`students?class_id=eq.${id}&select=id`) || [];
+  for (const s of students) { await api(`scores?student_id=eq.${s.id}`, 'DELETE'); }
+  await api(`students?class_id=eq.${id}`, 'DELETE');
+  const weeks = await api(`weeks?class_id=eq.${id}&select=id`) || [];
+  for (const w of weeks) { await api(`scores?week_id=eq.${w.id}`, 'DELETE'); }
+  await api(`weeks?class_id=eq.${id}`, 'DELETE');
+  const exams = await api(`mock_exams?class_id=eq.${id}&select=id`) || [];
+  for (const e of exams) { await api(`mock_scores?exam_id=eq.${e.id}`, 'DELETE'); }
+  await api(`mock_exams?class_id=eq.${id}`, 'DELETE');
+  await api(`classes?id=eq.${id}`, 'DELETE');
+  showToast(`🗑 ${name} 반이 삭제됐어요.`);
+  classes = await api('classes?order=id.asc&select=*') || [];
+  refreshClassSelects();
+  loadClassList();
+}
+
+// ── 문자 발송
+async function loadSmsWeeks() {
+  const classId = document.getElementById('sms-class').value;
+  const sel = document.getElementById('sms-week');
+  sel.innerHTML = '<option value="">주차를 선택하세요</option>';
+  document.getElementById('sms-preview-card').style.display = 'none';
+  if (!classId) return;
+  const weeks = await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`) || [];
+  weeks.forEach(w => { const opt = document.createElement('option'); opt.value = w.id; opt.textContent = w.label || w.test_date; sel.appendChild(opt); });
+  if (weeks.length > 0) loadSmsTargets();
+}
+
+async function loadSmsTargets() {
+  const classId = document.getElementById('sms-class').value;
+  const weekId = document.getElementById('sms-week').value;
+  const threshold = document.getElementById('sms-threshold').value;
+  if (!classId || !weekId) return;
+  const [students, scores] = await Promise.all([
+    api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`),
+    api(`scores?week_id=eq.${weekId}&select=*`)
+  ]);
+  const scoreMap = {};
+  (scores || []).forEach(s => { scoreMap[s.student_id] = s; });
+  const targets = (students || []).filter(st => {
+    const sc = scoreMap[st.id];
+    const hw = sc ? sc.homework_rate : null;
+    const isEmpty = !sc || hw === null;
+    if (threshold === 'all') return true;
+    if (threshold === 'empty') return isEmpty;
+    if (threshold === '0') return !isEmpty && hw === 0;
+    if (threshold === '1-79') return !isEmpty && hw >= 1 && hw <= 79;
+    if (threshold === '80-99') return !isEmpty && hw >= 80 && hw <= 99;
+    if (threshold === '100') return !isEmpty && hw === 100;
+    return false;
+  }).map(st => {
+    const sc = scoreMap[st.id];
+    const hw = sc ? sc.homework_rate : null;
+    return { id: st.id, name: st.name, phone: st.phone || '', hw, isEmpty: !sc || hw === null };
+  });
+  const weekSel = document.getElementById('sms-week');
+  const weekLabel = weekSel.options[weekSel.selectedIndex]?.text || '';
+  const card = document.getElementById('sms-preview-card');
+  const titleEl = document.getElementById('sms-preview-title');
+  const listEl = document.getElementById('sms-target-list');
+  const previewEl = document.getElementById('sms-preview-text');
+  card.style.display = 'block';
+  titleEl.textContent = `발송 대상 — ${targets.length}명`;
+  if (targets.length === 0) { listEl.innerHTML = '<p style="font-size:13px;color:var(--gray)">해당 조건의 발송 대상이 없습니다.</p>'; previewEl.value = ''; return; }
+  const first = targets[0];
+  previewEl.value = makeSmsText(first.name, weekLabel, first.hw, first.isEmpty);
+  listEl.innerHTML = `<table class="data-table"><thead><tr><th style="width:36px"><input type="checkbox" id="check-all-sms" checked onchange="toggleAllSms(this.checked)"></th><th>이름</th><th>과제(%)</th><th>연락처</th><th>상태</th></tr></thead><tbody>${targets.map((t, i) => `<tr><td><input type="checkbox" class="sms-check" data-idx="${i}" ${t.phone ? 'checked' : ''} ${!t.phone ? 'disabled' : ''}></td><td><strong>${t.name}</strong></td><td>${t.hw !== null && !t.isEmpty ? t.hw + '%' : '미기재'}</td><td style="font-size:12px;font-family:monospace">${t.phone || '번호없음'}</td><td><span class="badge ${t.phone ? 'badge-active' : 'badge-inactive'}">${t.phone ? '발송가능' : '번호없음'}</span></td></tr>`).join('')}</tbody></table>`;
+  window._smsTargets = targets;
+  window._smsWeekLabel = weekLabel;
+}
+
+function makeSmsText(name, weekLabel, hw, isEmpty) {
+  if (isEmpty || hw === null || hw === undefined) {
+    return `[용산대성N학원 영어과]\n${name} 학생의 ${weekLabel} 과제가 인증되지 않았습니다.\n토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.\n미인증 시 일요일 보충수업이 실시됩니다.\n감사합니다.`;
+  } else if (hw === 0) {
+    return `[용산대성N학원 영어과]\n${name} 학생의 ${weekLabel} 과제 수행이 전혀 되지 않았습니다.\n토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.\n미인증 시 일요일 보충수업이 실시됩니다.\n감사합니다.`;
+  } else if (hw <= 79) {
+    return `[용산대성N학원 영어과]\n${name} 학생의 ${weekLabel} 과제 수행률이 ${hw}%입니다.\n토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.\n미인증 시 일요일 보충수업이 실시됩니다.\n감사합니다.`;
+  } else {
+    return `[용산대성N학원 영어과]\n${name} 학생의 ${weekLabel} 과제 수행률이 ${hw}%입니다.\n빠진 부분은 토요일까지 완료 후 영어알림톡으로 인증해 주세요.\n보충수업은 과제 미인증 및 개별 안내 학생을 대상으로 일요일에 실시됩니다.\n감사합니다.`;
+  }
+}
+
+function toggleAllSms(checked) {
+  const boxes = document.querySelectorAll('.sms-check:not(:disabled)');
+  if (checked === undefined) {
+    checked = !Array.from(boxes).every(cb => cb.checked);
+  }
+  boxes.forEach(cb => { cb.checked = checked; });
+  const headerCheck = document.getElementById('check-all-sms');
+  if (headerCheck) headerCheck.checked = checked;
+}
+
+async function sendAllSms() {
+  const targets = window._smsTargets || [];
+  const weekLabel = window._smsWeekLabel || '';
+  // 체크된 행만 발송
+  const selected = Array.from(document.querySelectorAll('.sms-check:checked'))
+    .map(cb => targets[parseInt(cb.dataset.idx)])
+    .filter(t => t && t.phone);
+  if (!selected.length) { showToast('선택된 발송 대상이 없습니다.'); return; }
+  if (!confirm(`${selected.length}명에게 문자를 발송할까요?`)) return;
+  showToast('발송 중...');
+  const messages = selected.map(t => ({ to: t.phone, text: makeSmsText(t.name, weekLabel, t.hw, t.isEmpty) }));
+  try {
+    const res = await fetch(SMS_FUNCTION_URL, { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`}, body:JSON.stringify({ messages }) });
+    const data = await res.json();
+    showToast(`✅ 발송 완료 — 성공 ${data.success}건 / 실패 ${data.fail}건`, 4000);
+  } catch (e) { showToast('❌ 발송 오류: ' + e.message); }
+}
+
+// ── 모의고사
+const mockScoreCache = {};
+let mockDirty = false;
+
+async function addMockExam() {
+  const grade = document.getElementById('mock-grade').value;
+  const date = document.getElementById('mock-date').value.trim();
+  const label = document.getElementById('mock-label').value.trim();
+  if (!grade || !date) { showToast('학년과 날짜를 입력해주세요.'); return; }
+
+  const groupId = `${grade}-${date}-mock-${Date.now()}`;
+
+  if (grade === '고1' || grade === '고2') {
+    const gradeClasses = classes.filter(c => c.grade === grade);
+    if (!gradeClasses.length) { showToast(`${grade} 반이 없습니다.`); return; }
+    for (const c of gradeClasses) {
+      await api('mock_exams', 'POST', { class_id: c.id, exam_date: date, label: label || date, group_id: groupId });
+    }
+    showToast(`✅ ${grade} 모의고사가 추가됐어요. (${gradeClasses.length}개 반)`);
+  } else if (grade === 'single') {
+    const classId = document.getElementById('mock-class').value;
+    if (!classId) { showToast('반을 선택해주세요.'); return; }
+    await api('mock_exams', 'POST', { class_id: parseInt(classId), exam_date: date, label: label || date, group_id: groupId });
+    showToast('✅ 모의고사가 추가됐어요.');
+  }
+
+  document.getElementById('mock-date').value = '';
+  document.getElementById('mock-label').value = '';
+  loadMockList();
+}
+
+document.getElementById('mock-grade').addEventListener('change', function() {
+  document.getElementById('mock-class-group').style.display = this.value === 'single' ? 'flex' : 'none';
+});
+
+async function loadMockExams() {
+  if (mockDirty) {
+    if (!confirm('저장하지 않은 모의고사 점수가 있습니다.\n반을 이동하면 변경사항이 사라집니다.\n계속할까요?')) { return; }
+    mockDirty = false;
+  }
+  const classId = document.getElementById('mock-score-class').value;
+  const sel = document.getElementById('mock-score-exam');
+  sel.innerHTML = '<option value="">모의고사를 선택하세요</option>';
+  document.getElementById('mock-score-card').style.display = 'none';
+  if (!classId) return;
+  const exams = await api(`mock_exams?class_id=eq.${classId}&order=id.desc&select=*`) || [];
+  exams.forEach(e => { const opt = document.createElement('option'); opt.value = e.id; opt.textContent = e.label || e.exam_date; sel.appendChild(opt); });
+  // 최근 회차 자동 선택
+  if (exams.length > 0) { sel.value = exams[0].id; loadMockScoreInputs(); }
+}
+
+async function loadMockScoreInputs() {
+  if (mockDirty) {
+    if (!confirm('저장하지 않은 모의고사 점수가 있습니다.\n시험을 변경하면 변경사항이 사라집니다.\n계속할까요?')) { return; }
+    mockDirty = false;
+  }
+  const classId = document.getElementById('mock-score-class').value;
+  const examId = document.getElementById('mock-score-exam').value;
+  if (!classId || !examId) return;
+  const card = document.getElementById('mock-score-card');
+  const container = document.getElementById('mock-score-inputs');
+  card.style.display = 'block';
+  if (mockScoreCache[examId]) { renderMockInputs(classId, examId, mockScoreCache[examId]); return; }
+  container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
+  if (!studentCache[classId]) { studentCache[classId] = await api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`) || []; }
+  const scores = await api(`mock_scores?exam_id=eq.${examId}&select=*`) || [];
+  mockScoreCache[examId] = {};
+  scores.forEach(s => { mockScoreCache[examId][s.student_id] = s; });
+  renderMockInputs(classId, examId, mockScoreCache[examId]);
+}
+
+function renderMockInputs(classId, examId, scoreMap) {
+  const container = document.getElementById('mock-score-inputs');
+  const students = studentCache[classId] || [];
+  container.innerHTML = students.map(st => {
+    const sc = scoreMap[st.id] || {};
+    return `<div style="display:grid;grid-template-columns:1fr 100px 150px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--light-gray)" data-student-id="${st.id}">
+      <span style="font-size:13px;font-weight:500">${st.name}</span>
+      <input type="number" class="mock-score" value="${sc.score ?? ''}" min="0" max="100" placeholder="" oninput="mockDirty=true" style="padding:8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;text-align:center;outline:none;width:100%">
+      <input type="text" class="mock-memo" value="${sc.memo ?? ''}" placeholder="" oninput="mockDirty=true" style="padding:8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;outline:none;width:100%">
+    </div>`;
+  }).join('');
+  mockDirty = false;
+  document.getElementById('mock-save-btn').style.display = 'block';
+}
+
+async function saveMockScores() {
+  const examId = parseInt(document.getElementById('mock-score-exam').value);
+  const rows = document.querySelectorAll('#mock-score-inputs [data-student-id]');
+  if (!rows.length) return;
+  const existing = await api(`mock_scores?exam_id=eq.${examId}&select=id,student_id`) || [];
+  const existMap = {};
+  existing.forEach(e => { existMap[e.student_id] = e.id; });
+  const upserts = Array.from(rows).map(row => ({ student_id: parseInt(row.dataset.studentId), exam_id: examId, score: row.querySelector('.mock-score').value !== '' ? parseFloat(row.querySelector('.mock-score').value) : null, memo: row.querySelector('.mock-memo').value.trim() }));
+  try {
+    const results = await Promise.all(upserts.map(async u => {
+      if (existMap[u.student_id]) {
+        return fetch(`${SUPABASE_URL}/rest/v1/mock_scores?id=eq.${existMap[u.student_id]}`, { method:'PATCH', headers:{'apikey':ANON_KEY,'Authorization':`Bearer ${ANON_KEY}`,'Content-Type':'application/json','Prefer':'return=minimal'}, body:JSON.stringify({score:u.score,memo:u.memo}) });
+      } else {
+        return fetch(`${SUPABASE_URL}/rest/v1/mock_scores`, { method:'POST', headers:{'apikey':ANON_KEY,'Authorization':`Bearer ${ANON_KEY}`,'Content-Type':'application/json','Prefer':'return=minimal'}, body:JSON.stringify(u) });
+      }
+    }));
+    const failed = results.filter(r => !r.ok);
+    if (failed.length > 0) { showToast(`❌ ${failed.length}건 저장 실패`); return; }
+    delete mockScoreCache[examId];
+    mockDirty = false;
+    showToast('✅ 모의고사 점수가 저장됐어요!');
+  } catch(e) { showToast('❌ 오류 발생: ' + e.message); }
+}
+
+async function loadMockList() {
+  const classId = document.getElementById('mock-list-class').value;
+  const container = document.getElementById('mock-list');
+  if (!classId) { container.innerHTML = '<p style="font-size:13px;color:var(--gray)">반을 선택하면 목록이 표시됩니다.</p>'; return; }
+  container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
+  const exams = await api(`mock_exams?class_id=eq.${classId}&order=id.desc&select=*`) || [];
+  if (!exams.length) { container.innerHTML = '<p style="font-size:13px;color:var(--gray)">등록된 모의고사가 없습니다.</p>'; return; }
+  container.innerHTML = `<table class="data-table"><thead><tr><th>시험명</th><th>날짜</th><th></th></tr></thead><tbody>${exams.map(e => `<tr><td><strong>${e.label || e.exam_date}</strong></td><td style="color:var(--gray);font-size:12px">${e.exam_date}</td><td><button class="btn btn-danger btn-sm" onclick="deleteMockExam(${e.id})">삭제</button></td></tr>`).join('')}</tbody></table>`;
+}
+
+async function deleteMockExam(id) {
+  if (!confirm('이 모의고사를 삭제하면 모든 점수도 삭제됩니다. 계속할까요?')) return;
+  await api(`mock_scores?exam_id=eq.${id}`, 'DELETE');
+  await api(`mock_exams?id=eq.${id}`, 'DELETE');
+  showToast('🗑 모의고사가 삭제됐어요.');
+  loadMockList();
+}
+
+// ── 학생 관리
+async function addStudent() {
+  const name = document.getElementById('new-name').value.trim();
+  const pin = document.getElementById('new-pin').value.trim();
+  const classId = document.getElementById('new-class').value;
+  if (!name || !pin || !classId) { showToast('이름, PIN, 반을 모두 입력해주세요.'); return; }
+  const phone = document.getElementById('new-phone').value.trim();
+  const studentPhone = document.getElementById('new-student-phone').value.trim();
+  await api('students', 'POST', { name, pin, phone: phone || null, student_phone: studentPhone || null, class_id: parseInt(classId), is_active: true });
+  showToast(`✅ ${name} 학생이 추가됐어요.`);
+  document.getElementById('new-name').value = '';
+  document.getElementById('new-pin').value = '';
+  document.getElementById('new-phone').value = '';
+  document.getElementById('new-student-phone').value = '';
+  if (document.getElementById('student-list-class').value == classId) loadStudentList();
+}
+
+async function loadStudentList() {
+  const classId = document.getElementById('student-list-class').value;
+  const container = document.getElementById('student-list');
+  if (!classId) { container.innerHTML = '<p style="font-size:13px;color:var(--gray)">반을 선택하면 학생 목록이 표시됩니다.</p>'; return; }
+  container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
+  const students = await api(`students?class_id=eq.${classId}&order=name.asc&select=*`) || [];
+  if (!students.length) { container.innerHTML = '<p style="font-size:13px;color:var(--gray)">등록된 학생이 없습니다.</p>'; return; }
+  container.innerHTML = `<table class="data-table"><thead><tr><th>이름</th><th>PIN</th><th>연락처</th><th>상태</th><th>특이사항</th><th></th></tr></thead><tbody>${students.map(s => `
+    <tr>
+      <td><input type="text" value="${s.name}" onblur="updateStudentName(${s.id}, this.value)" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'Noto Sans KR',sans-serif;width:80px;outline:none;font-weight:600"></td>
+      <td><input type="text" value="${s.pin || ''}" placeholder="PIN" onblur="updateStudentPin(${s.id}, this.value)" maxlength="4" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:monospace;width:65px;outline:none;text-align:center"></td>
+      <td><input type="text" value="${s.phone || ''}" placeholder="연락처" onblur="updateStudentPhone(${s.id}, this.value)" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;width:120px;outline:none"></td>
+      <td><span class="badge ${s.is_active ? 'badge-active' : 'badge-inactive'}">${s.is_active ? '재원' : '퇴원'}</span></td>
+      <td><input type="text" value="${s.note || ''}" placeholder="" onblur="updateStudentNote(${s.id}, this.value)" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;width:160px;outline:none"></td>
+      <td style="display:flex;gap:6px">
+        ${s.is_active ? `<button class="btn btn-danger btn-sm" onclick="toggleStudent(${s.id}, false)">퇴원</button>` : `<button class="btn btn-sm" style="background:var(--green-light);color:var(--green);border:1px solid #b7efd1" onclick="toggleStudent(${s.id}, true)">복귀</button>`}
+        <button class="btn btn-sm" style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe" onclick="showMoveStudent(${s.id},'${s.name}',${s.class_id})">반 이동</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteStudent(${s.id},'${s.name}')">삭제</button>
+      </td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+async function updateStudentPin(id, pin) {
+  if (!pin.trim()) { showToast('PIN을 입력해주세요.'); loadStudentList(); return; }
+  await api(`students?id=eq.${id}`, 'PATCH', { pin: pin.trim().padStart(4, '0') });
+  showToast('✅ PIN이 수정됐어요.');
+}
+
+async function updateStudentName(id, name) {
+  if (!name.trim()) { showToast('이름을 입력해주세요.'); loadStudentList(); return; }
+  await api(`students?id=eq.${id}`, 'PATCH', { name: name.trim() });
+  showToast('✅ 이름이 수정됐어요.');
+}
+
+async function updateStudentNote(id, note) {
+  await api(`students?id=eq.${id}`, 'PATCH', { note });
+  showToast('✅ 특이사항이 저장됐어요.');
+}
+
+async function updateStudentStudentPhone(id, phone) {
+  await api(`students?id=eq.${id}`, 'PATCH', { student_phone: phone || null });
+  showToast('✅ 학생 연락처가 저장됐어요.');
+}
+
+async function updateStudentPhone(id, phone) {
+  await api(`students?id=eq.${id}`, 'PATCH', { phone: phone || null });
+  showToast('✅ 연락처가 저장됐어요.');
+}
+
+async function toggleStudent(id, active) {
+  await api(`students?id=eq.${id}`, 'PATCH', { is_active: active });
+  showToast(active ? '✅ 복귀 처리됐어요.' : '퇴원 처리됐어요.');
+  loadStudentList();
+}
+
+async function deleteStudent(id, name) {
+  if (!confirm(`${name} 학생을 완전히 삭제할까요?\n점수 기록도 함께 삭제됩니다.`)) return;
+  await api(`scores?student_id=eq.${id}`, 'DELETE');
+  await api(`students?id=eq.${id}`, 'DELETE');
+  showToast(`🗑 ${name} 학생이 삭제됐어요.`);
+  loadStudentList();
+}
 </script>
 </body>
 </html>
