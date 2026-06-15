@@ -218,13 +218,19 @@
       </div>
     </div>
     <div class="section-card">
-      <div class="section-head"><h3>학생 목록</h3></div>
+      <div class="section-head"><h3>학생 목록 · 검색</h3></div>
       <div class="section-body">
-        <div class="form-group" style="margin-bottom:12px">
-          <label>반 선택</label>
-          <select id="student-list-class" onchange="loadStudentList()"><option value="">반을 선택하세요</option></select>
+        <div class="form-row">
+          <div class="form-group">
+            <label>반 선택</label>
+            <select id="student-list-class" onchange="loadStudentList()"><option value="">반을 선택하세요</option></select>
+          </div>
+          <div class="form-group">
+            <label>이름 검색 (전체 반)</label>
+            <input type="text" id="student-search" placeholder="학생 이름 입력" oninput="searchStudents()">
+          </div>
         </div>
-        <div id="student-list"><p style="font-size:13px;color:var(--gray)">반을 선택하면 학생 목록이 표시됩니다.</p></div>
+        <div id="student-list"><p style="font-size:13px;color:var(--gray)">반을 선택하거나 이름으로 검색하세요.</p></div>
       </div>
     </div>
   </div>
@@ -1442,18 +1448,21 @@ async function addStudent() {
   if (document.getElementById('student-list-class').value == classId) loadStudentList();
 }
 
-async function loadStudentList() {
-  const classId = document.getElementById('student-list-class').value;
-  const container = document.getElementById('student-list');
-  if (!classId) { container.innerHTML = '<p style="font-size:13px;color:var(--gray)">반을 선택하면 학생 목록이 표시됩니다.</p>'; return; }
-  container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
-  const students = await api(`students?class_id=eq.${classId}&order=name.asc&select=*`) || [];
-  if (!students.length) { container.innerHTML = '<p style="font-size:13px;color:var(--gray)">등록된 학생이 없습니다.</p>'; return; }
-  container.innerHTML = `<table class="data-table"><thead><tr><th>이름</th><th>PIN</th><th>연락처</th><th>상태</th><th>특이사항</th><th></th></tr></thead><tbody>${students.map(s => `
+function refreshStudentList() {
+  const q = document.getElementById('student-search').value.trim();
+  if (q) { searchStudents(); } else { loadStudentList(); }
+}
+
+function renderStudentTable(students, showClass) {
+  const classMap = {};
+  classes.forEach(c => { classMap[c.id] = c.name; });
+  return `<table class="data-table"><thead><tr>${showClass ? '<th>반</th>' : ''}<th>이름</th><th>PIN</th><th>학부모 연락처</th><th>학생 연락처</th><th>상태</th><th>특이사항</th><th></th></tr></thead><tbody>${students.map(s => `
     <tr>
+      ${showClass ? `<td><span style="font-size:12px;color:var(--gold);font-weight:600">${classMap[s.class_id] || '-'}</span></td>` : ''}
       <td><input type="text" value="${s.name}" onblur="updateStudentName(${s.id}, this.value)" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'Noto Sans KR',sans-serif;width:80px;outline:none;font-weight:600"></td>
       <td><input type="text" value="${s.pin || ''}" placeholder="PIN" onblur="updateStudentPin(${s.id}, this.value)" maxlength="4" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:monospace;width:65px;outline:none;text-align:center"></td>
-      <td><input type="text" value="${s.phone || ''}" placeholder="연락처" onblur="updateStudentPhone(${s.id}, this.value)" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;width:120px;outline:none"></td>
+      <td><input type="text" value="${s.phone || ''}" placeholder="학부모 연락처" onblur="updateStudentPhone(${s.id}, this.value)" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;width:130px;outline:none"></td>
+      <td><input type="text" value="${s.student_phone || ''}" placeholder="학생 연락처" onblur="updateStudentStudentPhone(${s.id}, this.value)" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;width:130px;outline:none"></td>
       <td><span class="badge ${s.is_active ? 'badge-active' : 'badge-inactive'}">${s.is_active ? '재원' : '퇴원'}</span></td>
       <td><input type="text" value="${s.note || ''}" placeholder="" onblur="updateStudentNote(${s.id}, this.value)" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;width:160px;outline:none"></td>
       <td style="display:flex;gap:6px">
@@ -1462,6 +1471,38 @@ async function loadStudentList() {
         <button class="btn btn-danger btn-sm" onclick="deleteStudent(${s.id},'${s.name}')">삭제</button>
       </td>
     </tr>`).join('')}</tbody></table>`;
+}
+
+async function loadStudentList() {
+  const classId = document.getElementById('student-list-class').value;
+  const container = document.getElementById('student-list');
+  // 반 선택 시 검색창 비우기
+  document.getElementById('student-search').value = '';
+  if (!classId) { container.innerHTML = '<p style="font-size:13px;color:var(--gray)">반을 선택하거나 이름으로 검색하세요.</p>'; return; }
+  container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
+  const students = await api(`students?class_id=eq.${classId}&order=name.asc&select=*`) || [];
+  if (!students.length) { container.innerHTML = '<p style="font-size:13px;color:var(--gray)">등록된 학생이 없습니다.</p>'; return; }
+  container.innerHTML = renderStudentTable(students, false);
+}
+
+let _searchTimer = null;
+async function searchStudents() {
+  const q = document.getElementById('student-search').value.trim();
+  const container = document.getElementById('student-list');
+  if (!q) {
+    // 검색어 없으면 반 선택 기준으로 복귀
+    loadStudentList();
+    return;
+  }
+  // 반 선택 해제
+  document.getElementById('student-list-class').value = '';
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(async () => {
+    container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>검색 중...</div>';
+    const students = await api(`students?name=ilike.*${encodeURIComponent(q)}*&order=name.asc&select=*`) || [];
+    if (!students.length) { container.innerHTML = '<p style="font-size:13px;color:var(--gray)">검색 결과가 없습니다.</p>'; return; }
+    container.innerHTML = renderStudentTable(students, true);
+  }, 300);
 }
 
 async function updateStudentPin(id, pin) {
@@ -1494,7 +1535,7 @@ async function updateStudentPhone(id, phone) {
 async function toggleStudent(id, active) {
   await api(`students?id=eq.${id}`, 'PATCH', { is_active: active });
   showToast(active ? '✅ 복귀 처리됐어요.' : '퇴원 처리됐어요.');
-  loadStudentList();
+  refreshStudentList();
 }
 
 async function deleteStudent(id, name) {
@@ -1502,7 +1543,7 @@ async function deleteStudent(id, name) {
   await api(`scores?student_id=eq.${id}`, 'DELETE');
   await api(`students?id=eq.${id}`, 'DELETE');
   showToast(`🗑 ${name} 학생이 삭제됐어요.`);
-  loadStudentList();
+  refreshStudentList();
 }
 </script>
 </body>
