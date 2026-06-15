@@ -46,6 +46,7 @@
   .tab-btn { padding:13px 18px; font-size:13px; font-weight:500; color:var(--gray); background:none; border:none; border-bottom:2px solid transparent; cursor:pointer; white-space:nowrap; font-family:'Noto Sans KR',sans-serif; transition:all 0.15s; }
   .tab-btn.active { color:var(--navy); border-bottom-color:var(--gold); font-weight:700; }
   .tab-content { display:none; padding:16px; max-width:900px; margin:0 auto; }
+  #tab-student { max-width:1200px; }
   .tab-content.active { display:block; }
   .section-card { background:var(--white); border-radius:14px; box-shadow:var(--shadow); margin-bottom:16px; overflow:hidden; }
   .section-head { padding:14px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
@@ -230,7 +231,7 @@
             <input type="text" id="student-search" placeholder="학생 이름 입력" oninput="searchStudents()">
           </div>
         </div>
-        <div id="student-list"><p style="font-size:13px;color:var(--gray)">반을 선택하거나 이름으로 검색하세요.</p></div>
+        <div id="student-list" style="overflow-x:auto"><p style="font-size:13px;color:var(--gray)">반을 선택하거나 이름으로 검색하세요.</p></div>
       </div>
     </div>
   </div>
@@ -1456,9 +1457,9 @@ function refreshStudentList() {
 function renderStudentTable(students, showClass) {
   const classMap = {};
   classes.forEach(c => { classMap[c.id] = c.name; });
-  return `<table class="data-table"><thead><tr>${showClass ? '<th>반</th>' : ''}<th>이름</th><th>PIN</th><th>학부모 연락처</th><th>학생 연락처</th><th>상태</th><th>특이사항</th><th></th></tr></thead><tbody>${students.map(s => `
+  return `<table class="data-table" style="min-width:900px"><thead><tr>${showClass ? '<th>반</th>' : ''}<th>이름</th><th>PIN</th><th>학부모 연락처</th><th>학생 연락처</th><th>상태</th><th>특이사항</th><th></th></tr></thead><tbody>${students.map(s => `
     <tr>
-      ${showClass ? `<td><span style="font-size:12px;color:var(--gold);font-weight:600">${classMap[s.class_id] || '-'}</span></td>` : ''}
+      ${showClass ? `<td style="white-space:nowrap"><span style="font-size:12px;color:var(--gold);font-weight:600;white-space:nowrap">${classMap[s.class_id] || '-'}</span></td>` : ''}
       <td><input type="text" value="${s.name}" onblur="updateStudentName(${s.id}, this.value)" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'Noto Sans KR',sans-serif;width:80px;outline:none;font-weight:600"></td>
       <td><input type="text" value="${s.pin || ''}" placeholder="PIN" onblur="updateStudentPin(${s.id}, this.value)" maxlength="4" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:monospace;width:65px;outline:none;text-align:center"></td>
       <td><input type="text" value="${s.phone || ''}" placeholder="학부모 연락처" onblur="updateStudentPhone(${s.id}, this.value)" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;width:130px;outline:none"></td>
