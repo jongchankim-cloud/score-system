@@ -1083,32 +1083,50 @@ async function loadAbsentWeeks() {
   sel.innerHTML = '<option value="">주차를 선택하세요</option>';
   document.getElementById('absent-preview-card').style.display = 'none';
   if (!classId) return;
-  const weeks = await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`) || [];
-  weeks.forEach(w => { const opt = document.createElement('option'); opt.value = w.id; opt.textContent = w.label || w.test_date; sel.appendChild(opt); });
-  if (weeks.length > 0) { sel.value = weeks[0].id; loadAbsentTargets(); }
+  const [weeks, exams] = await Promise.all([
+    api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`),
+    api(`mock_exams?class_id=eq.${classId}&order=id.desc&select=*`)
+  ]);
+  (weeks || []).forEach(w => { const opt = document.createElement('option'); opt.value = 'w' + w.id; opt.textContent = w.label || w.test_date; sel.appendChild(opt); });
+  (exams || []).forEach(e => { const opt = document.createElement('option'); opt.value = 'm' + e.id; opt.textContent = '[모의고사] ' + (e.label || e.exam_date); sel.appendChild(opt); });
+  if (weeks && weeks.length > 0) { sel.value = 'w' + weeks[0].id; loadAbsentTargets(); }
+  else if (exams && exams.length > 0) { sel.value = 'm' + exams[0].id; loadAbsentTargets(); }
 }
 
 async function loadAbsentTargets() {
   const classId = document.getElementById('absent-class').value;
-  const weekId = document.getElementById('absent-week').value;
-  if (!classId || !weekId) return;
+  const weekVal = document.getElementById('absent-week').value;
+  if (!classId || !weekVal) return;
 
-  const [students, scores] = await Promise.all([
-    api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`),
-    api(`scores?week_id=eq.${weekId}&select=*`)
-  ]);
+  const isMock = weekVal.charAt(0) === 'm';
+  const id = parseInt(weekVal.slice(1));
+
+  const students = await api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`);
 
   const scoreMap = {};
-  (scores || []).forEach(s => { scoreMap[s.student_id] = s; });
-
-  // 미응시 = 단어/해석/객관식 중 하나라도 비어있음(null)
-  const targets = (students || []).filter(st => {
-    const sc = scoreMap[st.id];
-    if (!sc) return true; // 점수 행 자체가 없으면 미응시
-    const w = sc.word_score, r = sc.reading_score, m = sc.mc_score;
-    const empty = v => v === null || v === undefined;
-    return empty(w) || empty(r) || empty(m);
-  }).map(st => ({
+  let targets;
+  if (isMock) {
+    const scores = await api(`mock_scores?exam_id=eq.${id}&select=*`) || [];
+    scores.forEach(s => { scoreMap[s.student_id] = s; });
+    // 모의고사 미응시 = score가 비어있음(null)
+    targets = (students || []).filter(st => {
+      const sc = scoreMap[st.id];
+      if (!sc) return true;
+      return sc.score === null || sc.score === undefined;
+    });
+  } else {
+    const scores = await api(`scores?week_id=eq.${id}&select=*`) || [];
+    scores.forEach(s => { scoreMap[s.student_id] = s; });
+    // 미응시 = 단어/해석/객관식 중 하나라도 비어있음(null)
+    targets = (students || []).filter(st => {
+      const sc = scoreMap[st.id];
+      if (!sc) return true;
+      const w = sc.word_score, r = sc.reading_score, m = sc.mc_score;
+      const empty = v => v === null || v === undefined;
+      return empty(w) || empty(r) || empty(m);
+    });
+  }
+  targets = targets.map(st => ({
     id: st.id,
     name: st.name,
     student_phone: st.student_phone || ''
@@ -1125,8 +1143,9 @@ async function loadAbsentTargets() {
   card.style.display = 'block';
   titleEl.textContent = `미응시 학생 — ${targets.length}명 (${className} ${weekLabel})`;
 
-  // 문자 내용에 선택한 주차 반영
-  document.getElementById('absent-sms-text').value = `[용산대성N학원 영어과]\n${weekLabel} 테스트 미응시 상태입니다.\n테스트 응시 후 제출 바랍니다.`;
+  // 문자 내용에 선택한 주차 반영 ([모의고사] 접두어 제거)
+  const cleanLabel = weekLabel.replace('[모의고사] ', '');
+  document.getElementById('absent-sms-text').value = `[용산대성N학원 영어과]\n${cleanLabel} 테스트 미응시 상태입니다.\n테스트 응시 후 제출 바랍니다.`;
 
   if (!targets.length) {
     listEl.innerHTML = '<p style="font-size:13px;color:var(--gray)">미응시 학생이 없습니다. 🎉</p>';
