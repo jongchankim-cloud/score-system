@@ -1101,12 +1101,13 @@ async function loadAbsentTargets() {
   const scoreMap = {};
   (scores || []).forEach(s => { scoreMap[s.student_id] = s; });
 
-  // 미응시 = 단어/해석/객관식이 모두 비어있음(null)
+  // 미응시 = 단어/해석/객관식 중 하나라도 비어있음(null)
   const targets = (students || []).filter(st => {
     const sc = scoreMap[st.id];
     if (!sc) return true; // 점수 행 자체가 없으면 미응시
     const w = sc.word_score, r = sc.reading_score, m = sc.mc_score;
-    return (w === null || w === undefined) && (r === null || r === undefined) && (m === null || m === undefined);
+    const empty = v => v === null || v === undefined;
+    return empty(w) || empty(r) || empty(m);
   }).map(st => ({
     id: st.id,
     name: st.name,
