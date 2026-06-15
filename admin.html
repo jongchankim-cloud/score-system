@@ -349,19 +349,11 @@
     <div class="section-card">
       <div class="section-head"><h3>미인증 학생 조회</h3></div>
       <div class="section-body">
-        <div class="form-row">
-          <div class="form-group">
-            <label>반 선택</label>
-            <select id="uncert-class" onchange="loadUncertWeeks()">
-              <option value="">반을 선택하세요</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>주차 선택</label>
-            <select id="uncert-week" onchange="loadUncertList()">
-              <option value="">주차를 선택하세요</option>
-            </select>
-          </div>
+        <div class="form-group">
+          <label>반 선택</label>
+          <select id="uncert-class" onchange="loadUncertGrid()">
+            <option value="">반을 선택하세요</option>
+          </select>
         </div>
       </div>
     </div>
@@ -369,16 +361,14 @@
     <div class="section-card" id="uncert-result-card" style="display:none">
       <div class="section-head">
         <h3 id="uncert-title">미인증 학생</h3>
-        <button class="btn btn-primary btn-sm" onclick="saveUncertList()">저장</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="uncertPrev()">◀ 이전</button>
+          <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="uncertNext()">다음 ▶</button>
+          <button class="btn btn-primary btn-sm" onclick="saveUncertGrid()">저장</button>
+        </div>
       </div>
       <div class="section-body" style="overflow-x:auto">
-        <div style="display:grid;grid-template-columns:90px 60px 1fr 100px;gap:8px;padding:6px 0 8px;font-size:11px;color:var(--gray);font-weight:600;border-bottom:2px solid var(--border);margin-bottom:4px;">
-          <span>이름</span>
-          <span style="text-align:center">과제%</span>
-          <span>과제평가</span>
-          <span>잔여과제 인증</span>
-        </div>
-        <div id="uncert-list"></div>
+        <div id="uncert-grid"></div>
       </div>
     </div>
   </div>
@@ -751,109 +741,174 @@ async function saveAllScores() {
   } catch(e) { showToast('❌ 오류 발생: ' + e.message); }
 }
 
-// ── 미인증 탭 ─────────────────────────────────────────
-async function loadUncertWeeks() {
+// ── 미인증 탭 (가로 주차 그리드) ───────────────────────
+const UNCERT_VISIBLE = 4; // 한 화면에 보여줄 주차 수
+let _uncertAllWeeks = [];  // 전체 주차 (최신순)
+let _uncertOffset = 0;     // 현재 보여주는 시작 위치
+let _uncertClassId = null;
+let _uncertScoreData = {}; // { weekId: { studentId: scoreObj } }
+let _uncertStudents = [];
+
+async function loadUncertGrid() {
   const classId = document.getElementById('uncert-class').value;
-  const sel = document.getElementById('uncert-week');
-  sel.innerHTML = '<option value="">주차를 선택하세요</option>';
   document.getElementById('uncert-result-card').style.display = 'none';
   if (!classId) return;
-  const weeks = await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`) || [];
-  weeks.forEach(w => {
-    const opt = document.createElement('option');
-    opt.value = w.id; opt.textContent = w.label || w.test_date;
-    sel.appendChild(opt);
-  });
-  if (weeks.length > 0) { sel.value = weeks[0].id; loadUncertList(); }
-}
-
-async function loadUncertList() {
-  const classId = document.getElementById('uncert-class').value;
-  const weekId = document.getElementById('uncert-week').value;
-  if (!classId || !weekId) return;
+  _uncertClassId = classId;
+  _uncertOffset = 0;
 
   const card = document.getElementById('uncert-result-card');
-  const listEl = document.getElementById('uncert-list');
+  const gridEl = document.getElementById('uncert-grid');
   card.style.display = 'block';
-  listEl.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
+  gridEl.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
 
-  const [students, scores] = await Promise.all([
-    api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`),
-    api(`scores?week_id=eq.${weekId}&select=*`)
+  // 전체 주차 (최신순), 학생 목록
+  const [weeks, students] = await Promise.all([
+    api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`),
+    api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`)
   ]);
+  _uncertAllWeeks = weeks || [];
+  _uncertStudents = students || [];
 
-  const scoreMap = {};
-  (scores || []).forEach(s => { scoreMap[s.student_id] = s; });
+  renderUncertGrid();
+}
 
-  // 필터: 과제평가 메모 있거나 수행률 79% 이하, 단 잔여과제인증이 100이면 제외
-  const targets = (students || []).filter(st => {
-    const sc = scoreMap[st.id];
-    if (!sc) return false;
-    const hw = sc.homework_rate;
-    const hasMemo = sc.homework_eval && sc.homework_eval.trim() !== '';
-    const lowHw = hw === null || hw <= 79;
-    const certified = sc.hw_cert && sc.hw_cert.trim() === '100';
-    return (hasMemo || lowHw) && !certified;
-  });
+async function renderUncertGrid() {
+  const gridEl = document.getElementById('uncert-grid');
+  const className = classes.find(c => c.id == _uncertClassId)?.name || '';
 
-  const className = classes.find(c => c.id == classId)?.name || '';
-  const weekSel = document.getElementById('uncert-week');
-  const weekLabel = weekSel.options[weekSel.selectedIndex]?.text || '';
-  document.getElementById('uncert-title').textContent = `미인증 학생 — ${targets.length}명 (${className} ${weekLabel})`;
+  // 현재 보여줄 주차 (offset부터 4개), 오래된→최신 순서로 표시
+  const visibleWeeks = _uncertAllWeeks.slice(_uncertOffset, _uncertOffset + UNCERT_VISIBLE).reverse();
 
-  if (!targets.length) {
-    listEl.innerHTML = '<p style="font-size:13px;color:var(--gray);padding:12px 0">미인증 학생이 없습니다. 🎉</p>';
+  if (!visibleWeeks.length) {
+    gridEl.innerHTML = '<p style="font-size:13px;color:var(--gray);padding:12px 0">표시할 주차가 없습니다.</p>';
+    document.getElementById('uncert-title').textContent = `미인증 — ${className}`;
     return;
   }
 
-  listEl.innerHTML = targets.map(st => {
-    const sc = scoreMap[st.id] || {};
-    const hw = sc.homework_rate !== null && sc.homework_rate !== undefined ? sc.homework_rate + '%' : '미기재';
-    return `<div style="display:grid;grid-template-columns:90px 60px 1fr 100px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--light-gray)" data-student-id="${st.id}" data-score-id="${sc.id || ''}">
-      <span style="font-size:13px;font-weight:600;color:var(--navy)">${st.name}</span>
-      <span style="font-size:13px;text-align:center;color:${sc.homework_rate <= 0 || sc.homework_rate === null ? 'var(--red)' : 'var(--navy)'}">${hw}</span>
-      <span style="font-size:12px;color:var(--gray)">${sc.homework_eval || '-'}</span>
-      <input type="text" class="uncert-cert" value="${sc.hw_cert || ''}" placeholder="" style="padding:7px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;outline:none;width:100%">
-    </div>`;
-  }).join('');
-
-  window._uncertWeekId = parseInt(weekId);
-  window._uncertScoreMap = scoreMap;
-}
-
-async function saveUncertList() {
-  const weekId = window._uncertWeekId;
-  const scoreMap = window._uncertScoreMap || {};
-  const rows = document.querySelectorAll('#uncert-list [data-student-id]');
-  if (!rows.length) return;
-
-  const existing = await api(`scores?week_id=eq.${weekId}&select=id,student_id`);
-  const existMap = {};
-  (existing || []).forEach(e => { existMap[e.student_id] = e.id; });
-
-  const updates = Array.from(rows).map(row => ({
-    student_id: parseInt(row.dataset.studentId),
-    hw_cert: row.querySelector('.uncert-cert').value.trim()
+  // 보여줄 주차들의 점수 로드 (캐시 없으면)
+  gridEl.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
+  await Promise.all(visibleWeeks.map(async w => {
+    if (!_uncertScoreData[w.id]) {
+      const scores = await api(`scores?week_id=eq.${w.id}&select=*`) || [];
+      _uncertScoreData[w.id] = {};
+      scores.forEach(s => { _uncertScoreData[w.id][s.student_id] = s; });
+    }
   }));
 
-  try {
-    const results = await Promise.all(updates.map(async u => {
-      if (existMap[u.student_id]) {
-        return fetch(`${SUPABASE_URL}/rest/v1/scores?id=eq.${existMap[u.student_id]}`, {
-          method: 'PATCH',
-          headers: { 'apikey': ANON_KEY, 'Authorization': `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-          body: JSON.stringify({ hw_cert: u.hw_cert })
-        });
-      }
-    }).filter(Boolean));
+  // 미인증 학생 필터: 보여주는 주차 중 하나라도 미인증(잔여과제인증 100 아님 + (과제평가 있거나 수행률 79%이하))이 있는 학생
+  const uncertStudents = _uncertStudents.filter(st => {
+    return visibleWeeks.some(w => {
+      const sc = _uncertScoreData[w.id][st.id];
+      if (!sc) return false;
+      const hasMemo = sc.homework_eval && sc.homework_eval.trim() !== '';
+      const lowHw = sc.homework_rate === null || sc.homework_rate <= 79;
+      const certified = sc.hw_cert && sc.hw_cert.trim() === '100';
+      return (hasMemo || lowHw) && !certified;
+    });
+  });
 
-    // 점수 입력 탭 캐시 갱신
-    delete scoreCache[weekId];
+  const oldestLabel = visibleWeeks[0]?.label || visibleWeeks[0]?.test_date || '';
+  const newestLabel = visibleWeeks[visibleWeeks.length-1]?.label || visibleWeeks[visibleWeeks.length-1]?.test_date || '';
+  document.getElementById('uncert-title').textContent = `미인증 — ${className} (${oldestLabel} ~ ${newestLabel}, ${uncertStudents.length}명)`;
+
+  if (!uncertStudents.length) {
+    gridEl.innerHTML = '<p style="font-size:13px;color:var(--gray);padding:12px 0">미인증 학생이 없습니다. 🎉</p>';
+    return;
+  }
+
+  // 그리드 컬럼: 이름(70px) + 주차마다 [과제%(50px) 잔여인증(110px)]
+  const colTemplate = `70px ${visibleWeeks.map(() => '50px 110px').join(' ')}`;
+
+  // 헤더
+  let html = `<div style="display:grid;grid-template-columns:${colTemplate};gap:6px;padding:6px 0 8px;font-size:11px;color:var(--gray);font-weight:600;border-bottom:2px solid var(--border);margin-bottom:4px;min-width:max-content">`;
+  html += `<span>이름</span>`;
+  visibleWeeks.forEach(w => {
+    html += `<span style="text-align:center;grid-column:span 2;border-left:1px solid var(--border)">${w.label || w.test_date}</span>`;
+  });
+  html += `</div>`;
+  // 서브헤더 (과제% / 잔여인증)
+  html += `<div style="display:grid;grid-template-columns:${colTemplate};gap:6px;padding:0 0 6px;font-size:10px;color:var(--gray);font-weight:500;border-bottom:1px solid var(--border);margin-bottom:4px;min-width:max-content">`;
+  html += `<span></span>`;
+  visibleWeeks.forEach(() => {
+    html += `<span style="text-align:center;border-left:1px solid var(--border)">과제%</span><span style="text-align:center">잔여인증</span>`;
+  });
+  html += `</div>`;
+
+  // 학생 행
+  html += uncertStudents.map(st => {
+    let row = `<div style="display:grid;grid-template-columns:${colTemplate};gap:6px;align-items:center;padding:8px 0;border-bottom:1px solid var(--light-gray);min-width:max-content" data-student-id="${st.id}">`;
+    row += `<span style="font-size:13px;font-weight:600;color:var(--navy)">${st.name}</span>`;
+    visibleWeeks.forEach(w => {
+      const sc = _uncertScoreData[w.id][st.id] || {};
+      const hwVal = sc.homework_rate !== null && sc.homework_rate !== undefined ? sc.homework_rate : '';
+      row += `<input type="number" class="uncert-hw" data-week-id="${w.id}" value="${hwVal}" min="0" max="100" style="padding:6px 4px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;text-align:center;outline:none;width:100%;border-left:1px solid var(--border)">`;
+      row += `<input type="text" class="uncert-cert" data-week-id="${w.id}" value="${sc.hw_cert || ''}" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;outline:none;width:100%">`;
+    });
+    row += `</div>`;
+    return row;
+  }).join('');
+
+  gridEl.innerHTML = html;
+}
+
+function uncertPrev() {
+  // 더 과거로 (offset 증가)
+  if (_uncertOffset + UNCERT_VISIBLE >= _uncertAllWeeks.length) { showToast('더 이전 주차가 없습니다.'); return; }
+  _uncertOffset += 1;
+  renderUncertGrid();
+}
+
+function uncertNext() {
+  // 더 최신으로 (offset 감소)
+  if (_uncertOffset <= 0) { showToast('가장 최신 주차입니다.'); return; }
+  _uncertOffset -= 1;
+  renderUncertGrid();
+}
+
+async function saveUncertGrid() {
+  const rows = document.querySelectorAll('#uncert-grid [data-student-id]');
+  if (!rows.length) return;
+
+  // 주차별로 업데이트 묶기: { weekId: [ {student_id, hw_cert, homework_rate} ] }
+  const byWeek = {};
+  rows.forEach(row => {
+    const studentId = parseInt(row.dataset.studentId);
+    row.querySelectorAll('.uncert-cert').forEach(certInp => {
+      const weekId = parseInt(certInp.dataset.weekId);
+      const hwInp = row.querySelector(`.uncert-hw[data-week-id="${weekId}"]`);
+      if (!byWeek[weekId]) byWeek[weekId] = [];
+      byWeek[weekId].push({
+        student_id: studentId,
+        hw_cert: certInp.value.trim(),
+        homework_rate: hwInp.value !== '' ? parseInt(hwInp.value) : null
+      });
+    });
+  });
+
+  try {
+    for (const weekId of Object.keys(byWeek)) {
+      const existing = await api(`scores?week_id=eq.${weekId}&select=id,student_id`);
+      const existMap = {};
+      (existing || []).forEach(e => { existMap[e.student_id] = e.id; });
+
+      await Promise.all(byWeek[weekId].map(async u => {
+        if (existMap[u.student_id]) {
+          return fetch(`${SUPABASE_URL}/rest/v1/scores?id=eq.${existMap[u.student_id]}`, {
+            method: 'PATCH',
+            headers: { 'apikey': ANON_KEY, 'Authorization': `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+            body: JSON.stringify({ hw_cert: u.hw_cert, homework_rate: u.homework_rate })
+          });
+        }
+      }));
+
+      // 점수 입력 탭 캐시 갱신
+      delete scoreCache[weekId];
+      // 미인증 캐시도 갱신
+      delete _uncertScoreData[weekId];
+    }
 
     showToast('✅ 저장됐어요!');
-
-    // 목록 새로고침 (100 입력된 학생 자동 제거)
-    loadUncertList();
+    renderUncertGrid();
   } catch(e) {
     showToast('❌ 오류: ' + e.message);
   }
