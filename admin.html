@@ -106,6 +106,7 @@
     <button class="tab-btn" onclick="switchTab('tab-sms')">학부모 문자 발송</button>
     <button class="tab-btn" onclick="switchTab('tab-uncert')">미인증</button>
     <button class="tab-btn" onclick="switchTab('tab-student-sms')">미인증 문자 발송</button>
+    <button class="tab-btn" onclick="switchTab('tab-absent-sms')">미응시 문자 발송</button>
     <button class="tab-btn" onclick="switchTab('tab-mock')">모의고사</button>
     <button class="tab-btn" onclick="switchTab('tab-week')">주차 관리</button>
     <button class="tab-btn" onclick="switchTab('tab-student')">학생 관리</button>
@@ -430,6 +431,48 @@
     </div>
   </div>
 
+  <!-- 탭9: 미응시 문자 발송 -->
+  <div id="tab-absent-sms" class="tab-content">
+    <div class="section-card">
+      <div class="section-head"><h3>테스트 미응시 학생</h3></div>
+      <div class="section-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label>반 선택</label>
+            <select id="absent-class" onchange="loadAbsentWeeks()">
+              <option value="">반을 선택하세요</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>주차 선택</label>
+            <select id="absent-week" onchange="loadAbsentTargets()">
+              <option value="">주차를 선택하세요</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-card" id="absent-preview-card" style="display:none">
+      <div class="section-head">
+        <h3 id="absent-title">미응시 학생</h3>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="toggleAllAbsent()">전체 선택/해제</button>
+          <button class="btn btn-primary btn-sm" onclick="sendAbsentSms()">선택 발송</button>
+        </div>
+      </div>
+      <div class="section-body">
+        <div class="form-group" style="margin-bottom:14px">
+          <label>문자 내용 (직접 수정 가능)</label>
+          <textarea id="absent-sms-text" rows="4" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7">[용산대성N학원 영어과]
+이번 주 테스트 미응시 상태입니다.
+테스트 응시 후 제출 바랍니다.</textarea>
+        </div>
+        <div id="absent-list"></div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- 반 이동 모달 -->
@@ -485,7 +528,7 @@ function adminLogin() {
 let classes = [];
 async function initAdmin() {
   classes = await api('classes?order=id.asc&select=*') || [];
-  ['score-class','week-class','week-list-class','new-class','student-list-class','mock-class','mock-score-class','mock-list-class','sms-class','uncert-class','student-sms-class'].forEach(id => {
+  ['score-class','week-class','week-list-class','new-class','student-list-class','mock-class','mock-score-class','mock-list-class','sms-class','uncert-class','student-sms-class','absent-class'].forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
     sel.innerHTML = '<option value="">반을 선택하세요</option>';
@@ -1033,6 +1076,112 @@ function closeMoveModal() {
   window._moveScoreedWeekIds = null;
 }
 
+// ── 미응시 문자 발송 ──────────────────────────────────────
+async function loadAbsentWeeks() {
+  const classId = document.getElementById('absent-class').value;
+  const sel = document.getElementById('absent-week');
+  sel.innerHTML = '<option value="">주차를 선택하세요</option>';
+  document.getElementById('absent-preview-card').style.display = 'none';
+  if (!classId) return;
+  const weeks = await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`) || [];
+  weeks.forEach(w => { const opt = document.createElement('option'); opt.value = w.id; opt.textContent = w.label || w.test_date; sel.appendChild(opt); });
+  if (weeks.length > 0) { sel.value = weeks[0].id; loadAbsentTargets(); }
+}
+
+async function loadAbsentTargets() {
+  const classId = document.getElementById('absent-class').value;
+  const weekId = document.getElementById('absent-week').value;
+  if (!classId || !weekId) return;
+
+  const [students, scores] = await Promise.all([
+    api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`),
+    api(`scores?week_id=eq.${weekId}&select=*`)
+  ]);
+
+  const scoreMap = {};
+  (scores || []).forEach(s => { scoreMap[s.student_id] = s; });
+
+  // 미응시 = 단어/해석/객관식이 모두 비어있음(null)
+  const targets = (students || []).filter(st => {
+    const sc = scoreMap[st.id];
+    if (!sc) return true; // 점수 행 자체가 없으면 미응시
+    const w = sc.word_score, r = sc.reading_score, m = sc.mc_score;
+    return (w === null || w === undefined) && (r === null || r === undefined) && (m === null || m === undefined);
+  }).map(st => ({
+    id: st.id,
+    name: st.name,
+    student_phone: st.student_phone || ''
+  }));
+
+  const weekSel = document.getElementById('absent-week');
+  const weekLabel = weekSel.options[weekSel.selectedIndex]?.text || '';
+  const className = classes.find(c => c.id == classId)?.name || '';
+
+  const card = document.getElementById('absent-preview-card');
+  const titleEl = document.getElementById('absent-title');
+  const listEl = document.getElementById('absent-list');
+
+  card.style.display = 'block';
+  titleEl.textContent = `미응시 학생 — ${targets.length}명 (${className} ${weekLabel})`;
+
+  // 문자 내용에 선택한 주차 반영
+  document.getElementById('absent-sms-text').value = `[용산대성N학원 영어과]\n${weekLabel} 테스트 미응시 상태입니다.\n테스트 응시 후 제출 바랍니다.`;
+
+  if (!targets.length) {
+    listEl.innerHTML = '<p style="font-size:13px;color:var(--gray)">미응시 학생이 없습니다. 🎉</p>';
+    window._absentTargets = [];
+    return;
+  }
+
+  listEl.innerHTML = `<table class="data-table">
+    <thead><tr><th style="width:36px"><input type="checkbox" id="check-all-absent" checked onchange="toggleAllAbsent(this.checked)"></th><th>이름</th><th>학생 연락처</th><th>상태</th></tr></thead>
+    <tbody>${targets.map((t, i) => `
+      <tr>
+        <td><input type="checkbox" class="absent-check" data-idx="${i}" ${t.student_phone ? 'checked' : ''} ${!t.student_phone ? 'disabled' : ''}></td>
+        <td><strong>${t.name}</strong></td>
+        <td style="font-size:12px;font-family:monospace">${t.student_phone || '번호없음'}</td>
+        <td><span class="badge ${t.student_phone ? 'badge-active' : 'badge-inactive'}">${t.student_phone ? '발송가능' : '번호없음'}</span></td>
+      </tr>`).join('')}
+    </tbody></table>`;
+
+  window._absentTargets = targets;
+}
+
+function toggleAllAbsent(checked) {
+  const boxes = document.querySelectorAll('.absent-check:not(:disabled)');
+  if (checked === undefined) {
+    checked = !Array.from(boxes).every(cb => cb.checked);
+  }
+  boxes.forEach(cb => { cb.checked = checked; });
+  const headerCheck = document.getElementById('check-all-absent');
+  if (headerCheck) headerCheck.checked = checked;
+}
+
+async function sendAbsentSms() {
+  const targets = window._absentTargets || [];
+  const selected = Array.from(document.querySelectorAll('.absent-check:checked'))
+    .map(cb => targets[parseInt(cb.dataset.idx)])
+    .filter(t => t && t.student_phone);
+  if (!selected.length) { showToast('선택된 발송 대상이 없습니다.'); return; }
+  if (!confirm(`${selected.length}명에게 문자를 발송할까요?`)) return;
+
+  const text = document.getElementById('absent-sms-text').value;
+  showToast('발송 중...');
+  const messages = selected.map(t => ({ to: t.student_phone, text }));
+
+  try {
+    const res = await fetch(SMS_FUNCTION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
+      body: JSON.stringify({ messages })
+    });
+    const data = await res.json();
+    showToast(`✅ 발송 완료 — 성공 ${data.success}건 / 실패 ${data.fail}건`, 4000);
+  } catch(e) {
+    showToast('❌ 발송 오류: ' + e.message);
+  }
+}
+
 // ── 미인증 문자 발송 ──────────────────────────────────────
 async function loadStudentSmsWeeks() {
   const classId = document.getElementById('student-sms-class').value;
@@ -1150,7 +1299,7 @@ async function loadClassList() {
 }
 
 function refreshClassSelects() {
-  ['score-class','week-class','week-list-class','new-class','student-list-class','mock-class','mock-score-class','mock-list-class','sms-class','uncert-class','student-sms-class'].forEach(id => {
+  ['score-class','week-class','week-list-class','new-class','student-list-class','mock-class','mock-score-class','mock-list-class','sms-class','uncert-class','student-sms-class','absent-class'].forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
     sel.innerHTML = '<option value="">반을 선택하세요</option>';
