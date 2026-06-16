@@ -498,15 +498,39 @@
 <script>
 const SUPABASE_URL = 'https://rcpzinsdocmpnfxkfbil.supabase.co';
 const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjcHppbnNkb2NtcG5meGtmYmlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwMzM2NzksImV4cCI6MjA5NTYwOTY3OX0.f_HsTsM4_z2qKeMtIXZ0G8vRuXFmHkXomIdQzFFXHb0';
-const ADMIN_PASSWORD = '1357';
 const SMS_FUNCTION_URL = 'https://rcpzinsdocmpnfxkfbil.supabase.co/functions/v1/send-sms';
+const ADMIN_API_URL = 'https://rcpzinsdocmpnfxkfbil.supabase.co/functions/v1/admin-api';
 
-async function api(path, method='GET', body=null) {
-  const opts = { method, headers: { 'apikey': ANON_KEY, 'Authorization': `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json', 'Prefer': method==='POST' ? 'return=representation' : '' } };
-  if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, opts);
+// 로그인 시 입력받은 비밀번호를 메모리에만 보관 (HTML/저장소에 평문 없음)
+let adminPassword = '';
+
+// 공통 데이터 API: admin-api Edge Function 경유 (service_role 대행)
+async function api(path, method='GET', body=null, prefer=null) {
+  const res = await fetch(ADMIN_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
+    body: JSON.stringify({ password: adminPassword, path, method, body, prefer })
+  });
+  if (res.status === 401) { handleAuthError(); throw new Error('unauthorized'); }
   const text = await res.text();
-  return text ? JSON.parse(text) : null;
+  return text && text !== 'null' ? JSON.parse(text) : null;
+}
+
+// 직접 fetch(.ok/status가 필요한 저장 루틴)를 대체하는 헬퍼.
+// 기존 fetch와 동일하게 {ok, status}를 반환한다.
+async function apiRaw(path, method, body=null, prefer='return=minimal') {
+  const res = await fetch(ADMIN_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
+    body: JSON.stringify({ password: adminPassword, path, method, body, prefer })
+  });
+  if (res.status === 401) handleAuthError();
+  return { ok: res.ok, status: res.status };
+}
+
+function handleAuthError() {
+  showToast('❌ 인증이 만료됐습니다. 다시 로그인해주세요.');
+  setTimeout(() => location.reload(), 1500);
 }
 
 function showToast(msg, dur=2500) {
@@ -515,14 +539,28 @@ function showToast(msg, dur=2500) {
   setTimeout(() => t.classList.remove('show'), dur);
 }
 
-function adminLogin() {
+async function adminLogin() {
   const pw = document.getElementById('admin-pw').value;
-  if (pw === ADMIN_PASSWORD) {
+  const errEl = document.getElementById('login-err');
+  errEl.style.display = 'none';
+  if (!pw) { errEl.style.display = 'block'; return; }
+
+  // 함수에 가벼운 검증 요청 → 비밀번호 검증을 서버에서 수행
+  try {
+    const res = await fetch(ADMIN_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
+      body: JSON.stringify({ password: pw, path: 'classes?select=id&limit=1', method: 'GET' })
+    });
+    if (res.status === 401) { errEl.style.display = 'block'; return; }
+    if (!res.ok) { errEl.textContent = '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'; errEl.style.display = 'block'; return; }
+    adminPassword = pw; // 검증 통과 후에만 메모리에 보관
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('admin-screen').style.display = 'block';
     initAdmin();
-  } else {
-    document.getElementById('login-err').style.display = 'block';
+  } catch (e) {
+    errEl.textContent = '네트워크 오류가 발생했습니다.';
+    errEl.style.display = 'block';
   }
 }
 
@@ -779,9 +817,9 @@ async function saveAllScores() {
     (existing || []).forEach(e => { existMap[e.student_id] = e.id; });
     const results = await Promise.all(upserts.map(async u => {
       if (existMap[u.student_id]) {
-        return fetch(`${SUPABASE_URL}/rest/v1/scores?id=eq.${existMap[u.student_id]}`, { method:'PATCH', headers:{'apikey':ANON_KEY,'Authorization':`Bearer ${ANON_KEY}`,'Content-Type':'application/json','Prefer':'return=minimal'}, body:JSON.stringify({word_score:u.word_score,reading_score:u.reading_score,mc_score:u.mc_score,homework_rate:u.homework_rate,homework_eval:u.homework_eval,hw_cert:u.hw_cert,attendance:u.attendance,clinic_target:u.clinic_target,clinic_attend:u.clinic_attend,clinic_memo:u.clinic_memo}) });
+        return apiRaw(`scores?id=eq.${existMap[u.student_id]}`, 'PATCH', {word_score:u.word_score,reading_score:u.reading_score,mc_score:u.mc_score,homework_rate:u.homework_rate,homework_eval:u.homework_eval,hw_cert:u.hw_cert,attendance:u.attendance,clinic_target:u.clinic_target,clinic_attend:u.clinic_attend,clinic_memo:u.clinic_memo});
       } else {
-        return fetch(`${SUPABASE_URL}/rest/v1/scores`, { method:'POST', headers:{'apikey':ANON_KEY,'Authorization':`Bearer ${ANON_KEY}`,'Content-Type':'application/json','Prefer':'return=minimal'}, body:JSON.stringify(u) });
+        return apiRaw('scores', 'POST', u);
       }
     }));
     const failed = results.filter(r => !r.ok);
@@ -944,11 +982,7 @@ async function saveUncertGrid() {
 
       await Promise.all(byWeek[weekId].map(async u => {
         if (existMap[u.student_id]) {
-          return fetch(`${SUPABASE_URL}/rest/v1/scores?id=eq.${existMap[u.student_id]}`, {
-            method: 'PATCH',
-            headers: { 'apikey': ANON_KEY, 'Authorization': `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-            body: JSON.stringify({ hw_cert: u.hw_cert, homework_rate: u.homework_rate })
-          });
+          return apiRaw(`scores?id=eq.${existMap[u.student_id]}`, 'PATCH', { hw_cert: u.hw_cert, homework_rate: u.homework_rate });
         }
       }));
 
@@ -1571,9 +1605,9 @@ async function saveMockScores() {
   try {
     const results = await Promise.all(upserts.map(async u => {
       if (existMap[u.student_id]) {
-        return fetch(`${SUPABASE_URL}/rest/v1/mock_scores?id=eq.${existMap[u.student_id]}`, { method:'PATCH', headers:{'apikey':ANON_KEY,'Authorization':`Bearer ${ANON_KEY}`,'Content-Type':'application/json','Prefer':'return=minimal'}, body:JSON.stringify({score:u.score,memo:u.memo}) });
+        return apiRaw(`mock_scores?id=eq.${existMap[u.student_id]}`, 'PATCH', {score:u.score,memo:u.memo});
       } else {
-        return fetch(`${SUPABASE_URL}/rest/v1/mock_scores`, { method:'POST', headers:{'apikey':ANON_KEY,'Authorization':`Bearer ${ANON_KEY}`,'Content-Type':'application/json','Prefer':'return=minimal'}, body:JSON.stringify(u) });
+        return apiRaw('mock_scores', 'POST', u);
       }
     }));
     const failed = results.filter(r => !r.ok);
