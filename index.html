@@ -196,25 +196,13 @@
 <script>
 const SUPABASE_URL = 'https://rcpzinsdocmpnfxkfbil.supabase.co';
 const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjcHppbnNkb2NtcG5meGtmYmlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwMzM2NzksImV4cCI6MjA5NTYwOTY3OX0.f_HsTsM4_z2qKeMtIXZ0G8vRuXFmHkXomIdQzFFXHb0';
+const PARENT_LOGIN_URL = 'https://rcpzinsdocmpnfxkfbil.supabase.co/functions/v1/parent-login';
 
 let currentStudent = null;
 let currentWeeks = [];
 let allScores = [];
 let chartInstance = null;
-
-async function supaFetch(path) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    cache: 'no-store',
-    headers: {
-      'apikey': ANON_KEY,
-      'Authorization': `Bearer ${ANON_KEY}`,
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache'
-    }
-  });
-  const text = await res.text();
-  return text ? JSON.parse(text) : null;
-}
+let loginData = null; // parent-login이 반환한 전체 데이터 묶음
 
 async function login() {
   const name = document.getElementById('input-name').value.trim();
@@ -225,9 +213,15 @@ async function login() {
   if (!name || !pin) { err.textContent = '이름과 PIN을 모두 입력해주세요.'; err.classList.add('show'); return; }
   load.classList.add('show');
   try {
-    const data = await supaFetch(`students?name=eq.${encodeURIComponent(name)}&pin=eq.${pin}&is_active=eq.true&select=*,classes(name)`);
-    if (!data || !data.length) { err.textContent = '이름 또는 PIN이 올바르지 않습니다.'; err.classList.add('show'); return; }
-    currentStudent = data[0];
+    const res = await fetch(PARENT_LOGIN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
+      body: JSON.stringify({ name, pin })
+    });
+    if (res.status === 401) { err.textContent = '이름 또는 PIN이 올바르지 않습니다.'; err.classList.add('show'); return; }
+    if (!res.ok) { err.textContent = '오류가 발생했습니다. 잠시 후 다시 시도해주세요.'; err.classList.add('show'); return; }
+    loginData = await res.json();
+    currentStudent = loginData.student;
     await showResult();
   } catch(e) {
     err.textContent = '오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
@@ -253,13 +247,8 @@ async function showResult() {
   document.getElementById('result-name').textContent = currentStudent.name;
   document.getElementById('result-class').textContent = currentStudent.classes?.name || '';
 
-  const weeks = await supaFetch(`weeks?class_id=eq.${currentStudent.class_id}&order=id.asc&select=*`);
-  currentWeeks = weeks || [];
-
-  if (currentWeeks.length > 0) {
-    const weekIds = currentWeeks.map(w => w.id).join(',');
-    allScores = await supaFetch(`scores?student_id=eq.${currentStudent.id}&week_id=in.(${weekIds})&select=*`) || [];
-  }
+  currentWeeks = loginData.weeks || [];
+  allScores = loginData.myScores || [];
 
   if (allScores.length > 0) {
     const totals = allScores.map(s => s.total_score).filter(v => v !== null);
@@ -296,20 +285,18 @@ async function showResult() {
     selector.appendChild(btn);
   });
 
-  await addMockButtons(selector);
+  addMockButtons(selector);
 
   const latestWeek = currentWeeks[currentWeeks.length - 1];
   if (latestWeek) loadScore(latestWeek.id);
 }
 
-async function addMockButtons(selector) {
-  const exams = await supaFetch(`mock_exams?class_id=eq.${currentStudent.class_id}&order=id.asc&select=*`);
-  if (!exams || !exams.length) return;
+function addMockButtons(selector) {
+  const exams = loginData.exams || [];
+  if (!exams.length) return;
 
-  const examIds = exams.map(e => e.id).join(',');
-  const scores = await supaFetch(`mock_scores?student_id=eq.${currentStudent.id}&exam_id=in.(${examIds})&select=*`);
   window._mockScoreMap = {};
-  (scores || []).forEach(s => { window._mockScoreMap[s.exam_id] = s; });
+  (loginData.myMockScores || []).forEach(s => { window._mockScoreMap[s.exam_id] = s; });
 
   exams.forEach(e => {
     const btn = document.createElement('button');
@@ -343,19 +330,18 @@ async function showMockScore(examId) {
   }
 
   // group_id가 있으면 같은 학년 전체 기준으로 평균/석차 계산
-  const examInfo = await supaFetch(`mock_exams?id=eq.${examId}&select=group_id`);
-  const groupId = examInfo?.[0]?.group_id;
+  const examInfo = (loginData.exams || []).find(e => e.id === examId);
+  const groupId = examInfo?.group_id;
 
-  let allMockScores;
-  if (groupId) {
-    const groupExams = await supaFetch(`mock_exams?group_id=eq.${encodeURIComponent(groupId)}&select=id`);
-    const examIds = (groupExams || []).map(e => e.id).join(',');
-    allMockScores = await supaFetch(`mock_scores?exam_id=in.(${examIds})&select=score`);
+  let rankExamIds;
+  if (groupId && loginData.mockGroupExamMap && loginData.mockGroupExamMap[groupId]) {
+    rankExamIds = new Set(loginData.mockGroupExamMap[groupId]);
   } else {
-    allMockScores = await supaFetch(`mock_scores?exam_id=eq.${examId}&select=score`);
+    rankExamIds = new Set([examId]);
   }
+  const allMockScores = (loginData.mockRankScores || []).filter(x => rankExamIds.has(x.exam_id));
 
-  const validScores = (allMockScores || []).map(x => x.score).filter(x => x !== null && x > 0);
+  const validScores = allMockScores.map(x => x.score).filter(x => x !== null && x > 0);
   const avg = validScores.length ? (validScores.reduce((a,b) => a+b, 0) / validScores.length).toFixed(1) : null;
 
   // 석차 계산
@@ -435,8 +421,6 @@ async function loadScore(weekId) {
   content.innerHTML = '<div class="loading show"><div class="spinner"></div>불러오는 중...</div>';
   try {
     const scoreData = allScores.find(s => s.week_id === weekId);
-    const avgs      = await supaFetch(`week_averages?week_id=eq.${weekId}&select=*`);
-    const allWeekSc = await supaFetch(`scores?week_id=eq.${weekId}&select=total_score`);
 
     if (!scoreData) {
       content.innerHTML = '<div class="empty-msg">해당 주차 점수가 아직 입력되지 않았습니다.</div>';
@@ -444,37 +428,29 @@ async function loadScore(weekId) {
     }
 
     const s = scoreData;
-    const avg = avgs && avgs.length ? avgs[0] : null;
     let rank = '-', total_students = '-';
 
-    // group_id가 있으면 같은 그룹 전체 기준으로 평균/석차 계산
-    const weekInfo = await supaFetch(`weeks?id=eq.${weekId}&select=group_id`);
-    const groupId = weekInfo?.[0]?.group_id;
+    // group_id가 있으면 같은 그룹 전체, 없으면 해당 주차만 기준으로 평균/석차 계산
+    const weekInfo = (currentWeeks || []).find(w => w.id === weekId);
+    const groupId = weekInfo?.group_id;
 
-    let groupScores = null;
-    if (groupId) {
-      // 같은 group_id를 가진 모든 주차 찾기
-      const groupWeeks = await supaFetch(`weeks?group_id=eq.${encodeURIComponent(groupId)}&select=id`);
-      if (groupWeeks && groupWeeks.length > 0) {
-        const weekIds = groupWeeks.map(w => w.id).join(',');
-        groupScores = await supaFetch(`scores?week_id=in.(${weekIds})&select=total_score`);
-      }
+    let rankWeekIds;
+    if (groupId && loginData.groupWeekMap && loginData.groupWeekMap[groupId]) {
+      rankWeekIds = new Set(loginData.groupWeekMap[groupId]);
+    } else {
+      rankWeekIds = new Set([weekId]);
     }
+    const scoresForRank = (loginData.rankScores || []).filter(x => rankWeekIds.has(x.week_id));
 
-    const scoresForRank = groupScores || allWeekSc;
-    if (scoresForRank) {
-      const sorted = scoresForRank.map(x => x.total_score).filter(x => x !== null).sort((a,b) => b-a);
-      total_students = sorted.length;
-      rank = sorted.findIndex(v => v === s.total_score) + 1;
-    }
+    const sorted = scoresForRank.map(x => x.total_score).filter(x => x !== null).sort((a,b) => b-a);
+    total_students = sorted.length;
+    rank = s.total_score !== null ? sorted.findIndex(v => v === s.total_score) + 1 : '-';
 
-    // 그룹 평균 계산
-    let displayAvg = avg ? avg.avg_total + '점' : '-';
-    if (groupId && groupScores) {
-      const totals = groupScores.map(x => x.total_score).filter(x => x !== null);
-      if (totals.length > 0) {
-        displayAvg = (totals.reduce((a,b) => a+b, 0) / totals.length).toFixed(1) + '점';
-      }
+    // 평균 계산
+    let displayAvg = '-';
+    const totals = scoresForRank.map(x => x.total_score).filter(x => x !== null);
+    if (totals.length > 0) {
+      displayAvg = (totals.reduce((a,b) => a+b, 0) / totals.length).toFixed(1) + '점';
     }
 
     // homework_rate가 null이면 미기재 처리
@@ -579,7 +555,8 @@ async function loadScore(weekId) {
 }
 
 function logout() {
-  currentStudent = null; currentWeeks = []; allScores = [];
+  currentStudent = null; currentWeeks = []; allScores = []; loginData = null;
+  window._mockScoreMap = {};
   if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
   document.getElementById('result-section').style.display = 'none';
   document.getElementById('login-section').style.display = 'block';
