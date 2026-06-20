@@ -121,6 +121,13 @@
       <div class="section-body">
         <div class="form-row">
           <div class="form-group">
+            <label>학생 이름 검색 (전체 반)</label>
+            <input type="text" id="score-student-search" placeholder="이름 입력 후 Enter" oninput="searchScoreStudent()" onkeydown="if(event.key==='Enter')searchScoreStudent()">
+            <div id="score-student-result" style="font-size:12px;margin-top:6px"></div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
             <label>반 선택</label>
             <select id="score-class" onchange="loadWeeksForScore()">
               <option value="">반을 선택하세요</option>
@@ -498,39 +505,15 @@
 <script>
 const SUPABASE_URL = 'https://rcpzinsdocmpnfxkfbil.supabase.co';
 const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjcHppbnNkb2NtcG5meGtmYmlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwMzM2NzksImV4cCI6MjA5NTYwOTY3OX0.f_HsTsM4_z2qKeMtIXZ0G8vRuXFmHkXomIdQzFFXHb0';
+const ADMIN_PASSWORD = '1357';
 const SMS_FUNCTION_URL = 'https://rcpzinsdocmpnfxkfbil.supabase.co/functions/v1/send-sms';
-const ADMIN_API_URL = 'https://rcpzinsdocmpnfxkfbil.supabase.co/functions/v1/admin-api';
 
-// 로그인 시 입력받은 비밀번호를 메모리에만 보관 (HTML/저장소에 평문 없음)
-let adminPassword = '';
-
-// 공통 데이터 API: admin-api Edge Function 경유 (service_role 대행)
-async function api(path, method='GET', body=null, prefer=null) {
-  const res = await fetch(ADMIN_API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
-    body: JSON.stringify({ password: adminPassword, path, method, body, prefer })
-  });
-  if (res.status === 401) { handleAuthError(); throw new Error('unauthorized'); }
+async function api(path, method='GET', body=null) {
+  const opts = { method, headers: { 'apikey': ANON_KEY, 'Authorization': `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json', 'Prefer': method==='POST' ? 'return=representation' : '' } };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, opts);
   const text = await res.text();
-  return text && text !== 'null' ? JSON.parse(text) : null;
-}
-
-// 직접 fetch(.ok/status가 필요한 저장 루틴)를 대체하는 헬퍼.
-// 기존 fetch와 동일하게 {ok, status}를 반환한다.
-async function apiRaw(path, method, body=null, prefer='return=minimal') {
-  const res = await fetch(ADMIN_API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
-    body: JSON.stringify({ password: adminPassword, path, method, body, prefer })
-  });
-  if (res.status === 401) handleAuthError();
-  return { ok: res.ok, status: res.status };
-}
-
-function handleAuthError() {
-  showToast('❌ 인증이 만료됐습니다. 다시 로그인해주세요.');
-  setTimeout(() => location.reload(), 1500);
+  return text ? JSON.parse(text) : null;
 }
 
 function showToast(msg, dur=2500) {
@@ -539,28 +522,14 @@ function showToast(msg, dur=2500) {
   setTimeout(() => t.classList.remove('show'), dur);
 }
 
-async function adminLogin() {
+function adminLogin() {
   const pw = document.getElementById('admin-pw').value;
-  const errEl = document.getElementById('login-err');
-  errEl.style.display = 'none';
-  if (!pw) { errEl.style.display = 'block'; return; }
-
-  // 함수에 가벼운 검증 요청 → 비밀번호 검증을 서버에서 수행
-  try {
-    const res = await fetch(ADMIN_API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
-      body: JSON.stringify({ password: pw, path: 'classes?select=id&limit=1', method: 'GET' })
-    });
-    if (res.status === 401) { errEl.style.display = 'block'; return; }
-    if (!res.ok) { errEl.textContent = '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'; errEl.style.display = 'block'; return; }
-    adminPassword = pw; // 검증 통과 후에만 메모리에 보관
+  if (pw === ADMIN_PASSWORD) {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('admin-screen').style.display = 'block';
     initAdmin();
-  } catch (e) {
-    errEl.textContent = '네트워크 오류가 발생했습니다.';
-    errEl.style.display = 'block';
+  } else {
+    document.getElementById('login-err').style.display = 'block';
   }
 }
 
@@ -690,7 +659,46 @@ const scoreCache = {};
 let scoreDirty = false; // 저장 안 된 변경사항 추적
 const studentCache = {};
 
-async function loadWeeksForScore() {
+// ── 점수 탭 학생 검색 (이름으로 반·주차 자동 선택)
+let _scoreSearchTimer = null;
+async function searchScoreStudent() {
+  const q = document.getElementById('score-student-search').value.trim();
+  const resultEl = document.getElementById('score-student-result');
+  if (!q) { resultEl.innerHTML = ''; return; }
+  clearTimeout(_scoreSearchTimer);
+  _scoreSearchTimer = setTimeout(async () => {
+    resultEl.innerHTML = '<span style="color:var(--gray)">검색 중...</span>';
+    const students = await api(`students?name=ilike.*${encodeURIComponent(q)}*&is_active=eq.true&select=id,name,class_id`) || [];
+    if (!students.length) {
+      resultEl.innerHTML = '<span style="color:var(--gray)">검색 결과가 없습니다.</span>';
+      return;
+    }
+    const classMap = {};
+    classes.forEach(c => { classMap[c.id] = c.name; });
+    if (students.length === 1) {
+      const st = students[0];
+      resultEl.innerHTML = `<span style="color:var(--green);font-weight:600">${st.name} — ${classMap[st.class_id] || '반 미지정'}</span>`;
+      await selectScoreClass(st.class_id);
+    } else {
+      resultEl.innerHTML = students.map(st =>
+        `<button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy);margin:3px 3px 0 0" onclick="pickScoreStudent(${st.class_id},'${st.name.replace(/'/g,"\\'")}')">${st.name} · ${classMap[st.class_id] || '반 미지정'}</button>`
+      ).join('');
+    }
+  }, 300);
+}
+
+async function pickScoreStudent(classId, name) {
+  document.getElementById('score-student-result').innerHTML = `<span style="color:var(--green);font-weight:600">${name} 반 선택됨</span>`;
+  await selectScoreClass(classId);
+}
+
+async function selectScoreClass(classId) {
+  if (!classId) return;
+  document.getElementById('score-class').value = classId;
+  await loadWeeksForScore();
+}
+
+
   const classId = document.getElementById('score-class').value;
   const sel = document.getElementById('score-week');
 
@@ -817,9 +825,9 @@ async function saveAllScores() {
     (existing || []).forEach(e => { existMap[e.student_id] = e.id; });
     const results = await Promise.all(upserts.map(async u => {
       if (existMap[u.student_id]) {
-        return apiRaw(`scores?id=eq.${existMap[u.student_id]}`, 'PATCH', {word_score:u.word_score,reading_score:u.reading_score,mc_score:u.mc_score,homework_rate:u.homework_rate,homework_eval:u.homework_eval,hw_cert:u.hw_cert,attendance:u.attendance,clinic_target:u.clinic_target,clinic_attend:u.clinic_attend,clinic_memo:u.clinic_memo});
+        return fetch(`${SUPABASE_URL}/rest/v1/scores?id=eq.${existMap[u.student_id]}`, { method:'PATCH', headers:{'apikey':ANON_KEY,'Authorization':`Bearer ${ANON_KEY}`,'Content-Type':'application/json','Prefer':'return=minimal'}, body:JSON.stringify({word_score:u.word_score,reading_score:u.reading_score,mc_score:u.mc_score,homework_rate:u.homework_rate,homework_eval:u.homework_eval,hw_cert:u.hw_cert,attendance:u.attendance,clinic_target:u.clinic_target,clinic_attend:u.clinic_attend,clinic_memo:u.clinic_memo}) });
       } else {
-        return apiRaw('scores', 'POST', u);
+        return fetch(`${SUPABASE_URL}/rest/v1/scores`, { method:'POST', headers:{'apikey':ANON_KEY,'Authorization':`Bearer ${ANON_KEY}`,'Content-Type':'application/json','Prefer':'return=minimal'}, body:JSON.stringify(u) });
       }
     }));
     const failed = results.filter(r => !r.ok);
@@ -982,7 +990,11 @@ async function saveUncertGrid() {
 
       await Promise.all(byWeek[weekId].map(async u => {
         if (existMap[u.student_id]) {
-          return apiRaw(`scores?id=eq.${existMap[u.student_id]}`, 'PATCH', { hw_cert: u.hw_cert, homework_rate: u.homework_rate });
+          return fetch(`${SUPABASE_URL}/rest/v1/scores?id=eq.${existMap[u.student_id]}`, {
+            method: 'PATCH',
+            headers: { 'apikey': ANON_KEY, 'Authorization': `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+            body: JSON.stringify({ hw_cert: u.hw_cert, homework_rate: u.homework_rate })
+          });
         }
       }));
 
@@ -1605,9 +1617,9 @@ async function saveMockScores() {
   try {
     const results = await Promise.all(upserts.map(async u => {
       if (existMap[u.student_id]) {
-        return apiRaw(`mock_scores?id=eq.${existMap[u.student_id]}`, 'PATCH', {score:u.score,memo:u.memo});
+        return fetch(`${SUPABASE_URL}/rest/v1/mock_scores?id=eq.${existMap[u.student_id]}`, { method:'PATCH', headers:{'apikey':ANON_KEY,'Authorization':`Bearer ${ANON_KEY}`,'Content-Type':'application/json','Prefer':'return=minimal'}, body:JSON.stringify({score:u.score,memo:u.memo}) });
       } else {
-        return apiRaw('mock_scores', 'POST', u);
+        return fetch(`${SUPABASE_URL}/rest/v1/mock_scores`, { method:'POST', headers:{'apikey':ANON_KEY,'Authorization':`Bearer ${ANON_KEY}`,'Content-Type':'application/json','Prefer':'return=minimal'}, body:JSON.stringify(u) });
       }
     }));
     const failed = results.filter(r => !r.ok);
