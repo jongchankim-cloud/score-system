@@ -68,14 +68,15 @@
   .badge { display:inline-block; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:600; }
   .badge-active { background:var(--green-light); color:var(--green); }
   .badge-inactive { background:var(--red-light); color:var(--red); }
-  .score-input-row { display:grid; grid-template-columns:180px 44px 62px 62px 62px 62px 110px 90px 46px 46px 1fr; gap:6px; align-items:center; padding:8px 0; border-bottom:1px solid var(--light-gray); }
+  .score-input-row { display:grid; grid-template-columns:180px 50px 44px 62px 62px 62px 62px 110px 90px 46px 46px 1fr; gap:6px; align-items:center; padding:8px 0; border-bottom:1px solid var(--light-gray); }
+  .score-input-row .total-cell { font-size:15px; font-weight:700; color:var(--navy); text-align:center; }
   .score-input-row:last-child { border-bottom:none; }
   .score-input-row .student-name { font-size:13px; font-weight:500; color:var(--navy); line-height:1.4; word-break:break-all; padding-right:4px; }
   .score-input-row input { padding:8px; border:1.5px solid var(--border); border-radius:6px; font-size:13px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); text-align:center; outline:none; width:100%; transition:border-color 0.2s; }
   .score-input-row input:focus { border-color:var(--gold); background:var(--white); }
   .score-input-row textarea { padding:6px 8px; border:1.5px solid var(--border); border-radius:6px; font-size:12px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); outline:none; width:100%; transition:border-color 0.2s; resize:none; overflow:hidden; min-height:34px; line-height:1.5; }
   .score-input-row textarea:focus { border-color:var(--gold); background:var(--white); }
-  .score-header { display:grid; grid-template-columns:180px 44px 62px 62px 62px 62px 110px 90px 46px 46px 1fr; gap:6px; padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; }
+  .score-header { display:grid; grid-template-columns:180px 50px 44px 62px 62px 62px 62px 110px 90px 46px 46px 1fr; gap:6px; padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; }
   .mini-loading { text-align:center; padding:20px; color:var(--gray); font-size:13px; }
   .memo-author-btn { padding:8px 16px; border:1.5px solid var(--border); border-radius:20px; font-size:13px; font-weight:500; font-family:'Noto Sans KR',sans-serif; color:var(--gray); background:var(--white); cursor:pointer; transition:all 0.15s; }
   .memo-author-btn:hover { border-color:var(--gold); color:var(--navy); }
@@ -91,7 +92,7 @@
   .spinner-sm { width:20px; height:20px; border:2px solid var(--border); border-top-color:var(--gold); border-radius:50%; animation:spin 0.7s linear infinite; display:inline-block; vertical-align:middle; margin-right:8px; }
   @keyframes spin { to { transform:rotate(360deg); } }
   @media(max-width:480px) {
-    .score-input-row, .score-header { grid-template-columns:60px 36px 50px 50px 50px 50px 90px 80px 36px 36px 80px; gap:4px; }
+    .score-input-row, .score-header { grid-template-columns:60px 44px 36px 50px 50px 50px 50px 90px 80px 36px 36px 80px; gap:4px; }
     .score-input-row input, .score-input-row textarea { padding:6px 4px; font-size:12px; }
   }
 </style>
@@ -168,6 +169,7 @@
       <div class="section-body" style="overflow-x:auto">
         <div class="score-header">
           <span>이름</span>
+          <span style="text-align:center">총점<br><small style="font-weight:400">/100</small></span>
           <span style="text-align:center">출석</span>
           <span style="text-align:center">단어<br><small style="font-weight:400">/25</small></span>
           <span style="text-align:center">해석<br><small style="font-weight:400">/30</small></span>
@@ -341,8 +343,9 @@
       </div>
       <div class="section-body">
         <div class="form-group" style="margin-bottom:14px">
-          <label>문자 내용 미리보기 (첫 번째 학생 기준)</label>
-          <textarea id="sms-preview-text" rows="6" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7" readonly></textarea>
+          <label>문자 내용 (직접 수정 가능 · <code>{이름}</code> <code>{주차}</code> <code>{수행률}</code> 자동 치환)</label>
+          <textarea id="sms-preview-text" rows="6" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7"></textarea>
+          <p style="font-size:11px;color:var(--gray);margin-top:5px">※ 내용을 비우면 학생별 기본 문구(수행률에 따라 자동 분기)가 발송됩니다.</p>
         </div>
         <div id="sms-target-list"></div>
       </div>
@@ -442,7 +445,7 @@
       </div>
       <div class="section-body">
         <div class="form-group" style="margin-bottom:14px">
-          <label>문자 내용 (직접 수정 가능)</label>
+          <label>문자 내용 (직접 수정 가능 · <code>{이름}</code> 자동 치환)</label>
           <textarea id="student-sms-text" rows="4" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7">[용산대성N학원 영어과]
 과제 못 한 부분 인증하세요.</textarea>
         </div>
@@ -483,7 +486,7 @@
       </div>
       <div class="section-body">
         <div class="form-group" style="margin-bottom:14px">
-          <label>문자 내용 (직접 수정 가능)</label>
+          <label>문자 내용 (직접 수정 가능 · <code>{이름}</code> 자동 치환)</label>
           <textarea id="absent-sms-text" rows="4" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7">[용산대성N학원 영어과]
 이번 주 테스트 미응시 상태입니다.
 테스트 응시 후 제출 바랍니다.</textarea>
@@ -799,6 +802,24 @@ async function loadScoreInputs() {
   renderScoreInputs(classId, weekId, scoreCache[weekId]);
 }
 
+// 입력된 점수만 합산 (빈칸은 무시). 셋 다 비면 '–' 표시
+function calcRowTotal(w, r, m) {
+  const vals = [w, r, m].filter(v => v !== null && v !== undefined && v !== '');
+  if (!vals.length) return '–';
+  return vals.reduce((a, b) => a + parseFloat(b), 0);
+}
+
+// 점수칸 입력 시 같은 행의 총점 셀 갱신
+function recalcTotal(inputEl) {
+  const row = inputEl.closest('.score-input-row');
+  if (!row) return;
+  const w = row.querySelector('.inp-word').value;
+  const r = row.querySelector('.inp-reading').value;
+  const m = row.querySelector('.inp-mc').value;
+  const cell = row.querySelector('.total-cell');
+  if (cell) cell.textContent = calcRowTotal(w, r, m);
+}
+
 function renderScoreInputs(classId, weekId, scoreMap) {
   const container = document.getElementById('score-inputs-container');
   const students = studentCache[classId] || [];
@@ -810,10 +831,11 @@ function renderScoreInputs(classId, weekId, scoreMap) {
     const sc = scoreMap[st.id] || {};
     return `<div class="score-input-row" data-student-id="${st.id}">
       <span class="student-name">${st.name}${st.note ? `<br><small style="color:var(--red);font-weight:400;font-size:11px;line-height:1.4;display:block;margin-top:2px">${st.note}</small>` : ''}</span>
+      <span class="total-cell">${calcRowTotal(sc.word_score, sc.reading_score, sc.mc_score)}</span>
       <input type="checkbox" class="inp-attend" ${sc.attendance === false ? '' : 'checked'} title="출석" onchange="scoreDirty=true">
-      <input type="number" class="inp-word" value="${sc.word_score ?? ''}" min="0" max="25" placeholder="" oninput="scoreDirty=true">
-      <input type="number" class="inp-reading" value="${sc.reading_score ?? ''}" min="0" max="30" placeholder="" oninput="scoreDirty=true">
-      <input type="number" class="inp-mc" value="${sc.mc_score ?? ''}" min="0" max="45" placeholder="" oninput="scoreDirty=true">
+      <input type="number" class="inp-word" value="${sc.word_score ?? ''}" min="0" max="25" placeholder="" oninput="scoreDirty=true;recalcTotal(this)">
+      <input type="number" class="inp-reading" value="${sc.reading_score ?? ''}" min="0" max="30" placeholder="" oninput="scoreDirty=true;recalcTotal(this)">
+      <input type="number" class="inp-mc" value="${sc.mc_score ?? ''}" min="0" max="45" placeholder="" oninput="scoreDirty=true;recalcTotal(this)">
       <input type="number" class="inp-hw" value="${sc.homework_rate ?? ''}" min="0" max="100" placeholder="" oninput="scoreDirty=true">
       <textarea class="inp-eval" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.homework_eval ?? ''}</textarea>
       <textarea class="inp-hwcert" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.hw_cert ?? ''}</textarea>
@@ -1269,8 +1291,9 @@ async function sendAbsentSms() {
   if (!confirm(`${selected.length}명에게 문자를 발송할까요?`)) return;
 
   const text = document.getElementById('absent-sms-text').value;
+  if (!text.trim()) { showToast('문자 내용을 입력해주세요.'); return; }
   showToast('발송 중...');
-  const messages = selected.map(t => ({ to: t.student_phone, text }));
+  const messages = selected.map(t => ({ to: t.student_phone, text: text.replace(/\{이름\}/g, t.name) }));
 
   try {
     const res = await fetch(SMS_FUNCTION_URL, {
@@ -1367,10 +1390,11 @@ async function sendStudentSms() {
   if (!confirm(`${validTargets.length}명에게 문자를 발송할까요?`)) return;
 
   showToast('발송 중...');
+  const template = document.getElementById('student-sms-text').value;
+  if (!template.trim()) { showToast('문자 내용을 입력해주세요.'); return; }
   const messages = validTargets.map(t => ({
     to: t.student_phone,
-    text: `[용산대성N학원 영어과]
-과제 못 한 부분 인증하세요.`
+    text: template.replace(/\{이름\}/g, t.name)
   }));
 
   try {
@@ -1510,7 +1534,7 @@ async function loadSmsTargets() {
   titleEl.textContent = `발송 대상 — ${targets.length}명`;
   if (targets.length === 0) { listEl.innerHTML = '<p style="font-size:13px;color:var(--gray)">해당 조건의 발송 대상이 없습니다.</p>'; previewEl.value = ''; return; }
   const first = targets[0];
-  previewEl.value = makeSmsText(first.name, weekLabel, first.hw, first.isEmpty);
+  previewEl.value = makeSmsTemplate(first.hw, first.isEmpty);
   listEl.innerHTML = `<table class="data-table"><thead><tr><th style="width:36px"><input type="checkbox" id="check-all-sms" checked onchange="toggleAllSms(this.checked)"></th><th>이름</th><th>과제(%)</th><th>연락처</th><th>상태</th></tr></thead><tbody>${targets.map((t, i) => `<tr><td><input type="checkbox" class="sms-check" data-idx="${i}" ${t.phone ? 'checked' : ''} ${!t.phone ? 'disabled' : ''}></td><td><strong>${t.name}</strong></td><td>${t.hw !== null && !t.isEmpty ? t.hw + '%' : '미기재'}</td><td style="font-size:12px;font-family:monospace">${t.phone || '번호없음'}</td><td><span class="badge ${t.phone ? 'badge-active' : 'badge-inactive'}">${t.phone ? '발송가능' : '번호없음'}</span></td></tr>`).join('')}</tbody></table>`;
   window._smsTargets = targets;
   window._smsWeekLabel = weekLabel;
@@ -1525,6 +1549,19 @@ function makeSmsText(name, weekLabel, hw, isEmpty) {
     return `[용산대성N학원 영어과]\n${name} 학생의 ${weekLabel} 과제 수행률이 ${hw}%입니다.\n토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.\n미인증 시 일요일 보충수업이 실시됩니다.\n감사합니다.`;
   } else {
     return `[용산대성N학원 영어과]\n${name} 학생의 ${weekLabel} 과제 수행률이 ${hw}%입니다.\n빠진 부분은 토요일까지 완료 후 영어알림톡으로 인증해 주세요.\n보충수업은 과제 미인증 및 개별 안내 학생을 대상으로 일요일에 실시됩니다.\n감사합니다.`;
+  }
+}
+
+// 미리보기 초기 양식 (자리표시자 사용 — 발송 시 학생별로 치환)
+function makeSmsTemplate(hw, isEmpty) {
+  if (isEmpty || hw === null || hw === undefined) {
+    return `[용산대성N학원 영어과]\n{이름} 학생의 {주차} 과제가 인증되지 않았습니다.\n토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.\n미인증 시 일요일 보충수업이 실시됩니다.\n감사합니다.`;
+  } else if (hw === 0) {
+    return `[용산대성N학원 영어과]\n{이름} 학생의 {주차} 과제 수행이 전혀 되지 않았습니다.\n토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.\n미인증 시 일요일 보충수업이 실시됩니다.\n감사합니다.`;
+  } else if (hw <= 79) {
+    return `[용산대성N학원 영어과]\n{이름} 학생의 {주차} 과제 수행률이 {수행률}입니다.\n토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.\n미인증 시 일요일 보충수업이 실시됩니다.\n감사합니다.`;
+  } else {
+    return `[용산대성N학원 영어과]\n{이름} 학생의 {주차} 과제 수행률이 {수행률}입니다.\n빠진 부분은 토요일까지 완료 후 영어알림톡으로 인증해 주세요.\n보충수업은 과제 미인증 및 개별 안내 학생을 대상으로 일요일에 실시됩니다.\n감사합니다.`;
   }
 }
 
@@ -1548,7 +1585,21 @@ async function sendAllSms() {
   if (!selected.length) { showToast('선택된 발송 대상이 없습니다.'); return; }
   if (!confirm(`${selected.length}명에게 문자를 발송할까요?`)) return;
   showToast('발송 중...');
-  const messages = selected.map(t => ({ to: t.phone, text: makeSmsText(t.name, weekLabel, t.hw, t.isEmpty) }));
+  // 직접 수정한 양식이 있으면 학생별로 자리표시자 치환, 없으면 학생별 기본 문구
+  const customTemplate = document.getElementById('sms-preview-text').value.trim();
+  const messages = selected.map(t => {
+    let text;
+    if (customTemplate) {
+      const hwText = (t.isEmpty || t.hw === null || t.hw === undefined) ? '미기재' : t.hw + '%';
+      text = customTemplate
+        .replace(/\{이름\}/g, t.name)
+        .replace(/\{주차\}/g, weekLabel)
+        .replace(/\{수행률\}/g, hwText);
+    } else {
+      text = makeSmsText(t.name, weekLabel, t.hw, t.isEmpty);
+    }
+    return { to: t.phone, text };
+  });
   try {
     const res = await fetch(SMS_FUNCTION_URL, { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`}, body:JSON.stringify({ messages }) });
     const data = await res.json();
