@@ -77,6 +77,18 @@
   .score-input-row textarea:focus { border-color:var(--gold); background:var(--white); }
   .score-header { display:grid; grid-template-columns:180px 44px 62px 62px 62px 62px 110px 90px 46px 46px 1fr; gap:6px; padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; }
   .mini-loading { text-align:center; padding:20px; color:var(--gray); font-size:13px; }
+  .memo-author-btn { padding:8px 16px; border:1.5px solid var(--border); border-radius:20px; font-size:13px; font-weight:500; font-family:'Noto Sans KR',sans-serif; color:var(--gray); background:var(--white); cursor:pointer; transition:all 0.15s; }
+  .memo-author-btn:hover { border-color:var(--gold); color:var(--navy); }
+  .memo-author-btn.active { background:var(--navy); border-color:var(--navy); color:var(--white); font-weight:700; }
+  .memo-card { background:var(--cream); border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:10px; }
+  .memo-card:last-child { margin-bottom:0; }
+  .memo-card-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+  .memo-card-author { font-size:12px; font-weight:700; color:var(--navy); }
+  .memo-card-author .tag { display:inline-block; padding:2px 8px; border-radius:10px; background:var(--gold); color:var(--white); font-size:11px; margin-right:6px; }
+  .memo-card-time { font-size:11px; color:var(--gray); }
+  .memo-card-body { font-size:13px; color:var(--navy); line-height:1.6; white-space:pre-wrap; word-break:break-word; }
+  .memo-card-del { background:none; border:none; color:var(--gray); font-size:12px; cursor:pointer; padding:2px 6px; margin-left:8px; }
+  .memo-card-del:hover { color:var(--red); }
   .spinner-sm { width:20px; height:20px; border:2px solid var(--border); border-top-color:var(--gold); border-radius:50%; animation:spin 0.7s linear infinite; display:inline-block; vertical-align:middle; margin-right:8px; }
   @keyframes spin { to { transform:rotate(360deg); } }
   @media(max-width:480px) {
@@ -112,6 +124,7 @@
     <button class="tab-btn" onclick="switchTab('tab-week')">주차 관리</button>
     <button class="tab-btn" onclick="switchTab('tab-student')">학생 관리</button>
     <button class="tab-btn" onclick="switchTab('tab-class')">반 관리</button>
+    <button class="tab-btn" onclick="switchTab('tab-memo')">조교 메모</button>
   </div>
 
   <!-- 탭1: 점수 입력 -->
@@ -481,6 +494,37 @@
     </div>
   </div>
 
+  <!-- 탭10: 조교 메모 -->
+  <div id="tab-memo" class="tab-content">
+    <div class="section-card">
+      <div class="section-head"><h3>새 메모 작성</h3></div>
+      <div class="section-body">
+        <div class="form-group" style="margin-bottom:12px">
+          <label>작성자</label>
+          <div id="memo-author-btns" style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" class="memo-author-btn" data-author="선생님" onclick="pickMemoAuthor(this)">선생님</button>
+            <button type="button" class="memo-author-btn" data-author="평일 조교" onclick="pickMemoAuthor(this)">평일 조교</button>
+            <button type="button" class="memo-author-btn" data-author="주말 조교" onclick="pickMemoAuthor(this)">주말 조교</button>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:12px">
+          <label>내용</label>
+          <textarea id="memo-content" rows="3" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'Noto Sans KR',sans-serif;outline:none;resize:none;line-height:1.6;min-height:60px" placeholder="예: 토요일반 OOO 결석, 보강 잡아주세요"></textarea>
+        </div>
+        <button class="btn btn-gold" onclick="addMemo()">메모 남기기</button>
+      </div>
+    </div>
+    <div class="section-card">
+      <div class="section-head">
+        <h3>메모 목록</h3>
+        <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="loadMemos()">새로고침</button>
+      </div>
+      <div class="section-body">
+        <div id="memo-list"><div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div></div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- 반 이동 모달 -->
@@ -562,6 +606,7 @@ function switchTab(tabId) {
   document.getElementById(tabId).classList.add('active');
   event.target.classList.add('active');
   if (tabId === 'tab-class') loadClassList();
+  if (tabId === 'tab-memo') loadMemos();
 }
 
 // ── 주차 관리
@@ -1772,6 +1817,67 @@ async function deleteStudent(id, name) {
   await api(`students?id=eq.${id}`, 'DELETE');
   showToast(`🗑 ${name} 학생이 삭제됐어요.`);
   refreshStudentList();
+}
+
+// ── 조교 메모 ─────────────────────────────────────────────
+let _memoAuthor = null;
+
+function pickMemoAuthor(btn) {
+  document.querySelectorAll('.memo-author-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  _memoAuthor = btn.dataset.author;
+}
+
+function escapeHtml(str) {
+  return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function formatMemoTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getMonth()+1}.${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+async function addMemo() {
+  const content = document.getElementById('memo-content').value.trim();
+  if (!_memoAuthor) { showToast('작성자를 선택해주세요.'); return; }
+  if (!content) { showToast('메모 내용을 입력해주세요.'); return; }
+  await api('memos', 'POST', { author: _memoAuthor, content });
+  document.getElementById('memo-content').value = '';
+  document.getElementById('memo-content').style.height = 'auto';
+  showToast('✅ 메모가 등록됐어요.');
+  loadMemos();
+}
+
+async function loadMemos() {
+  const container = document.getElementById('memo-list');
+  if (!container) return;
+  container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
+  const memos = await api('memos?order=id.desc&select=*') || [];
+  if (!memos.length) {
+    container.innerHTML = '<p style="font-size:13px;color:var(--gray)">아직 등록된 메모가 없습니다.</p>';
+    return;
+  }
+  container.innerHTML = memos.map(m => `
+    <div class="memo-card">
+      <div class="memo-card-head">
+        <span class="memo-card-author"><span class="tag">${escapeHtml(m.author)}</span></span>
+        <span style="display:flex;align-items:center">
+          <span class="memo-card-time">${formatMemoTime(m.created_at)}</span>
+          <button class="memo-card-del" onclick="deleteMemo(${m.id})">삭제</button>
+        </span>
+      </div>
+      <div class="memo-card-body">${escapeHtml(m.content)}</div>
+    </div>`).join('');
+}
+
+async function deleteMemo(id) {
+  if (!confirm('이 메모를 삭제할까요?')) return;
+  await api(`memos?id=eq.${id}`, 'DELETE');
+  showToast('🗑 메모가 삭제됐어요.');
+  loadMemos();
 }
 </script>
 </body>
