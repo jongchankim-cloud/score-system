@@ -1507,7 +1507,10 @@ async function loadClinicSmsTargets() {
     name: st.name,
     phone: st.phone || '',
     student_phone: st.student_phone || '',
-    clinic_memo: (scoreMap[st.id] && scoreMap[st.id].clinic_memo) || ''
+    clinic_memo: (scoreMap[st.id] && scoreMap[st.id].clinic_memo) || '',
+    homework_rate: (scoreMap[st.id] ? scoreMap[st.id].homework_rate : null),
+    homework_eval: (scoreMap[st.id] && scoreMap[st.id].homework_eval) || '',
+    hw_cert: (scoreMap[st.id] && scoreMap[st.id].hw_cert) || ''
   }));
 
   const weekSel = document.getElementById('clinic-sms-week');
@@ -1532,13 +1535,16 @@ async function loadClinicSmsTargets() {
   const phoneLabel = isParent ? '학부모 연락처' : '학생 연락처';
 
   listEl.innerHTML = `<table class="data-table">
-    <thead><tr><th style="width:36px"><input type="checkbox" id="check-all-clinic-sms" checked onchange="toggleAllClinicSms(this.checked)"></th><th>이름</th><th>${phoneLabel}</th><th>클리닉 메모</th><th>상태</th></tr></thead>
+    <thead><tr><th style="width:36px"><input type="checkbox" id="check-all-clinic-sms" checked onchange="toggleAllClinicSms(this.checked)"></th><th>이름</th><th>${phoneLabel}</th><th>과제(%)</th><th>과제평가</th><th>잔여인증</th><th>클리닉 메모</th><th>상태</th></tr></thead>
     <tbody>${targets.map((t, i) => {
       const phone = isParent ? t.phone : t.student_phone;
       return `<tr>
         <td><input type="checkbox" class="clinic-sms-check" data-idx="${i}" ${phone ? 'checked' : ''} ${!phone ? 'disabled' : ''}></td>
         <td><strong>${t.name}</strong></td>
         <td style="font-size:12px;font-family:monospace">${phone || '번호없음'}</td>
+        <td>${(t.homework_rate !== null && t.homework_rate !== undefined) ? t.homework_rate + '%' : '미기재'}</td>
+        <td style="font-size:12px;color:var(--gray)">${t.homework_eval || '-'}</td>
+        <td style="font-size:12px;color:var(--gray)">${t.hw_cert || '-'}</td>
         <td style="font-size:12px;color:var(--gray)">${t.clinic_memo || '-'}</td>
         <td><span class="badge ${phone ? 'badge-active' : 'badge-inactive'}">${phone ? '발송가능' : '번호없음'}</span></td>
       </tr>`;
