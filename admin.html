@@ -74,6 +74,10 @@
   .score-input-row .student-name { font-size:13px; font-weight:500; color:var(--navy); line-height:1.4; word-break:break-all; padding-right:4px; }
   .score-input-row input { padding:8px; border:1.5px solid var(--border); border-radius:6px; font-size:13px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); text-align:center; outline:none; width:100%; transition:border-color 0.2s; }
   .score-input-row input:focus { border-color:var(--gold); background:var(--white); }
+  /* 숫자 입력칸의 위아래 화살표(스피너) 제거 */
+  .score-input-row input[type=number]::-webkit-inner-spin-button,
+  .score-input-row input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+  .score-input-row input[type=number] { -moz-appearance:textfield; appearance:textfield; }
   .score-input-row textarea { padding:6px 8px; border:1.5px solid var(--border); border-radius:6px; font-size:12px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); outline:none; width:100%; transition:border-color 0.2s; resize:none; overflow:hidden; min-height:34px; line-height:1.5; }
   .score-input-row textarea:focus { border-color:var(--gold); background:var(--white); }
   .score-header { display:grid; grid-template-columns:180px 50px 44px 62px 62px 62px 62px 110px 90px 46px 46px 1fr; gap:6px; padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; }
@@ -568,10 +572,10 @@
       </div>
       <div class="section-body">
         <div class="form-group" style="margin-bottom:14px">
-          <label>문자 내용 (직접 수정 가능 · <code>{이름}</code> <code>{주차}</code> 자동 치환)</label>
+          <label>문자 내용 (직접 수정 가능 · <code>{이름}</code> 자동 치환)</label>
           <textarea id="clinic-sms-text" rows="4" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7">[용산대성N학원 영어과]
-{이름} 학생이 {주차} 클리닉에 참석하지 않았습니다.
-보충 일정 안내드리니 확인 부탁드립니다.</textarea>
+{이름} 학생이 클리닉에 참석하지 않았습니다.
+확인 부탁드립니다.</textarea>
         </div>
         <div id="clinic-sms-list"></div>
       </div>
@@ -1536,18 +1540,18 @@ async function loadClinicSmsTargets() {
   const phoneLabel = isParent ? '학부모 연락처' : '학생 연락처';
 
   listEl.innerHTML = `<table class="data-table">
-    <thead><tr><th style="width:36px"><input type="checkbox" id="check-all-clinic-sms" checked onchange="toggleAllClinicSms(this.checked)"></th><th>이름</th><th>${phoneLabel}</th><th>과제(%)</th><th>과제평가</th><th>잔여인증</th><th>클리닉 메모</th><th>상태</th></tr></thead>
+    <thead><tr><th style="width:36px"><input type="checkbox" id="check-all-clinic-sms" checked onchange="toggleAllClinicSms(this.checked)"></th><th style="white-space:nowrap">이름</th><th>${phoneLabel}</th><th>과제(%)</th><th>과제평가</th><th>잔여인증</th><th>클리닉 메모</th><th style="white-space:nowrap">상태</th></tr></thead>
     <tbody>${targets.map((t, i) => {
       const phone = isParent ? t.phone : t.student_phone;
       return `<tr>
         <td><input type="checkbox" class="clinic-sms-check" data-idx="${i}" ${phone ? 'checked' : ''} ${!phone ? 'disabled' : ''}></td>
-        <td><strong>${t.name}</strong></td>
+        <td style="white-space:nowrap"><strong>${t.name}</strong></td>
         <td style="font-size:12px;font-family:monospace">${phone || '번호없음'}</td>
         <td>${(t.homework_rate !== null && t.homework_rate !== undefined) ? t.homework_rate + '%' : '미기재'}</td>
         <td style="font-size:12px;color:var(--gray)">${t.homework_eval || '-'}</td>
         <td style="font-size:12px;color:var(--gray)">${t.hw_cert || '-'}</td>
         <td style="font-size:12px;color:var(--gray)">${t.clinic_memo || '-'}</td>
-        <td><span class="badge ${phone ? 'badge-active' : 'badge-inactive'}">${phone ? '발송가능' : '번호없음'}</span></td>
+        <td style="white-space:nowrap"><span class="badge ${phone ? 'badge-active' : 'badge-inactive'}">${phone ? '발송가능' : '번호없음'}</span></td>
       </tr>`;
     }).join('')}</tbody></table>`;
 
