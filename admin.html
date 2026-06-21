@@ -566,6 +566,7 @@
       <div class="section-head">
         <h3 id="clinic-sms-title">발송 대상</h3>
         <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="saveClinicGrid()">입력 저장</button>
           <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="toggleAllClinicSms()">전체 선택/해제</button>
           <button class="btn btn-primary btn-sm" onclick="sendClinicSms()">선택 발송</button>
         </div>
@@ -1543,20 +1544,21 @@ async function loadClinicSmsTargets() {
     <thead><tr><th style="width:36px"><input type="checkbox" id="check-all-clinic-sms" checked onchange="toggleAllClinicSms(this.checked)"></th><th style="white-space:nowrap">이름</th><th>${phoneLabel}</th><th>과제(%)</th><th>과제평가</th><th>잔여인증</th><th>클리닉 메모</th><th style="white-space:nowrap">상태</th></tr></thead>
     <tbody>${targets.map((t, i) => {
       const phone = isParent ? t.phone : t.student_phone;
-      return `<tr>
+      return `<tr data-student-id="${t.id}">
         <td><input type="checkbox" class="clinic-sms-check" data-idx="${i}" ${phone ? 'checked' : ''} ${!phone ? 'disabled' : ''}></td>
         <td style="white-space:nowrap"><strong>${t.name}</strong></td>
         <td style="font-size:12px;font-family:monospace">${phone || '번호없음'}</td>
         <td>${(t.homework_rate !== null && t.homework_rate !== undefined) ? t.homework_rate + '%' : '미기재'}</td>
-        <td style="font-size:12px;color:var(--gray)">${t.homework_eval || '-'}</td>
-        <td style="font-size:12px;color:var(--gray)">${t.hw_cert || '-'}</td>
-        <td style="font-size:12px;color:var(--gray)">${t.clinic_memo || '-'}</td>
+        <td><input type="text" class="clinic-eval" value="${attrEsc(t.homework_eval)}" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;outline:none;width:100%;min-width:120px"></td>
+        <td><input type="text" class="clinic-cert" value="${attrEsc(t.hw_cert)}" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;outline:none;width:100%;min-width:70px"></td>
+        <td><input type="text" class="clinic-memo" value="${attrEsc(t.clinic_memo)}" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;outline:none;width:100%;min-width:110px"></td>
         <td style="white-space:nowrap"><span class="badge ${phone ? 'badge-active' : 'badge-inactive'}">${phone ? '발송가능' : '번호없음'}</span></td>
       </tr>`;
     }).join('')}</tbody></table>`;
 
   window._clinicSmsTargets = targets;
   window._clinicSmsWeekLabel = weekLabel;
+  window._clinicSmsWeekId = weekId;
 }
 
 function toggleAllClinicSms(checked) {
@@ -1601,6 +1603,50 @@ async function sendClinicSms() {
     showToast(`✅ 발송 완료 — 성공 ${data.success}건 / 실패 ${data.fail}건`, 4000);
   } catch(e) {
     showToast('❌ 발송 오류: ' + e.message);
+  }
+}
+
+// input value 속성에 안전하게 넣기 위한 이스케이프
+function attrEsc(str) {
+  return (str || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// 클리닉 탭에서 과제평가·잔여인증·클리닉 메모를 공용 scores에 저장
+async function saveClinicGrid() {
+  const weekId = window._clinicSmsWeekId;
+  if (!weekId) { showToast('주차를 먼저 선택해주세요.'); return; }
+  const rows = document.querySelectorAll('#clinic-sms-list tr[data-student-id]');
+  if (!rows.length) { showToast('저장할 대상이 없습니다.'); return; }
+
+  const updates = Array.from(rows).map(row => ({
+    student_id: parseInt(row.dataset.studentId),
+    homework_eval: row.querySelector('.clinic-eval').value.trim(),
+    hw_cert: row.querySelector('.clinic-cert').value.trim(),
+    clinic_memo: row.querySelector('.clinic-memo').value.trim()
+  }));
+
+  try {
+    const existing = await api(`scores?week_id=eq.${weekId}&select=id,student_id`);
+    const existMap = {};
+    (existing || []).forEach(e => { existMap[e.student_id] = e.id; });
+
+    const results = await Promise.all(updates.map(async u => {
+      if (existMap[u.student_id]) {
+        return apiRaw(`scores?id=eq.${existMap[u.student_id]}`, 'PATCH', { homework_eval: u.homework_eval, hw_cert: u.hw_cert, clinic_memo: u.clinic_memo });
+      } else {
+        return apiRaw('scores', 'POST', { student_id: u.student_id, week_id: parseInt(weekId), homework_eval: u.homework_eval, hw_cert: u.hw_cert, clinic_memo: u.clinic_memo });
+      }
+    }));
+    const failed = results.filter(r => !r.ok);
+    if (failed.length > 0) { showToast(`❌ ${failed.length}건 저장 실패`); return; }
+
+    // 다른 탭 캐시 무효화 (공용 반영)
+    delete scoreCache[weekId];
+    if (typeof _uncertScoreData === 'object') delete _uncertScoreData[weekId];
+
+    showToast('✅ 저장됐어요! (점수입력·미인증 탭에도 반영)');
+  } catch(e) {
+    showToast('❌ 오류: ' + e.message);
   }
 }
 
