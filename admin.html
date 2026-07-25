@@ -363,7 +363,27 @@
       <div class="section-body">
         <div class="form-row">
           <div class="form-group"><label>반 이름</label><input type="text" id="new-class-name" placeholder="예: 고3 화요일반"></div>
-          <div class="form-group"><label>수업 요일</label><input type="text" id="new-class-day" placeholder="예: 화"></div>
+          <div class="form-group">
+            <label>학년 (필수)</label>
+            <select id="new-class-grade">
+              <option value="">학년을 선택하세요</option>
+              <option value="고1">고1</option>
+              <option value="고2">고2</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>수업 요일 (필수)</label>
+            <select id="new-class-day">
+              <option value="">요일을 선택하세요</option>
+              <option value="월">월</option>
+              <option value="화">화</option>
+              <option value="수">수</option>
+              <option value="목">목</option>
+              <option value="금">금</option>
+              <option value="토">토</option>
+              <option value="일">일</option>
+            </select>
+          </div>
           <div class="form-group"><label>수업 시간 (선택)</label><input type="text" id="new-class-time" placeholder="예: 15:30"></div>
         </div>
         <button class="btn btn-gold" onclick="addClass()">반 추가</button>
@@ -1190,7 +1210,8 @@ async function previewMoveMatch(studentId, fromClassId, toClassId) {
     preview.innerHTML = matchLines.join('<br>') + `<br><strong style="color:var(--navy)">매칭 ${matched}건 / 미매칭 ${unmatched}건</strong>`;
   }
 
-  window._moveFromWeeks = fromWeeks;
+  window._moveToClassId = parseInt(toClassId);
+  window._moveFromWeeks = fromWeeks;  
   window._moveToWeeks = toWeeks;
   window._moveScoreedWeekIds = scoredWeekIds;
 }
@@ -1199,28 +1220,63 @@ async function confirmMoveStudent() {
   const toClassId = parseInt(document.getElementById('move-target-class').value);
   if (!toClassId) { showToast('이동할 반을 선택해주세요.'); return; }
 
-  const fromWeeks = window._moveFromWeeks || [];
-  const toWeeks = window._moveToWeeks || [];
-  const scoredWeekIds = window._moveScoreedWeekIds || new Set();
+  // 프리뷰가 아직 안 끝났으면 여기서 다시 계산 (레이스 방지)
+  if (window._moveToClassId !== toClassId || !window._moveToWeeks) {
+    await previewMoveMatch(_moveStudentId, _moveCurrentClassId, toClassId);
+  }
 
-  // group_id 기준으로 week_id 업데이트
-  const updates = [];
-  fromWeeks.filter(w => scoredWeekIds.has(w.id)).forEach(fw => {
-    if (fw.group_id) {
-      const tw = toWeeks.find(w => w.group_id === fw.group_id);
-      if (tw) updates.push({ from_week_id: fw.id, to_week_id: tw.id });
-    }
+  const fromWeeks = window._moveFromWeeks || [];
+  const toWeeks   = window._moveToWeeks || [];
+  const scoredIds = window._moveScoreedWeekIds || new Set();
+
+  // 이동할 반 주차에 이미 점수 행이 있는지 확인 (덮어쓰기 방지)
+  let destHas = new Set();
+  if (toWeeks.length) {
+    const ids = toWeeks.map(w => w.id).join(',');
+    const rows = await api(`scores?student_id=eq.${_moveStudentId}&week_id=in.(${ids})&select=week_id`) || [];
+    destHas = new Set(rows.map(r => r.week_id));
+  }
+
+  const updates = [], orphans = [], conflicts = [];
+  fromWeeks.filter(w => scoredIds.has(w.id)).forEach(fw => {
+    const label = fw.label || fw.test_date;
+    const tw = fw.group_id ? toWeeks.find(w => w.group_id === fw.group_id) : null;
+    if (!tw)                  orphans.push(label);
+    else if (destHas.has(tw.id)) conflicts.push(label);
+    else                      updates.push({ from_week_id: fw.id, to_week_id: tw.id });
   });
 
-  try {
-    // 점수 week_id 업데이트
-    for (const u of updates) {
-      await api(`scores?student_id=eq.${_moveStudentId}&week_id=eq.${u.from_week_id}`, 'PATCH', { week_id: u.to_week_id });
+  if (orphans.length || conflicts.length) {
+    let msg = '';
+    if (orphans.length) {
+      msg += `⚠️ 이동할 반에 대응 주차가 없는 기록 ${orphans.length}건\n`
+           + `   (${orphans.join(', ')})\n`
+           + `   → 그대로 이동하면 관리자 화면에서 보이지 않게 됩니다.\n`
+           + `   → 먼저 [주차 관리]에서 해당 주차를 만든 뒤 이동하세요.\n\n`;
     }
-    // 학생 class_id 업데이트
+    if (conflicts.length) {
+      msg += `⚠️ 이동할 반에 이미 점수가 입력된 주차 ${conflicts.length}건\n`
+           + `   (${conflicts.join(', ')})\n`
+           + `   → 덮어쓰지 않고 건너뜁니다. 수동 확인이 필요합니다.\n\n`;
+    }
+    msg += `이동 가능: ${updates.length}건\n\n그래도 진행할까요?`;
+    if (!confirm(msg)) return;
+  }
+
+  try {
+    for (const u of updates) {
+      await api(`scores?student_id=eq.${_moveStudentId}&week_id=eq.${u.from_week_id}`,
+                'PATCH', { week_id: u.to_week_id });
+    }
     await api(`students?id=eq.${_moveStudentId}`, 'PATCH', { class_id: toClassId });
 
-    showToast(`✅ 반 이동 완료 — ${updates.length}개 주차 데이터 이전됐어요.`);
+    // 캐시 무효화 (안 하면 새로고침 전까지 옛 명단이 보임)
+    [studentCache, scoreCache, mockScoreCache, _uncertScoreData]
+      .forEach(c => Object.keys(c).forEach(k => delete c[k]));
+
+    const tail = (orphans.length + conflicts.length)
+      ? ` / 미이전 ${orphans.length + conflicts.length}건` : '';
+    showToast(`✅ 반 이동 완료 — ${updates.length}건 이전${tail}`, 4000);
     closeMoveModal();
     loadStudentList();
   } catch(e) {
@@ -1235,6 +1291,7 @@ function closeMoveModal() {
   window._moveFromWeeks = null;
   window._moveToWeeks = null;
   window._moveScoreedWeekIds = null;
+  window._moveToClassId = null;
 }
 
 // ── 미응시 문자 발송 ──────────────────────────────────────
@@ -1656,12 +1713,30 @@ async function loadClassList() {
   if (!container) return;
   const classList = await api('classes?order=id.asc&select=*') || [];
   if (!classList.length) { container.innerHTML = '<p style="font-size:13px;color:var(--gray)">등록된 반이 없습니다.</p>'; return; }
-  container.innerHTML = `<table class="data-table"><thead><tr><th>반 이름</th><th>요일</th><th>시간</th><th></th></tr></thead><tbody>${classList.map(c => `
-    <tr>
-      <td><input type="text" value="${c.name}" onblur="updateClassName(${c.id}, this.value)" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'Noto Sans KR',sans-serif;width:160px;outline:none;font-weight:600"></td>
-      <td><input type="text" value="${c.day || ''}" onblur="updateClassDay(${c.id}, this.value)" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'Noto Sans KR',sans-serif;width:50px;outline:none;text-align:center"></td>
-      <td><input type="text" value="${c.time || ''}" onblur="updateClassTime(${c.id}, this.value)" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'Noto Sans KR',sans-serif;width:80px;outline:none;text-align:center"></td>
-      <td><button class="btn btn-danger btn-sm" onclick="deleteClass(${c.id}, '${c.name}')">삭제</button></td>
+
+  const inp = "padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'Noto Sans KR',sans-serif;outline:none";
+  const days = ['월','화','수','목','금','토','일'];
+
+  container.innerHTML = `<table class="data-table">
+    <thead><tr><th>반 이름</th><th>학년</th><th>요일</th><th>시간</th><th></th></tr></thead>
+    <tbody>${classList.map(c => `
+    <tr${!c.grade ? ' style="background:var(--red-light)"' : ''}>
+      <td><input type="text" value="${attrEsc(c.name)}" onblur="updateClassName(${c.id}, this.value)" style="${inp};width:160px;font-weight:600"></td>
+      <td>
+        <select onchange="updateClassGrade(${c.id}, this.value)" style="${inp};width:80px">
+          <option value=""${!c.grade ? ' selected' : ''}>⚠️ 미지정</option>
+          <option value="고1"${c.grade === '고1' ? ' selected' : ''}>고1</option>
+          <option value="고2"${c.grade === '고2' ? ' selected' : ''}>고2</option>
+        </select>
+      </td>
+      <td>
+        <select onchange="updateClassDay(${c.id}, this.value)" style="${inp};width:60px;text-align:center">
+          <option value="">-</option>
+          ${days.map(d => `<option value="${d}"${c.day === d ? ' selected' : ''}>${d}</option>`).join('')}
+        </select>
+      </td>
+      <td><input type="text" value="${attrEsc(c.time || '')}" onblur="updateClassTime(${c.id}, this.value)" style="${inp};width:80px;text-align:center"></td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteClass(${c.id}, ${attrEsc(JSON.stringify(c.name))})">삭제</button></td>
     </tr>`).join('')}</tbody></table>`;
 }
 
@@ -1682,8 +1757,25 @@ async function updateClassName(id, name) {
   showToast('✅ 반 이름이 수정됐어요.');
 }
 
+async function updateClassGrade(id, grade) {
+  if (!grade) { showToast('학년을 비우면 주차가 생성되지 않습니다.', 3500); }
+  await api(`classes?id=eq.${id}`, 'PATCH', { grade: grade || null });
+  classes = await api('classes?order=id.asc&select=*') || [];
+  showToast('✅ 학년이 수정됐어요.');
+  loadClassList();
+}
+
+async function updateClassGrade(id, grade) {
+  if (!grade) { showToast('학년을 비우면 주차가 생성되지 않습니다.', 3500); }
+  await api(`classes?id=eq.${id}`, 'PATCH', { grade: grade || null });
+  classes = await api('classes?order=id.asc&select=*') || [];
+  showToast('✅ 학년이 수정됐어요.');
+  loadClassList();
+}
+
 async function updateClassDay(id, day) {
-  await api(`classes?id=eq.${id}`, 'PATCH', { day: day.trim() || null });
+  await api(`classes?id=eq.${id}`, 'PATCH', { day: day || null });
+  classes = await api('classes?order=id.asc&select=*') || [];
   showToast('✅ 요일이 수정됐어요.');
 }
 
@@ -1693,15 +1785,23 @@ async function updateClassTime(id, time) {
 }
 
 async function addClass() {
-  const name = document.getElementById('new-class-name').value.trim();
-  const day  = document.getElementById('new-class-day').value.trim();
-  const time = document.getElementById('new-class-time').value.trim();
-  if (!name || !day) { showToast('반 이름과 요일을 입력해주세요.'); return; }
-  await api('classes', 'POST', { name, day, time: time || null });
-  showToast(`✅ ${name}이 추가됐어요.`);
-  document.getElementById('new-class-name').value = '';
-  document.getElementById('new-class-day').value = '';
-  document.getElementById('new-class-time').value = '';
+  const name  = document.getElementById('new-class-name').value.trim();
+  const grade = document.getElementById('new-class-grade').value;
+  const day   = document.getElementById('new-class-day').value;
+  const time  = document.getElementById('new-class-time').value.trim();
+
+  if (!name)  { showToast('반 이름을 입력해주세요.'); return; }
+  if (!grade) { showToast('학년을 선택해주세요. 미선택 시 주차가 생성되지 않습니다.', 3500); return; }
+  if (!day)   { showToast('수업 요일을 선택해주세요.'); return; }
+
+  await api('classes', 'POST', { name, grade, day, time: time || null });
+  showToast(`✅ ${name}이 추가됐어요. 주차 관리에서 주차를 추가해주세요.`, 4000);
+
+  document.getElementById('new-class-name').value  = '';
+  document.getElementById('new-class-grade').value = '';
+  document.getElementById('new-class-day').value   = '';
+  document.getElementById('new-class-time').value  = '';
+
   classes = await api('classes?order=id.asc&select=*') || [];
   refreshClassSelects();
   loadClassList();
