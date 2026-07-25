@@ -99,6 +99,25 @@
   .item-config-row input[type=number] { -moz-appearance:textfield; appearance:textfield; }
   .item-config-total { font-size:12px; color:var(--gray); margin-top:8px; }
   .item-config-total strong { color:var(--navy); }
+  /* 비교 그룹 반 선택 (체크박스) */
+  .btn-light { background:var(--cream); color:var(--navy); border:1.5px solid var(--border); }
+  .btn-light:hover { background:var(--white); border-color:var(--gold); }
+  .picker-head { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:6px; }
+  .picker-head label { font-size:11px; color:var(--gray); font-weight:500; letter-spacing:0.5px; }
+  .picker-actions { display:flex; gap:6px; flex-wrap:wrap; }
+  .class-picker { display:flex; flex-direction:column; gap:12px; border:1.5px solid var(--border); border-radius:8px; padding:12px; background:var(--cream); max-height:260px; overflow-y:auto; }
+  .picker-grade { font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; margin-bottom:6px; }
+  .picker-items { display:flex; flex-wrap:wrap; gap:8px; }
+  .picker-item { display:flex; align-items:center; gap:6px; background:var(--white); border:1.5px solid var(--border); border-radius:7px; padding:7px 10px; font-size:13px; color:var(--navy); cursor:pointer; }
+  .picker-item input { width:16px; height:16px; cursor:pointer; }
+  .picker-item.on { border-color:var(--gold); background:#fffaf0; font-weight:600; }
+  .picker-item small { color:var(--gray); font-weight:400; }
+  .picker-preview { font-size:12px; color:var(--gray); margin:10px 0; line-height:1.7; }
+  .picker-preview strong { color:var(--navy); }
+  .picker-preview .warn { color:var(--red); }
+  .group-avg-info { font-size:12px; color:var(--gray); margin-top:10px; padding-top:10px; border-top:1px dashed var(--border); line-height:1.8; }
+  .group-avg-info strong { color:var(--navy); }
+  .group-avg-info .warn { color:var(--red); }
   .mini-loading { text-align:center; padding:20px; color:var(--gray); font-size:13px; }
   .memo-author-btn { padding:8px 16px; border:1.5px solid var(--border); border-radius:20px; font-size:13px; font-weight:500; font-family:'Noto Sans KR',sans-serif; color:var(--gray); background:var(--white); cursor:pointer; transition:all 0.15s; }
   .memo-author-btn:hover { border-color:var(--gold); color:var(--navy); }
@@ -194,6 +213,7 @@
           </div>
           <div class="item-config-editor" id="item-config-editor"></div>
           <div class="item-config-total" id="item-config-total"></div>
+          <div class="group-avg-info" id="group-avg-info"></div>
         </div>
       </div>
       <div class="section-body" style="overflow-x:auto">
@@ -209,25 +229,24 @@
       <div class="section-head"><h3>새 주차 추가</h3></div>
       <div class="section-body">
         <div class="form-row">
-          <div class="form-group">
-            <label>학년 선택</label>
-            <select id="week-grade">
-              <option value="">학년을 선택하세요</option>
-              <option value="고1">고1 (수요일+토요일)</option>
-              <option value="고2">고2 (목요일+금요일)</option>
-              <option value="single">단일 반 추가</option>
-            </select>
-          </div>
-          <div class="form-group" id="week-date-group">
-            <label id="week-date-label">기준 날짜</label>
-            <input type="text" id="week-date" placeholder="예: 6.3">
-          </div>
-          <div class="form-group" id="week-class-group" style="display:none">
-            <label>반 선택 (단일)</label>
-            <select id="week-class"><option value="">반을 선택하세요</option></select>
+          <div class="form-group" style="max-width:220px">
+            <label>기준 날짜 (그 주의 아무 날짜)</label>
+            <input type="text" id="week-date" placeholder="예: 6.3" oninput="renderWeekPreview()">
           </div>
         </div>
-        <div id="week-preview" style="font-size:12px;color:var(--gray);margin-bottom:10px;display:none"></div>
+        <div style="margin-bottom:10px">
+          <div class="picker-head">
+            <label>평균을 함께 낼 반 선택 — 체크한 반들이 하나의 비교 그룹이 됩니다</label>
+            <div class="picker-actions">
+              <button class="btn btn-light btn-sm" onclick="setPickerSelection('week-class-picker','고1')">고1 전체</button>
+              <button class="btn btn-light btn-sm" onclick="setPickerSelection('week-class-picker','고2')">고2 전체</button>
+              <button class="btn btn-light btn-sm" onclick="setPickerSelection('week-class-picker','all')">전체</button>
+              <button class="btn btn-light btn-sm" onclick="setPickerSelection('week-class-picker','none')">해제</button>
+            </div>
+          </div>
+          <div class="class-picker" id="week-class-picker"></div>
+        </div>
+        <div id="week-preview" class="picker-preview" style="display:none"></div>
         <button class="btn btn-gold" onclick="addWeek()">주차 추가</button>
       </div>
     </div>
@@ -282,19 +301,22 @@
       <div class="section-head"><h3>모의고사 추가</h3></div>
       <div class="section-body">
         <div class="form-row">
-          <div class="form-group">
-            <label>학년 선택</label>
-            <select id="mock-grade">
-              <option value="">학년을 선택하세요</option>
-              <option value="고1">고1 (수요일+토요일)</option>
-              <option value="고2">고2 (목요일+금요일)</option>
-              <option value="single">단일 반</option>
-            </select>
-          </div>
-          <div class="form-group" id="mock-class-group" style="display:none"><label>반 선택 (단일)</label><select id="mock-class"><option value="">반을 선택하세요</option></select></div>
-          <div class="form-group"><label>시험 날짜</label><input type="text" id="mock-date" placeholder="예: 6.10"></div>
+          <div class="form-group" style="max-width:220px"><label>시험 날짜</label><input type="text" id="mock-date" placeholder="예: 6.10"></div>
           <div class="form-group"><label>시험명 (선택)</label><input type="text" id="mock-label" placeholder="예: 6월 모의고사"></div>
         </div>
+        <div style="margin-bottom:10px">
+          <div class="picker-head">
+            <label>평균을 함께 낼 반 선택 — 체크한 반들이 하나의 비교 그룹이 됩니다</label>
+            <div class="picker-actions">
+              <button class="btn btn-light btn-sm" onclick="setPickerSelection('mock-class-picker','고1')">고1 전체</button>
+              <button class="btn btn-light btn-sm" onclick="setPickerSelection('mock-class-picker','고2')">고2 전체</button>
+              <button class="btn btn-light btn-sm" onclick="setPickerSelection('mock-class-picker','all')">전체</button>
+              <button class="btn btn-light btn-sm" onclick="setPickerSelection('mock-class-picker','none')">해제</button>
+            </div>
+          </div>
+          <div class="class-picker" id="mock-class-picker"></div>
+        </div>
+        <div id="mock-preview" class="picker-preview" style="display:none"></div>
         <button class="btn btn-gold" onclick="addMockExam()">모의고사 추가</button>
       </div>
     </div>
@@ -704,14 +726,10 @@ async function adminLogin() {
 }
 
 let classes = [];
+const CLASS_SELECT_IDS = ['score-class','week-list-class','new-class','student-list-class','mock-score-class','mock-list-class','sms-class','uncert-class','student-sms-class','absent-class','clinic-sms-class'];
 async function initAdmin() {
   classes = await api('classes?order=id.asc&select=*') || [];
-  ['score-class','week-class','week-list-class','new-class','student-list-class','mock-class','mock-score-class','mock-list-class','sms-class','uncert-class','student-sms-class','absent-class','clinic-sms-class'].forEach(id => {
-    const sel = document.getElementById(id);
-    if (!sel) return;
-    sel.innerHTML = '<option value="">반을 선택하세요</option>';
-    classes.forEach(c => { const opt = document.createElement('option'); opt.value = c.id; opt.textContent = c.name; sel.appendChild(opt); });
-  });
+  refreshClassSelects();
 }
 
 function switchTab(tabId) {
@@ -736,74 +754,139 @@ function switchTab(tabId) {
 }
 
 // ── 주차 관리
-function calcNextDate(dateStr, addDays) {
-  const dot = dateStr.indexOf('.');
-  if (dot < 0) return dateStr;
-  let month = parseInt(dateStr.slice(0, dot));
-  let day = parseInt(dateStr.slice(dot + 1)) + addDays;
-  const daysInMonth = [0,31,28,31,30,31,30,31,31,30,31,30,31];
-  if (day > daysInMonth[month]) { day -= daysInMonth[month]; month++; }
-  return `${month}.${day}`;
+// 'M.D' 문자열 ↔ Date 변환. 요일 계산이 필요하므로 연도를 추론한다.
+// (연말/연초에 걸친 입력만 보정하고, 그 외는 올해로 간주)
+function resolveBaseDate(mdStr) {
+  const m = (mdStr || '').match(/^\s*(\d{1,2})\s*\.\s*(\d{1,2})\s*$/);
+  if (!m) return null;
+  const month = parseInt(m[1]), day = parseInt(m[2]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const now = new Date();
+  let year = now.getFullYear();
+  const nowMonth = now.getMonth() + 1;
+  if (nowMonth >= 11 && month <= 2) year += 1;       // 연말에 내년 초 날짜 입력
+  else if (nowMonth <= 2 && month >= 11) year -= 1;  // 연초에 작년 말 날짜 입력
+  const d = new Date(year, month - 1, day);
+  // 2.30 처럼 존재하지 않는 날짜는 Date가 다음 달로 넘겨버리므로 걸러낸다
+  if (d.getMonth() + 1 !== month || d.getDate() !== day) return null;
+  return d;
 }
 
-document.getElementById('week-grade').addEventListener('change', function() {
-  const grade = this.value;
-  const preview = document.getElementById('week-preview');
-  const classGroup = document.getElementById('week-class-group');
-  const dateLabel = document.getElementById('week-date-label');
-  if (grade === '고1') {
-    dateLabel.textContent = '수요일 날짜 입력';
-    classGroup.style.display = 'none';
-    preview.style.display = 'block';
-    preview.textContent = '토요일 날짜는 자동 계산됩니다 (+3일)';
-  } else if (grade === '고2') {
-    dateLabel.textContent = '목요일 날짜 입력';
-    classGroup.style.display = 'none';
-    preview.style.display = 'block';
-    preview.textContent = '금요일 날짜는 자동 계산됩니다 (+1일)';
-  } else if (grade === 'single') {
-    dateLabel.textContent = '수업 날짜';
-    classGroup.style.display = 'flex';
-    preview.style.display = 'none';
-  } else {
-    dateLabel.textContent = '기준 날짜';
-    classGroup.style.display = 'none';
-    preview.style.display = 'none';
+function fmtMD(d) { return `${d.getMonth() + 1}.${d.getDate()}`; }
+
+// 기준 날짜가 속한 주(월요일 시작)에서 지정 요일의 날짜.
+// Date 연산이라 월·연 경계를 자동으로 넘어간다.
+const DAY_INDEX = { '월':1, '화':2, '수':3, '목':4, '금':5, '토':6, '일':7 };
+function dateForDay(baseDate, day) {
+  const target = DAY_INDEX[day];
+  if (!target) return null;
+  const cur = baseDate.getDay() === 0 ? 7 : baseDate.getDay(); // 1=월 … 7=일
+  const d = new Date(baseDate);
+  d.setDate(d.getDate() + (target - cur));
+  return d;
+}
+
+// ── 반 체크박스 선택기 (주차/모의고사 공용) ──────────────
+function renderClassPicker(containerId, onChangeFn) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (!classes.length) {
+    el.innerHTML = '<p style="font-size:13px;color:var(--gray)">등록된 반이 없습니다.</p>';
+    return;
   }
-});
+  // 학년별로 묶어서 표시. 학년 미지정 반도 선택할 수 있게 함께 노출.
+  const grades = [...new Set(classes.map(c => c.grade || '학년 미지정'))];
+  el.innerHTML = grades.map(g => {
+    const list = classes.filter(c => (c.grade || '학년 미지정') === g);
+    return `<div>
+      <div class="picker-grade">${escapeHtml(g)}</div>
+      <div class="picker-items">${list.map(c => `
+        <label class="picker-item" data-class-id="${c.id}">
+          <input type="checkbox" value="${c.id}" onchange="onPickerToggle(this, '${onChangeFn}')">
+          <span>${escapeHtml(c.name)}</span>
+          <small>${c.day ? c.day + '요일' : '요일 미지정'}</small>
+        </label>`).join('')}</div>
+    </div>`;
+  }).join('');
+}
+
+function onPickerToggle(inputEl, onChangeFn) {
+  inputEl.closest('.picker-item').classList.toggle('on', inputEl.checked);
+  if (onChangeFn && typeof window[onChangeFn] === 'function') window[onChangeFn]();
+}
+
+function setPickerSelection(containerId, kind) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.querySelectorAll('.picker-item').forEach(item => {
+    const inp = item.querySelector('input');
+    const c = classes.find(x => x.id == inp.value);
+    let on = inp.checked;
+    if (kind === 'all') on = true;
+    else if (kind === 'none') on = false;
+    else on = (c?.grade === kind) ? true : on; // 학년 프리셋은 기존 선택에 더한다
+    inp.checked = on;
+    item.classList.toggle('on', on);
+  });
+  if (containerId === 'week-class-picker') renderWeekPreview();
+  else renderMockPreview();
+}
+
+// 체크된 반 목록 (classes 순서 유지, 중복 없음)
+function getPickedClasses(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return [];
+  const ids = new Set(Array.from(el.querySelectorAll('input:checked')).map(i => parseInt(i.value)));
+  return classes.filter(c => ids.has(c.id));
+}
+
+// 선택된 반들의 실제 생성 날짜를 미리 보여준다
+function renderWeekPreview() {
+  const preview = document.getElementById('week-preview');
+  if (!preview) return;
+  const picked = getPickedClasses('week-class-picker');
+  const baseStr = document.getElementById('week-date').value.trim();
+  if (!picked.length && !baseStr) { preview.style.display = 'none'; return; }
+  preview.style.display = 'block';
+  if (!picked.length) { preview.innerHTML = '<span class="warn">평균을 함께 낼 반을 한 개 이상 체크하세요.</span>'; return; }
+  const base = baseStr ? resolveBaseDate(baseStr) : null;
+  if (!base) {
+    preview.innerHTML = `선택된 반 <strong>${picked.length}개</strong> · <span class="warn">기준 날짜를 <strong>6.3</strong> 형식으로 입력하세요.</span>`;
+    return;
+  }
+  const lines = picked.map(c => {
+    const d = c.day ? dateForDay(base, c.day) : null;
+    return d ? `${escapeHtml(c.name)} <strong>${fmtMD(d)}</strong>(${c.day})`
+             : `${escapeHtml(c.name)} <strong>${fmtMD(base)}</strong><span class="warn">(요일 미지정 → 기준 날짜 사용)</span>`;
+  });
+  preview.innerHTML = `선택된 반 <strong>${picked.length}개</strong> — 하나의 비교 그룹으로 평균이 계산됩니다.<br>${lines.join(' · ')}`;
+}
 
 async function addWeek() {
-  const grade = document.getElementById('week-grade').value;
-  const date = document.getElementById('week-date').value.trim();
-  if (!grade || !date) { showToast('학년과 날짜를 입력해주세요.'); return; }
+  const baseStr = document.getElementById('week-date').value.trim();
+  const picked = getPickedClasses('week-class-picker');
+  if (!baseStr) { showToast('기준 날짜를 입력해주세요.'); return; }
+  const base = resolveBaseDate(baseStr);
+  if (!base) { showToast('❌ 날짜 형식이 올바르지 않습니다. (예: 6.3)'); return; }
+  if (!picked.length) { showToast('평균을 함께 낼 반을 한 개 이상 체크해주세요.'); return; }
 
-  const groupId = `${grade}-${date}-${Date.now()}`;
-
-  if (grade === '고1') {
-    const satDate = calcNextDate(date, 3);
-    const wedClasses = classes.filter(c => c.grade === '고1' && c.day === '수');
-    const satClasses = classes.filter(c => c.grade === '고1' && c.day === '토');
-    for (const c of wedClasses) await api('weeks', 'POST', { class_id: c.id, test_date: date, label: date, group_id: groupId });
-    for (const c of satClasses) await api('weeks', 'POST', { class_id: c.id, test_date: satDate, label: satDate, group_id: groupId });
-    showToast(`✅ 고1 주차 추가 — 수요일 ${date} / 토요일 ${satDate}`);
-
-  } else if (grade === '고2') {
-    const friDate = calcNextDate(date, 1);
-    const thuClasses = classes.filter(c => c.grade === '고2' && c.day === '목');
-    const friClasses = classes.filter(c => c.grade === '고2' && c.day === '금');
-    for (const c of thuClasses) await api('weeks', 'POST', { class_id: c.id, test_date: date, label: date, group_id: groupId });
-    for (const c of friClasses) await api('weeks', 'POST', { class_id: c.id, test_date: friDate, label: friDate, group_id: groupId });
-    showToast(`✅ 고2 주차 추가 — 목요일 ${date} / 금요일 ${friDate}`);
-
-  } else if (grade === 'single') {
-    const classId = document.getElementById('week-class').value;
-    if (!classId) { showToast('반을 선택해주세요.'); return; }
-    const className = classes.find(c => c.id == classId)?.name || '';
-    await api('weeks', 'POST', { class_id: parseInt(classId), test_date: date, label: date, group_id: groupId });
-    showToast(`✅ ${className} — ${date} 주차가 추가됐어요.`);
+  // 체크된 반들이 같은 group_id를 공유 → 학부모 화면의 평균·석차 모집단이 된다
+  const groupId = `grp-${fmtMD(base)}-${Date.now()}`;
+  const created = [], failed = [];
+  for (const c of picked) {
+    const d = c.day ? dateForDay(base, c.day) : base;
+    const label = fmtMD(d);
+    try {
+      const res = await apiRaw('weeks', 'POST', { class_id: c.id, test_date: label, label, group_id: groupId });
+      if (res.ok) created.push(`${c.name} ${label}`);
+      else failed.push(c.name);
+    } catch (e) { failed.push(c.name); }
   }
+  if (failed.length) { showToast(`❌ ${failed.length}개 반 추가 실패 (${failed.join(', ')})`, 4000); return; }
+  showToast(`✅ ${created.length}개 반 주차 추가 — ${created.join(' / ')}`, 4000);
 
   document.getElementById('week-date').value = '';
+  setPickerSelection('week-class-picker', 'none');
   loadWeekList();
 }
 
@@ -841,6 +924,9 @@ const DEFAULT_ITEM_CONFIG = [
   { key: 'item4_score',   label: '',       max: 20, cut: null, active: false }
 ];
 let currentItemConfig = DEFAULT_ITEM_CONFIG.map(it => ({ ...it }));
+// 현재 선택한 주차의 group_id. 같은 group_id를 가진 주차들이 평균·석차 모집단(비교 그룹)이다.
+let currentWeekGroupId = null;
+let currentGroupWeeks = [];  // [{id, class_id, item_config}] — 비교 그룹에 속한 주차들
 
 // weeks.item_config(JSON, NULL 가능) → 항상 4개 슬롯의 정규화된 배열로 변환.
 // NULL(기존 주차)이면 초기값(단어25/해석30/객관식45, item4 비활성)으로 동작.
@@ -920,7 +1006,7 @@ async function loadScoreInputs() {
   card.style.display = 'block';
 
   // 주차 메모 + 항목 설정 불러오기
-  const weekData = await api(`weeks?id=eq.${weekId}&select=memo,item_config`);
+  const weekData = await api(`weeks?id=eq.${weekId}&select=memo,item_config,group_id`);
   const memoEl = document.getElementById('week-memo');
   memoEl.value = weekData?.[0]?.memo || '';
   memoEl.style.height = 'auto';
@@ -928,7 +1014,9 @@ async function loadScoreInputs() {
   memoEl.dataset.weekId = weekId;
 
   currentItemConfig = normalizeItemConfig(weekData?.[0]?.item_config);
+  currentWeekGroupId = weekData?.[0]?.group_id || null;
   renderItemConfigEditor();
+  refreshGroupInfo();  // 그룹 평균은 느려도 되므로 await 하지 않음
 
   if (scoreCache[weekId]) { renderScoreInputs(classId, weekId, scoreCache[weekId]); return; }
   container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
@@ -957,6 +1045,61 @@ function renderItemConfigEditor() {
       </div>`;
     }).join('');
   updateItemConfigTotal();
+}
+
+// ── 비교 그룹 평균 (학부모 화면에 보이는 값과 같은 기준) ──
+// 학부모 화면(index.html)은 group_id가 같은 주차 전체의 점수를 모아
+// "현재 주차의 항목 설정"으로 총점을 계산한다. 여기서도 같은 방식으로 계산해
+// 관리자가 학부모에게 노출되는 평균을 그대로 확인할 수 있게 한다.
+async function refreshGroupInfo() {
+  const el = document.getElementById('group-avg-info');
+  if (!el) return;
+  const weekId = parseInt(document.getElementById('score-week').value);
+  if (!weekId) { el.innerHTML = ''; return; }
+  el.innerHTML = '<span class="spinner-sm"></span> 비교 그룹 평균 계산 중...';
+  try {
+    currentGroupWeeks = currentWeekGroupId
+      ? (await api(`weeks?group_id=eq.${encodeURIComponent(currentWeekGroupId)}&select=id,class_id,item_config`) || [])
+      : (await api(`weeks?id=eq.${weekId}&select=id,class_id,item_config`) || []);
+    if (!currentGroupWeeks.length) { el.innerHTML = ''; return; }
+
+    const ids = currentGroupWeeks.map(w => w.id).join(',');
+    const rows = await api(`scores?week_id=in.(${ids})&select=week_id,${ITEM_KEYS.join(',')}`) || [];
+    const items = activeItems();
+    const totals = rows
+      .map(r => {
+        const vals = items.map(it => r[it.key]).filter(v => v !== null && v !== undefined && v !== '');
+        return vals.length ? vals.reduce((a, b) => a + parseFloat(b), 0) : null;
+      })
+      .filter(v => v !== null);
+
+    const classNames = currentGroupWeeks
+      .map(w => classes.find(c => c.id === w.class_id)?.name || `반 #${w.class_id}`);
+    const avg = totals.length ? (totals.reduce((a, b) => a + b, 0) / totals.length).toFixed(1) : null;
+    const totalMax = items.reduce((a, it) => a + (it.max || 0), 0);
+
+    // 그룹 내 항목 구성이 다른 주차가 있으면 평균·석차가 왜곡되므로 경고.
+    // (활성 항목과 만점이 다르면 학부모 화면에서 총점 기준이 어긋난다)
+    const sig = cfg => normalizeItemConfig(cfg).filter(it => it.active).map(it => `${it.key}:${it.max}`).join('|');
+    const mySig = currentItemConfig.filter(it => it.active).map(it => `${it.key}:${it.max}`).join('|');
+    const mismatched = currentGroupWeeks.filter(w => sig(w.item_config) !== mySig)
+      .map(w => classes.find(c => c.id === w.class_id)?.name || `반 #${w.class_id}`);
+
+    let html = `비교 그룹 <strong>${currentGroupWeeks.length}개 반</strong> (${escapeHtml(classNames.join(', '))})<br>`
+      + `그룹 평균 <strong>${avg === null ? '–' : avg + '점'}</strong>`
+      + `${avg === null ? '' : ` / ${totalMax}점`} · 표본 <strong>${totals.length}명</strong>`
+      + ` <span style="color:var(--gray)">— 학부모 화면에 이 값이 표시됩니다.</span>`;
+    if (!currentWeekGroupId) {
+      html += `<br><span class="warn">이 주차는 비교 그룹(group_id)이 없어 이 반만으로 평균이 계산됩니다.</span>`;
+    }
+    if (mismatched.length) {
+      html += `<br><span class="warn">⚠️ 항목 구성(활성 항목·만점)이 다른 반: ${escapeHtml(mismatched.join(', '))}`
+        + ` — [항목 설정 저장]을 누르면 그룹 전체가 현재 설정으로 통일됩니다.</span>`;
+    }
+    el.innerHTML = html;
+  } catch (e) {
+    el.innerHTML = '<span class="warn">비교 그룹 평균을 불러오지 못했습니다.</span>';
+  }
 }
 
 function onCfgActiveToggle(i) {
@@ -999,8 +1142,15 @@ async function saveItemConfig() {
   // 열 구성이 바뀌므로 입력 중이던 점수를 보존한 뒤 재렌더
   const preserved = collectCurrentScores();
   const classId = document.getElementById('score-class').value;
+  // 항목 설정은 비교 그룹 전체에 동일하게 적용한다.
+  // 그룹 내 주차마다 활성 항목·만점이 다르면 학부모 화면의 평균·석차가
+  // 서로 다른 기준의 총점을 섞어 계산하게 되므로(다른 반 학생이 모집단에서
+  // 조용히 빠지거나 총점이 낮게 잡힘) group_id 단위로 통일한다.
+  const target = currentWeekGroupId
+    ? `weeks?group_id=eq.${encodeURIComponent(currentWeekGroupId)}`
+    : `weeks?id=eq.${weekId}`;
   try {
-    const res = await apiRaw(`weeks?id=eq.${weekId}`, 'PATCH', { item_config: { items } });
+    const res = await apiRaw(target, 'PATCH', { item_config: { items } });
     if (!res.ok) { showToast('❌ 항목 설정 저장 실패'); return; }
     currentItemConfig = normalizeItemConfig({ items });
     renderItemConfigEditor();
@@ -1008,7 +1158,11 @@ async function saveItemConfig() {
     const base = scoreCache[weekId] ? JSON.parse(JSON.stringify(scoreCache[weekId])) : {};
     Object.keys(preserved).forEach(sid => { base[sid] = { ...(base[sid] || {}), ...preserved[sid] }; });
     renderScoreInputs(classId, weekId, base);
-    showToast('✅ 항목 설정이 저장됐어요!');
+    refreshGroupInfo();
+    const n = currentGroupWeeks.length;
+    showToast(currentWeekGroupId && n > 1
+      ? `✅ 항목 설정이 저장됐어요! (비교 그룹 ${n}개 반 공통 적용)`
+      : '✅ 항목 설정이 저장됐어요!');
   } catch (e) { showToast('❌ 오류 발생: ' + e.message); }
 }
 
@@ -1148,6 +1302,7 @@ async function saveAllScores() {
     if (failed.length > 0) { showToast(`❌ ${failed.length}건 저장 실패`); return; }
     delete scoreCache[weekId];
     scoreDirty = false;
+    refreshGroupInfo();  // 저장된 점수를 반영해 그룹 평균 갱신
     showToast('✅ 점수가 저장됐어요!');
   } catch(e) { showToast('❌ 오류 발생: ' + e.message); }
 }
@@ -1921,12 +2076,17 @@ async function loadClassList() {
 }
 
 function refreshClassSelects() {
-  ['score-class','week-class','week-list-class','new-class','student-list-class','mock-class','mock-score-class','mock-list-class','sms-class','uncert-class','student-sms-class','absent-class','clinic-sms-class'].forEach(id => {
+  CLASS_SELECT_IDS.forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
     sel.innerHTML = '<option value="">반을 선택하세요</option>';
     classes.forEach(c => { const opt = document.createElement('option'); opt.value = c.id; opt.textContent = c.name; sel.appendChild(opt); });
   });
+  // 반이 추가/수정/삭제되면 체크박스 목록도 다시 그린다 (선택은 초기화됨)
+  renderClassPicker('week-class-picker', 'renderWeekPreview');
+  renderClassPicker('mock-class-picker', 'renderMockPreview');
+  renderWeekPreview();
+  renderMockPreview();
 }
 
 async function updateClassName(id, name) {
@@ -2131,36 +2291,40 @@ async function sendAllSms() {
 const mockScoreCache = {};
 let mockDirty = false;
 
+// 모의고사는 전 반이 같은 날 시행하므로 반별 날짜 계산 없이 날짜 하나를 공유한다
+function renderMockPreview() {
+  const preview = document.getElementById('mock-preview');
+  if (!preview) return;
+  const picked = getPickedClasses('mock-class-picker');
+  if (!picked.length) { preview.style.display = 'none'; return; }
+  preview.style.display = 'block';
+  preview.innerHTML = `선택된 반 <strong>${picked.length}개</strong> — 하나의 비교 그룹으로 평균이 계산됩니다.<br>${picked.map(c => escapeHtml(c.name)).join(' · ')}`;
+}
+
 async function addMockExam() {
-  const grade = document.getElementById('mock-grade').value;
   const date = document.getElementById('mock-date').value.trim();
   const label = document.getElementById('mock-label').value.trim();
-  if (!grade || !date) { showToast('학년과 날짜를 입력해주세요.'); return; }
+  const picked = getPickedClasses('mock-class-picker');
+  if (!date) { showToast('시험 날짜를 입력해주세요.'); return; }
+  if (!picked.length) { showToast('평균을 함께 낼 반을 한 개 이상 체크해주세요.'); return; }
 
-  const groupId = `${grade}-${date}-mock-${Date.now()}`;
-
-  if (grade === '고1' || grade === '고2') {
-    const gradeClasses = classes.filter(c => c.grade === grade);
-    if (!gradeClasses.length) { showToast(`${grade} 반이 없습니다.`); return; }
-    for (const c of gradeClasses) {
-      await api('mock_exams', 'POST', { class_id: c.id, exam_date: date, label: label || date, group_id: groupId });
-    }
-    showToast(`✅ ${grade} 모의고사가 추가됐어요. (${gradeClasses.length}개 반)`);
-  } else if (grade === 'single') {
-    const classId = document.getElementById('mock-class').value;
-    if (!classId) { showToast('반을 선택해주세요.'); return; }
-    await api('mock_exams', 'POST', { class_id: parseInt(classId), exam_date: date, label: label || date, group_id: groupId });
-    showToast('✅ 모의고사가 추가됐어요.');
+  // 체크된 반들이 같은 group_id를 공유 → 학부모 화면의 모의고사 평균·석차 모집단
+  const groupId = `grp-${date}-mock-${Date.now()}`;
+  const failed = [];
+  for (const c of picked) {
+    try {
+      const res = await apiRaw('mock_exams', 'POST', { class_id: c.id, exam_date: date, label: label || date, group_id: groupId });
+      if (!res.ok) failed.push(c.name);
+    } catch (e) { failed.push(c.name); }
   }
+  if (failed.length) { showToast(`❌ ${failed.length}개 반 추가 실패 (${failed.join(', ')})`, 4000); return; }
+  showToast(`✅ 모의고사가 추가됐어요. (${picked.length}개 반 공통 그룹)`);
 
   document.getElementById('mock-date').value = '';
   document.getElementById('mock-label').value = '';
+  setPickerSelection('mock-class-picker', 'none');
   loadMockList();
 }
-
-document.getElementById('mock-grade').addEventListener('change', function() {
-  document.getElementById('mock-class-group').style.display = this.value === 'single' ? 'flex' : 'none';
-});
 
 async function loadMockExams() {
   if (mockDirty) {
