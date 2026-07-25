@@ -618,19 +618,22 @@
       }
 
       // 점수 행의 총점 계산: 활성 항목의 입력값 합.
-      // 항목 컬럼이 하나도 내려오지 않은 경우에만 기존 total_score로 폴백.
+      // 활성 항목 컬럼이 하나라도 응답에 없으면(undefined) 계산이 틀어지므로
+      // 계산을 포기하고 기존 total_score로 폴백한다.
+      // (일부 컬럼만으로 합산하면 석차가 심각하게 왜곡됨)
       function computeTotal(row, weekId) {
         if (!row) return null;
         const items = itemsForWeek(weekId ?? row.week_id);
-        const present = items
+        const hasMissingColumn = items.some(
+          (it) => row[it.key] === undefined,
+        );
+        if (hasMissingColumn) return row.total_score ?? null;
+        const entered = items
           .map((it) => row[it.key])
-          .filter((v) => v !== null && v !== undefined);
-        if (!present.length) {
-          const hasAnyColumn = items.some((it) => row[it.key] !== undefined);
-          // 컬럼은 있는데 값이 전부 비어있음 → 미응시로 간주(null)
-          return hasAnyColumn ? null : row.total_score ?? null;
-        }
-        return present.reduce((a, b) => a + parseFloat(b), 0);
+          .filter((v) => v !== null);
+        // 컬럼은 모두 있는데 값이 전부 비어있음 → 미응시(null)
+        if (!entered.length) return null;
+        return entered.reduce((a, b) => a + parseFloat(b), 0);
       }
 
       async function login() {
@@ -952,22 +955,38 @@
             rankWeekIds.has(x.week_id),
           );
 
-          // 본인 총점 (해당 주차의 활성 항목 합계)
+          // 화면에 표시할 본인 총점 (해당 주차의 활성 항목 합계)
           const myTotal = computeTotal(s, weekId);
 
+          // 석차·평균은 비교 대상 전원이 같은 기준이어야 한다.
+          // 한 명이라도 항목 컬럼이 응답에 없으면 전원 total_score 기준으로 통일.
+          // 그룹 석차는 다른 반의 주차까지 포함되지만 같은 시험이므로
+          // 항목 구성은 현재 주차 설정을 전원에게 동일 적용한다.
+          // (다른 반 week_id는 weekConfigMap에 없어 기본값으로 떨어지므로)
+          const canItemBased = [s, ...scoresForRank].every((r) =>
+            itemsForWeek(weekId).every((it) => r[it.key] !== undefined),
+          );
+          if (!canItemBased) {
+            console.warn(
+              "[점수] 항목 점수 컬럼이 응답에 없어 석차·평균을 기존 total_score 기준으로 계산합니다. " +
+                "parent-login 함수의 select에 item_config / 항목 점수 컬럼을 추가하세요.",
+            );
+          }
+          const basisOf = (r) =>
+            canItemBased ? computeTotal(r, weekId) : r.total_score ?? null;
+
+          const myBasis = basisOf(s);
           const sorted = scoresForRank
-            .map((x) => computeTotal(x, x.week_id))
+            .map(basisOf)
             .filter((x) => x !== null)
             .sort((a, b) => b - a);
           total_students = sorted.length;
           rank =
-            myTotal !== null ? sorted.findIndex((v) => v === myTotal) + 1 : "-";
+            myBasis !== null ? sorted.findIndex((v) => v === myBasis) + 1 : "-";
 
           // 평균 계산
           let displayAvg = "-";
-          const totals = scoresForRank
-            .map((x) => computeTotal(x, x.week_id))
-            .filter((x) => x !== null);
+          const totals = scoresForRank.map(basisOf).filter((x) => x !== null);
           if (totals.length > 0) {
             displayAvg =
               (totals.reduce((a, b) => a + b, 0) / totals.length).toFixed(1) +
