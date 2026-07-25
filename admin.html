@@ -90,8 +90,7 @@
   .item-config-head span { text-align:center; }
   .item-config-head span:nth-child(2) { text-align:left; }
   .item-config-row .cfg-active { justify-self:center; width:18px; height:18px; }
-  .item-config-row .cfg-name-fixed { font-size:13px; font-weight:600; color:var(--navy); }
-  .item-config-row.cfg-off .cfg-name-fixed, .item-config-row.cfg-off .cfg-label { opacity:0.45; }
+  .item-config-row.cfg-off .cfg-label { opacity:0.45; }
   .item-config-row input[type=number], .item-config-row input.cfg-label { padding:7px 8px; border:1.5px solid var(--border); border-radius:6px; font-size:13px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); outline:none; width:100%; }
   .item-config-row input[type=number] { text-align:center; }
   .item-config-row input:focus { border-color:var(--gold); }
@@ -190,7 +189,7 @@
         </div>
         <div style="border-top:1px solid var(--light-gray);padding-top:14px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-            <label style="font-size:11px;color:var(--gray);font-weight:500;letter-spacing:0.5px">이번 주 채점 항목 설정 (만점·커트라인)</label>
+            <label style="font-size:11px;color:var(--gray);font-weight:500;letter-spacing:0.5px">이번 주 채점 항목 설정 (항목명·만점·커트라인)</label>
             <button class="btn btn-primary btn-sm" onclick="saveItemConfig()">항목 설정 저장</button>
           </div>
           <div class="item-config-editor" id="item-config-editor"></div>
@@ -832,9 +831,9 @@ let scoreDirty = false; // 저장 안 된 변경사항 추적
 const studentCache = {};
 
 // ── 주차별 채점 항목 설정 ───────────────────────────────
-// 물리 컬럼(scores 테이블)과 1:1 매핑. 앞 3개 이름 고정, item4만 주차별 이름 지정.
+// 물리 컬럼(scores 테이블)과 1:1 매핑. 4개 항목 모두 이름·만점·커트라인을 주차별로 직접 입력.
 const ITEM_KEYS = ['word_score', 'reading_score', 'mc_score', 'item4_score'];
-const FIXED_ITEM_LABELS = { word_score: '단어', reading_score: '해석', mc_score: '객관식' };
+// 항목 설정이 아직 없는(기존) 주차에 적용되는 초기값. 저장된 이름이 있으면 항상 그 값을 사용.
 const DEFAULT_ITEM_CONFIG = [
   { key: 'word_score',    label: '단어',   max: 25, cut: null, active: true  },
   { key: 'reading_score', label: '해석',   max: 30, cut: null, active: true  },
@@ -844,7 +843,7 @@ const DEFAULT_ITEM_CONFIG = [
 let currentItemConfig = DEFAULT_ITEM_CONFIG.map(it => ({ ...it }));
 
 // weeks.item_config(JSON, NULL 가능) → 항상 4개 슬롯의 정규화된 배열로 변환.
-// NULL(기존 주차)이면 기본값(단어25/해석30/객관식45, item4 비활성)으로 동작.
+// NULL(기존 주차)이면 초기값(단어25/해석30/객관식45, item4 비활성)으로 동작.
 function normalizeItemConfig(raw) {
   const items = raw && Array.isArray(raw.items) ? raw.items : null;
   return ITEM_KEYS.map((key, i) => {
@@ -853,7 +852,7 @@ function normalizeItemConfig(raw) {
     const s = src || def;
     return {
       key,
-      label: key === 'item4_score' ? (s.label ?? '') : FIXED_ITEM_LABELS[key],
+      label: (s.label ?? def.label ?? '').toString(),
       max: (s.max === undefined || s.max === null || s.max === '') ? def.max : parseFloat(s.max),
       cut: (s.cut === undefined || s.cut === null || s.cut === '') ? null : parseFloat(s.cut),
       active: s.active === undefined ? def.active : !!s.active
@@ -947,11 +946,9 @@ function renderItemConfigEditor() {
   const el = document.getElementById('item-config-editor');
   if (!el) return;
   el.innerHTML =
-    `<div class="item-config-head"><span>사용</span><span>항목</span><span>만점</span><span>커트라인</span></div>` +
+    `<div class="item-config-head"><span>사용</span><span>항목 이름</span><span>만점</span><span>커트라인</span></div>` +
     currentItemConfig.map((it, i) => {
-      const nameField = it.key === 'item4_score'
-        ? `<input type="text" class="cfg-label" data-i="${i}" value="${it.label || ''}" placeholder="4번째 항목 이름 (예: 듣기)">`
-        : `<span class="cfg-name-fixed">${it.label}</span>`;
+      const nameField = `<input type="text" class="cfg-label" data-i="${i}" value="${escapeAttr(it.label)}" placeholder="${i + 1}번째 항목 이름 (예: 단어)">`;
       return `<div class="item-config-row${it.active ? '' : ' cfg-off'}" data-i="${i}">
         <input type="checkbox" class="cfg-active" data-i="${i}" ${it.active ? 'checked' : ''} onchange="onCfgActiveToggle(${i})" title="이 주차에 사용">
         ${nameField}
@@ -976,10 +973,7 @@ function readItemConfigFromEditor() {
     const active = editor.querySelector(`.cfg-active[data-i="${i}"]`).checked;
     const maxV = editor.querySelector(`.cfg-max[data-i="${i}"]`).value;
     const cutV = editor.querySelector(`.cfg-cut[data-i="${i}"]`).value;
-    let label = FIXED_ITEM_LABELS[key] || '';
-    if (key === 'item4_score') {
-      label = (editor.querySelector(`.cfg-label[data-i="${i}"]`)?.value || '').trim();
-    }
+    const label = (editor.querySelector(`.cfg-label[data-i="${i}"]`)?.value || '').trim();
     return { key, label, max: maxV === '' ? null : parseFloat(maxV), cut: cutV === '' ? null : parseFloat(cutV), active };
   });
   return items;
@@ -999,8 +993,8 @@ async function saveItemConfig() {
   if (!weekId) { showToast('먼저 주차를 선택하세요.'); return; }
   const items = readItemConfigFromEditor();
   if (!items.some(it => it.active)) { showToast('❌ 최소 한 개 항목은 사용해야 합니다.'); return; }
-  const item4 = items.find(it => it.key === 'item4_score');
-  if (item4.active && !item4.label) { showToast('❌ 4번째 항목의 이름을 입력하세요.'); return; }
+  const noName = items.map((it, i) => ({ ...it, no: i + 1 })).filter(it => it.active && !it.label);
+  if (noName.length) { showToast(`❌ ${noName.map(it => it.no + '번째').join(', ')} 항목의 이름을 입력하세요.`); return; }
 
   // 열 구성이 바뀌므로 입력 중이던 점수를 보존한 뒤 재렌더
   const preserved = collectCurrentScores();
@@ -1057,7 +1051,7 @@ function renderScoreHeader() {
     `<span>이름</span>` +
     `<span style="text-align:center">총점<br><small style="font-weight:400">/${totalMax}</small></span>` +
     `<span style="text-align:center">출석</span>` +
-    items.map(it => `<span style="text-align:center">${it.label || '-'}<br><small style="font-weight:400">/${it.max ?? ''}</small></span>`).join('') +
+    items.map(it => `<span style="text-align:center">${escapeHtml(it.label) || '-'}<br><small style="font-weight:400">/${it.max ?? ''}</small></span>`).join('') +
     `<span style="text-align:center">과제<br><small style="font-weight:400">%</small></span>` +
     `<span style="text-align:center">과제평가</span>` +
     `<span style="text-align:center">잔여과제<br>인증</span>` +
@@ -2437,6 +2431,11 @@ function pickMemoAuthor(btn) {
 
 function escapeHtml(str) {
   return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// HTML 속성값(value="...")에 넣을 때는 따옴표까지 이스케이프
+function escapeAttr(str) {
+  return escapeHtml(str).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 function formatMemoTime(iso) {

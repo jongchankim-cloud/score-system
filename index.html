@@ -569,11 +569,8 @@
         "mc_score",
         "item4_score",
       ];
-      const FIXED_ITEM_LABELS = {
-        word_score: "단어",
-        reading_score: "해석",
-        mc_score: "객관식",
-      };
+      // 항목 설정이 없는(기존) 주차에만 적용되는 초기값.
+      // 저장된 이름이 있으면 항상 그 값을 사용한다 (모든 항목명은 관리자가 직접 입력).
       const DEFAULT_ITEM_CONFIG = [
         { key: "word_score", label: "단어", max: 25, cut: null, active: true },
         { key: "reading_score", label: "해석", max: 30, cut: null, active: true },
@@ -591,8 +588,7 @@
           const s = src || def;
           return {
             key,
-            label:
-              key === "item4_score" ? s.label ?? "" : FIXED_ITEM_LABELS[key],
+            label: (s.label ?? def.label ?? "").toString(),
             max:
               s.max === undefined || s.max === null || s.max === ""
                 ? def.max
@@ -604,6 +600,15 @@
             active: s.active === undefined ? def.active : !!s.active,
           };
         });
+      }
+
+      // 관리자가 직접 입력한 항목명을 그대로 출력하므로 HTML 이스케이프
+      function escapeHtml(str) {
+        return (str || "")
+          .toString()
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
       }
 
       // 해당 주차의 활성 항목 목록 (설정이 없으면 기본 3항목)
@@ -1065,7 +1070,7 @@
                 const v = s[it.key];
                 const shown = v === null || v === undefined ? "-" : v;
                 return `<div class="score-item">
-              <div class="score-label">${it.label || "-"}</div>
+              <div class="score-label">${escapeHtml(it.label) || "-"}</div>
               <div class="score-value">${shown}<span class="score-max"> / ${it.max}</span></div>
             </div>`;
               })
