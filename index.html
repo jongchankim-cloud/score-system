@@ -297,6 +297,14 @@
         gap: 10px;
         margin-bottom: 10px;
       }
+      /* 항목 수(1~4개)가 주차마다 달라지므로 총점은 항상 한 줄 전체를 차지 */
+      .score-grid .score-item.total {
+        grid-column: 1 / -1;
+      }
+      /* 항목이 1개뿐인 주차는 그 항목도 전체 폭으로 */
+      .score-grid.items-1 .score-item:not(.total) {
+        grid-column: 1 / -1;
+      }
       .score-item {
         background: var(--light-gray);
         border-radius: 12px;
@@ -552,6 +560,78 @@
       let allScores = [];
       let chartInstance = null;
       let loginData = null; // parent-login이 반환한 전체 데이터 묶음
+      let weekConfigMap = {}; // { weekId: 정규화된 항목 설정 배열 }
+
+      // ── 주차별 채점 항목 설정 (admin.html과 동일 규약) ──────────
+      const ITEM_KEYS = [
+        "word_score",
+        "reading_score",
+        "mc_score",
+        "item4_score",
+      ];
+      const FIXED_ITEM_LABELS = {
+        word_score: "단어",
+        reading_score: "해석",
+        mc_score: "객관식",
+      };
+      const DEFAULT_ITEM_CONFIG = [
+        { key: "word_score", label: "단어", max: 25, cut: null, active: true },
+        { key: "reading_score", label: "해석", max: 30, cut: null, active: true },
+        { key: "mc_score", label: "객관식", max: 45, cut: null, active: true },
+        { key: "item4_score", label: "", max: 20, cut: null, active: false },
+      ];
+
+      // weeks.item_config(JSON, NULL 가능) → 4개 슬롯의 정규화 배열.
+      // NULL(기존 주차)이면 기본값(단어25/해석30/객관식45)으로 동작.
+      function normalizeItemConfig(raw) {
+        const items = raw && Array.isArray(raw.items) ? raw.items : null;
+        return ITEM_KEYS.map((key, i) => {
+          const def = DEFAULT_ITEM_CONFIG[i];
+          const src = items ? items.find((it) => it && it.key === key) : null;
+          const s = src || def;
+          return {
+            key,
+            label:
+              key === "item4_score" ? s.label ?? "" : FIXED_ITEM_LABELS[key],
+            max:
+              s.max === undefined || s.max === null || s.max === ""
+                ? def.max
+                : parseFloat(s.max),
+            cut:
+              s.cut === undefined || s.cut === null || s.cut === ""
+                ? null
+                : parseFloat(s.cut),
+            active: s.active === undefined ? def.active : !!s.active,
+          };
+        });
+      }
+
+      // 해당 주차의 활성 항목 목록 (설정이 없으면 기본 3항목)
+      function itemsForWeek(weekId) {
+        const cfg = weekConfigMap[weekId];
+        return (cfg || normalizeItemConfig(null)).filter((it) => it.active);
+      }
+
+      // 활성 항목 만점 합계 = 그 주차의 총점 만점
+      function totalMaxForWeek(weekId) {
+        return itemsForWeek(weekId).reduce((a, it) => a + (it.max || 0), 0);
+      }
+
+      // 점수 행의 총점 계산: 활성 항목의 입력값 합.
+      // 항목 컬럼이 하나도 내려오지 않은 경우에만 기존 total_score로 폴백.
+      function computeTotal(row, weekId) {
+        if (!row) return null;
+        const items = itemsForWeek(weekId ?? row.week_id);
+        const present = items
+          .map((it) => row[it.key])
+          .filter((v) => v !== null && v !== undefined);
+        if (!present.length) {
+          const hasAnyColumn = items.some((it) => row[it.key] !== undefined);
+          // 컬럼은 있는데 값이 전부 비어있음 → 미응시로 간주(null)
+          return hasAnyColumn ? null : row.total_score ?? null;
+        }
+        return present.reduce((a, b) => a + parseFloat(b), 0);
+      }
 
       async function login() {
         const name = document.getElementById("input-name").value.trim();
@@ -618,9 +698,15 @@
         currentWeeks = loginData.weeks || [];
         allScores = loginData.myScores || [];
 
+        // 주차별 항목 설정 맵 구성 (item_config 없으면 기본값으로 정규화)
+        weekConfigMap = {};
+        currentWeeks.forEach((w) => {
+          weekConfigMap[w.id] = normalizeItemConfig(w.item_config);
+        });
+
         if (allScores.length > 0) {
           const totals = allScores
-            .map((s) => s.total_score)
+            .map((s) => computeTotal(s, s.week_id))
             .filter((v) => v !== null);
           const avg = totals.length
             ? (totals.reduce((a, b) => a + b, 0) / totals.length).toFixed(1)
@@ -778,10 +864,15 @@
         card.style.display = "block";
         const scoreMap = {};
         allScores.forEach((s) => {
-          scoreMap[s.week_id] = s.total_score;
+          scoreMap[s.week_id] = computeTotal(s, s.week_id);
         });
         const labels = currentWeeks.map((w) => w.label || w.test_date);
         const data = currentWeeks.map((w) => scoreMap[w.id] ?? null);
+        // y축 최대값: 주차별 총점 만점 중 가장 큰 값 (기본 100)
+        const yMax = Math.max(
+          100,
+          ...currentWeeks.map((w) => totalMaxForWeek(w.id)),
+        );
         if (chartInstance) chartInstance.destroy();
         const ctx = document.getElementById("score-chart").getContext("2d");
         chartInstance = new Chart(ctx, {
@@ -813,7 +904,7 @@
             scales: {
               y: {
                 min: 0,
-                max: 100,
+                max: yMax,
                 ticks: { font: { size: 11 }, color: "#8a8a8a" },
                 grid: { color: "rgba(0,0,0,0.05)" },
               },
@@ -861,20 +952,21 @@
             rankWeekIds.has(x.week_id),
           );
 
+          // 본인 총점 (해당 주차의 활성 항목 합계)
+          const myTotal = computeTotal(s, weekId);
+
           const sorted = scoresForRank
-            .map((x) => x.total_score)
+            .map((x) => computeTotal(x, x.week_id))
             .filter((x) => x !== null)
             .sort((a, b) => b - a);
           total_students = sorted.length;
           rank =
-            s.total_score !== null
-              ? sorted.findIndex((v) => v === s.total_score) + 1
-              : "-";
+            myTotal !== null ? sorted.findIndex((v) => v === myTotal) + 1 : "-";
 
           // 평균 계산
           let displayAvg = "-";
           const totals = scoresForRank
-            .map((x) => x.total_score)
+            .map((x) => computeTotal(x, x.week_id))
             .filter((x) => x !== null);
           if (totals.length > 0) {
             displayAvg =
@@ -948,22 +1040,20 @@
       <div class="card">
         <div class="card-header"><div class="dot"></div><h2>점수 결과</h2></div>
         <div class="card-body">
-          <div class="score-grid">
-            <div class="score-item">
-              <div class="score-label">단어</div>
-              <div class="score-value">${s.word_score}<span class="score-max"> / 25</span></div>
-            </div>
-            <div class="score-item">
-              <div class="score-label">해석</div>
-              <div class="score-value">${s.reading_score}<span class="score-max"> / 30</span></div>
-            </div>
-            <div class="score-item">
-              <div class="score-label">객관식</div>
-              <div class="score-value">${s.mc_score}<span class="score-max"> / 45</span></div>
-            </div>
+          <div class="score-grid items-${itemsForWeek(weekId).length}">
+            ${itemsForWeek(weekId)
+              .map((it) => {
+                const v = s[it.key];
+                const shown = v === null || v === undefined ? "-" : v;
+                return `<div class="score-item">
+              <div class="score-label">${it.label || "-"}</div>
+              <div class="score-value">${shown}<span class="score-max"> / ${it.max}</span></div>
+            </div>`;
+              })
+              .join("")}
             <div class="score-item total">
               <div class="score-label">총점</div>
-              <div><span class="score-value">${s.total_score}</span><span class="score-max"> / 100</span></div>
+              <div><span class="score-value">${myTotal === null ? "-" : myTotal}</span><span class="score-max"> / ${totalMaxForWeek(weekId)}</span></div>
             </div>
           </div>
           <div class="meta-grid">
