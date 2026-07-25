@@ -784,6 +784,20 @@
           .map((x) => x.item);
       }
 
+      // 점수(항목 점수 또는 총점)가 하나라도 입력돼 있는지
+      function hasMockScore(row) {
+        if (!row) return false;
+        if (row.score !== null && row.score !== undefined) return true;
+        return MOCK_ITEM_KEYS.some(
+          (k) => row[k] !== null && row[k] !== undefined,
+        );
+      }
+
+      // 학부모에게 이 모의고사를 보여줄지: 점수가 있거나, 선생님이 미응시로 표시한 경우만
+      function isMockVisible(row) {
+        return hasMockScore(row) || row?.absent === true;
+      }
+
       // 주차 + 모의고사를 하나의 드롭다운으로. 항목이 늘어나도 화면이 밀리지 않는다.
       function renderPeriodSelector() {
         const sel = document.getElementById("period-select");
@@ -799,7 +813,12 @@
           currentWeeks || [],
           (w) => w.test_date || w.label,
         );
-        const examList = sortByDateDesc(exams, (e) => e.exam_date || e.label);
+        // 반 전체가 아니라 일부만 응시하는 모의고사가 있어서,
+        // 점수도 없고 미응시로 표시되지도 않은 시험은 아예 보여주지 않는다.
+        const examList = sortByDateDesc(
+          exams.filter((e) => isMockVisible(window._mockScoreMap[e.id])),
+          (e) => e.exam_date || e.label,
+        );
 
         if (!weekList.length && !examList.length) {
           const opt = document.createElement("option");
@@ -825,11 +844,14 @@
 
         addGroup("주차", weekList, "w", (w) => w.label || w.test_date);
         // 모의고사는 이름 뒤에 (월.일)을 붙여 언제 본 시험인지 바로 보이게 한다
-        addGroup("모의고사", examList, "m", (e) =>
-          e.label && e.exam_date && e.label !== e.exam_date
-            ? `${e.label} (${e.exam_date})`
-            : e.label || e.exam_date,
-        );
+        addGroup("모의고사", examList, "m", (e) => {
+          const name =
+            e.label && e.exam_date && e.label !== e.exam_date
+              ? `${e.label} (${e.exam_date})`
+              : e.label || e.exam_date;
+          const row = window._mockScoreMap[e.id];
+          return hasMockScore(row) ? name : `${name} — 미응시`;
+        });
 
         if (!weekList.length) {
           hideChartAndSummary();
@@ -863,16 +885,29 @@
         const s = window._mockScoreMap?.[examId];
         const section = document.getElementById("mock-score-section");
         section.style.display = "block";
-        // 미응시 = score도 항목 점수도 모두 비어 있음
-        const hasAnyScore =
-          s &&
-          ((s.score !== null && s.score !== undefined) ||
-            MOCK_ITEM_KEYS.some(
-              (k) => s[k] !== null && s[k] !== undefined,
-            ));
-        if (!hasAnyScore) {
-          section.innerHTML =
-            '<div class="empty-msg">해당 모의고사에 응시하지 않았습니다.</div>';
+        // 점수가 없는 경우: 선생님이 미응시로 표시했으면 그 사실만 알리고,
+        // 아니면(응시 대상이 아니었던 학생) 드롭다운에서 이미 걸러진다.
+        if (!hasMockScore(s)) {
+          const examRow = (loginData.exams || []).find((e) => e.id === examId);
+          const examName =
+            examRow && examRow.label && examRow.exam_date && examRow.label !== examRow.exam_date
+              ? `${examRow.label} (${examRow.exam_date})`
+              : examRow?.label || examRow?.exam_date || "";
+          section.innerHTML = s?.absent
+            ? `
+    <div class="card">
+      <div class="card-header"><div class="dot"></div><h2>모의고사 점수</h2></div>
+      <div class="card-body">
+        <div class="notice-card warning" style="margin-bottom:0">
+          <div class="notice-icon">📌</div>
+          <div>
+            <div class="notice-title">미응시</div>
+            <div class="notice-body">${escapeHtml(examName)}<br>해당 모의고사에 응시하지 않았습니다.</div>
+          </div>
+        </div>
+      </div>
+    </div>`
+            : '<div class="empty-msg">해당 모의고사에 응시하지 않았습니다.</div>';
           return;
         }
 

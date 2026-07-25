@@ -84,7 +84,14 @@
   /* 커트라인 미달 강조 */
   .score-input-row input.below-cut, .mock-input-row input.below-cut { color:var(--red); border-color:var(--red); font-weight:700; background:var(--red-light); }
   /* 모의고사 점수 입력 (이름 · 총점 · 항목들 · 메모) */
-  .mock-header, .mock-input-row { display:grid; grid-template-columns:160px 56px repeat(var(--mock-item-count,1),70px) minmax(140px,1fr); gap:6px; align-items:center; min-width:max-content; }
+  .mock-header, .mock-input-row { display:grid; grid-template-columns:160px 56px 52px repeat(var(--mock-item-count,1),70px) minmax(140px,1fr); gap:6px; align-items:center; min-width:max-content; }
+  .mock-input-row .inp-mock-absent { justify-self:center; width:18px; height:18px; cursor:pointer; }
+  /* 미응시로 체크한 행은 점수 입력을 막고 흐리게 */
+  .mock-input-row.absent-on .inp-mock-item { background:var(--light-gray); color:var(--gray); }
+  .mock-input-row.absent-on .student-name, .mock-input-row.absent-on .total-cell { opacity:0.5; }
+  .mock-visibility-info { font-size:12px; color:var(--gray); margin:10px 0 4px; }
+  .mock-visibility-info strong { color:var(--navy); }
+  .mock-visibility-info .warn { color:var(--red); }
   .mock-header { padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; }
   .mock-input-row { padding:8px 0; border-bottom:1px solid var(--light-gray); }
   .mock-input-row .student-name { font-size:13px; font-weight:500; color:var(--navy); }
@@ -378,6 +385,13 @@
               </div>
               <div class="class-picker" id="mock-group-class-picker"></div>
               <div class="picker-preview" id="mock-group-edit-preview"></div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+            <div class="mock-visibility-info" id="mock-visibility-info"></div>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-light btn-sm" onclick="setAllMockAbsent(true)">전체 미응시</button>
+              <button class="btn btn-light btn-sm" onclick="setAllMockAbsent(false)">미응시 해제</button>
             </div>
           </div>
           <div style="overflow-x:auto">
@@ -1883,12 +1897,10 @@ async function loadAbsentTargets() {
   if (isMock) {
     const scores = await api(`mock_scores?exam_id=eq.${id}&select=*`) || [];
     scores.forEach(s => { scoreMap[s.student_id] = s; });
-    // 모의고사 미응시 = score가 비어있음(null)
-    targets = (students || []).filter(st => {
-      const sc = scoreMap[st.id];
-      if (!sc) return true;
-      return sc.score === null || sc.score === undefined;
-    });
+    // 모의고사 미응시 = 점수 입력 화면에서 '미응시'로 체크한 학생.
+    // 점수가 비어 있다는 것만으로는 응시 대상이 아니었던 학생과 구분되지 않는다
+    // (일부 학생만 응시하는 모의고사가 있어, 그 기준으로는 볼 필요도 없던 학생에게 문자가 간다).
+    targets = (students || []).filter(st => scoreMap[st.id]?.absent === true);
   } else {
     const [scores, weekRow] = await Promise.all([
       api(`scores?week_id=eq.${id}&select=*`),
@@ -2684,6 +2696,7 @@ function collectCurrentMockScores() {
       obj[inp.dataset.key] = inp.value !== '' ? parseFloat(inp.value) : null;
     });
     obj.memo = row.querySelector('.mock-memo')?.value ?? '';
+    obj.absent = !!row.querySelector('.inp-mock-absent')?.checked;
     map[row.dataset.studentId] = obj;
   });
   return map;
@@ -2753,6 +2766,7 @@ function renderMockScoreHeader() {
   header.innerHTML =
     `<span>이름</span>` +
     `<span style="text-align:center">총점<br><small style="font-weight:400">/${totalMax}</small></span>` +
+    `<span style="text-align:center">미응시</span>` +
     items.map(it => `<span style="text-align:center">${escapeHtml(it.label) || '-'}<br><small style="font-weight:400">/${it.max ?? ''}</small></span>`).join('') +
     `<span style="text-align:center">메모</span>`;
 }
@@ -2775,15 +2789,73 @@ function renderMockInputs(classId, examId, scoreMap) {
       return `<input type="number" class="inp-mock-item${below}" data-key="${it.key}" data-cut="${it.cut ?? ''}" value="${val ?? ''}" min="0"${maxAttr} placeholder="" oninput="mockDirty=true;onMockScoreInput(this)">`;
     }).join('');
     const total = sumScores(items.map((it, idx) => sc[it.key] ?? (idx === 0 ? legacyScore : null)));
-    return `<div class="mock-input-row" data-student-id="${st.id}">
+    const absent = !!sc.absent;
+    return `<div class="mock-input-row${absent ? ' absent-on' : ''}" data-student-id="${st.id}">
       <span class="student-name">${escapeHtml(st.name)}</span>
-      <span class="total-cell">${total}</span>
+      <span class="total-cell">${absent ? '미응시' : total}</span>
+      <input type="checkbox" class="inp-mock-absent" ${absent ? 'checked' : ''} title="봐야 했는데 안 본 학생" onchange="onMockAbsentToggle(this)">
       ${itemInputs}
       <input type="text" class="mock-memo" value="${escapeAttr(sc.memo ?? '')}" placeholder="" oninput="mockDirty=true">
     </div>`;
   }).join('');
+  // 저장된 미응시 상태에 맞춰 점수 칸 잠금
+  document.querySelectorAll('#mock-score-inputs .mock-input-row').forEach(row => {
+    applyMockAbsentState(row, row.querySelector('.inp-mock-absent').checked, false);
+  });
   mockDirty = false;
+  updateMockVisibilityInfo();
   document.getElementById('mock-save-btn').style.display = 'block';
+}
+
+// 미응시 = 점수 없음. 체크하면 점수 칸을 잠그고(clear=true면 값도 비움) 총점을 '미응시'로 표시.
+function applyMockAbsentState(row, absent, clear) {
+  row.classList.toggle('absent-on', absent);
+  row.querySelectorAll('.inp-mock-item').forEach(inp => {
+    inp.disabled = absent;
+    if (absent && clear) { inp.value = ''; inp.classList.remove('below-cut'); }
+  });
+  const cell = row.querySelector('.total-cell');
+  if (!cell) return;
+  cell.textContent = absent
+    ? '미응시'
+    : sumScores(Array.from(row.querySelectorAll('.inp-mock-item')).map(i => i.value));
+}
+
+function onMockAbsentToggle(inputEl) {
+  const row = inputEl.closest('.mock-input-row');
+  if (!row) return;
+  mockDirty = true;
+  applyMockAbsentState(row, inputEl.checked, true);
+  updateMockVisibilityInfo();
+}
+
+function setAllMockAbsent(on) {
+  const rows = document.querySelectorAll('#mock-score-inputs .mock-input-row');
+  if (!rows.length) return;
+  if (on && !confirm('이 반 전원을 미응시로 표시합니다.\n입력된 점수는 지워집니다. 계속할까요?')) return;
+  rows.forEach(row => {
+    row.querySelector('.inp-mock-absent').checked = on;
+    applyMockAbsentState(row, on, true);
+  });
+  mockDirty = true;
+  updateMockVisibilityInfo();
+}
+
+// 학부모에게 이 시험이 보이는 학생 수. 점수도 미응시도 없으면 시험 자체가 안 보인다.
+function updateMockVisibilityInfo() {
+  const el = document.getElementById('mock-visibility-info');
+  if (!el) return;
+  const rows = Array.from(document.querySelectorAll('#mock-score-inputs .mock-input-row'));
+  if (!rows.length) { el.innerHTML = ''; return; }
+  let scored = 0, absent = 0;
+  rows.forEach(row => {
+    if (row.querySelector('.inp-mock-absent').checked) { absent++; return; }
+    if (Array.from(row.querySelectorAll('.inp-mock-item')).some(i => i.value !== '')) scored++;
+  });
+  const hidden = rows.length - scored - absent;
+  el.innerHTML = `학부모에게 보이는 학생 <strong>${scored + absent}명</strong>`
+    + ` (점수 ${scored}명 · 미응시 ${absent}명) / 전체 ${rows.length}명`
+    + (hidden ? ` · <span class="warn">${hidden}명은 이 시험이 보이지 않습니다</span>` : '');
 }
 
 function onMockScoreInput(inputEl) {
@@ -2792,6 +2864,7 @@ function onMockScoreInput(inputEl) {
   if (!row) return;
   const cell = row.querySelector('.total-cell');
   if (cell) cell.textContent = sumScores(Array.from(row.querySelectorAll('.inp-mock-item')).map(i => i.value));
+  updateMockVisibilityInfo();
 }
 
 async function saveMockScores() {
@@ -2804,10 +2877,15 @@ async function saveMockScores() {
   // 활성 항목 컬럼 + 기존 score(항목 합계)를 함께 저장한다.
   // score를 계속 채워두면 학부모 화면이 항목 컬럼 없이도 총점·평균을 그대로 계산할 수 있다.
   const upserts = Array.from(rows).map(row => {
-    const u = { student_id: parseInt(row.dataset.studentId), exam_id: examId, memo: row.querySelector('.mock-memo').value.trim() };
+    const absent = row.querySelector('.inp-mock-absent').checked;
+    const u = {
+      student_id: parseInt(row.dataset.studentId), exam_id: examId,
+      memo: row.querySelector('.mock-memo').value.trim(), absent
+    };
     const vals = [];
     row.querySelectorAll('.inp-mock-item').forEach(inp => {
-      const v = inp.value !== '' ? parseFloat(inp.value) : null;
+      // 미응시는 점수 없음으로 통일 (점수와 미응시가 동시에 남지 않게)
+      const v = (!absent && inp.value !== '') ? parseFloat(inp.value) : null;
       u[inp.dataset.key] = v;
       if (v !== null) vals.push(v);
     });
