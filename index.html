@@ -265,31 +265,38 @@
       .chart-wrap canvas {
         max-height: 180px;
       }
-      .week-selector {
-        display: flex;
-        gap: 7px;
-        flex-wrap: wrap;
-      }
-      .week-btn {
-        padding: 6px 13px;
+      .period-select {
+        width: 100%;
+        padding: 11px 38px 11px 14px;
         border: 1.5px solid var(--border);
-        border-radius: 18px;
-        font-size: 12px;
+        border-radius: 10px;
+        font-size: 14px;
         font-family: "Noto Sans KR", sans-serif;
         font-weight: 500;
-        color: var(--gray);
-        background: var(--white);
-        cursor: pointer;
-        transition: all 0.15s;
-      }
-      .week-btn:hover {
-        border-color: var(--gold);
         color: var(--navy);
+        background-color: var(--white);
+        /* 기본 화살표 대신 직접 그린 화살표 (브라우저별 모양 통일) */
+        background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' fill='none' stroke='%23c8a96e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 14px center;
+        background-size: 12px 8px;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        cursor: pointer;
+        outline: none;
+        transition: border-color 0.15s;
       }
-      .week-btn.active {
-        background: var(--navy);
-        border-color: var(--navy);
-        color: var(--white);
+      .period-select:focus {
+        border-color: var(--gold);
+      }
+      .period-select optgroup {
+        font-size: 12px;
+        color: var(--gray);
+      }
+      .period-select option {
+        font-size: 14px;
+        color: var(--navy);
       }
       .score-grid {
         display: grid;
@@ -509,7 +516,11 @@
             <h2>주차 선택</h2>
           </div>
           <div class="card-body">
-            <div class="week-selector" id="week-selector"></div>
+            <select
+              class="period-select"
+              id="period-select"
+              onchange="onPeriodChange(this.value)"
+            ></select>
           </div>
         </div>
 
@@ -578,12 +589,27 @@
         { key: "item4_score", label: "", max: 20, cut: null, active: false },
       ];
 
-      // weeks.item_config(JSON, NULL 가능) → 4개 슬롯의 정규화 배열.
+      // 모의고사 항목 (mock_scores 컬럼과 1:1). item_config가 없는 기존 모의고사는
+      // 예전처럼 '점수' 1개(만점 100)로 동작하고 그 값은 mock_scores.score에 있다.
+      const MOCK_ITEM_KEYS = [
+        "item1_score",
+        "item2_score",
+        "item3_score",
+        "item4_score",
+      ];
+      const DEFAULT_MOCK_ITEM_CONFIG = [
+        { key: "item1_score", label: "점수", max: 100, cut: null, active: true },
+        { key: "item2_score", label: "", max: null, cut: null, active: false },
+        { key: "item3_score", label: "", max: null, cut: null, active: false },
+        { key: "item4_score", label: "", max: null, cut: null, active: false },
+      ];
+
+      // item_config(JSON, NULL 가능) → 4개 슬롯의 정규화 배열.
       // NULL(기존 주차)이면 기본값(단어25/해석30/객관식45)으로 동작.
-      function normalizeItemConfig(raw) {
+      function normalizeItemConfig(raw, defaults = DEFAULT_ITEM_CONFIG) {
         const items = raw && Array.isArray(raw.items) ? raw.items : null;
-        return ITEM_KEYS.map((key, i) => {
-          const def = DEFAULT_ITEM_CONFIG[i];
+        return defaults.map((def, i) => {
+          const key = def.key;
           const src = items ? items.find((it) => it && it.key === key) : null;
           const s = src || def;
           return {
@@ -728,89 +754,137 @@
           renderChart();
         }
 
-        const selector = document.getElementById("week-selector");
-        selector.innerHTML = "";
-        if (!currentWeeks.length) {
-          selector.innerHTML =
-            '<span style="font-size:13px;color:#8a8a8a">등록된 주차가 없습니다.</span>';
-          return;
-        }
-
-        currentWeeks
-          .slice()
-          .reverse()
-          .forEach((w, i) => {
-            const btn = document.createElement("button");
-            btn.className = "week-btn" + (i === 0 ? " active" : "");
-            btn.textContent = w.label || w.test_date;
-            btn.onclick = () => {
-              document.querySelectorAll(".week-btn").forEach((b) => {
-                b.classList.remove("active");
-                if (b.dataset.mock)
-                  b.style.cssText = "border-color:#c8a96e;color:#c8a96e;";
-              });
-              btn.classList.add("active");
-              document.getElementById("score-content").style.display = "block";
-              document.getElementById("mock-score-section").style.display =
-                "none";
-              showChartAndSummary();
-              loadScore(w.id);
-            };
-            selector.appendChild(btn);
-          });
-
-        addMockButtons(selector);
-
-        const latestWeek = currentWeeks[currentWeeks.length - 1];
-        if (latestWeek) loadScore(latestWeek.id);
+        renderPeriodSelector();
       }
 
-      function addMockButtons(selector) {
-        const exams = loginData.exams || [];
-        if (!exams.length) return;
+      // 'M.D' → 정렬용 숫자(월*100+일).
+      // 목록에 11~12월과 1~2월이 함께 있으면 해가 바뀐 것으로 보고
+      // 1~2월을 뒤로 보낸다(12.30 다음이 1.5가 되도록).
+      function periodSortKeys(dates) {
+        const parsed = dates.map((d) => {
+          const m = (d || "").match(/^\s*(\d{1,2})\s*\.\s*(\d{1,2})/);
+          return m ? { m: parseInt(m[1]), d: parseInt(m[2]) } : null;
+        });
+        const months = parsed.filter(Boolean).map((x) => x.m);
+        const wraps =
+          months.some((m) => m >= 11) && months.some((m) => m <= 2);
+        return parsed.map((x) =>
+          x === null
+            ? -Infinity // 날짜를 못 읽으면 맨 뒤로
+            : x.m * 100 + x.d + (wraps && x.m <= 2 ? 1200 : 0),
+        );
+      }
 
+      // 날짜 최신순 정렬 (같은 날짜면 등록 순서 유지)
+      function sortByDateDesc(list, dateOf) {
+        const keys = periodSortKeys(list.map(dateOf));
+        return list
+          .map((item, i) => ({ item, key: keys[i], i }))
+          .sort((a, b) => b.key - a.key || b.i - a.i)
+          .map((x) => x.item);
+      }
+
+      // 주차 + 모의고사를 하나의 드롭다운으로. 항목이 늘어나도 화면이 밀리지 않는다.
+      function renderPeriodSelector() {
+        const sel = document.getElementById("period-select");
+        sel.innerHTML = "";
+
+        const exams = loginData.exams || [];
         window._mockScoreMap = {};
         (loginData.myMockScores || []).forEach((s) => {
           window._mockScoreMap[s.exam_id] = s;
         });
 
-        exams.forEach((e) => {
-          const btn = document.createElement("button");
-          btn.className = "week-btn";
-          btn.textContent = e.label || e.exam_date;
-          btn.style.cssText = "border-color:#c8a96e;color:#c8a96e;";
-          btn.onclick = () => {
-            document.querySelectorAll(".week-btn").forEach((b) => {
-              b.classList.remove("active");
-              if (b.dataset.mock)
-                b.style.cssText = "border-color:#c8a96e;color:#c8a96e;";
-            });
-            btn.classList.add("active");
-            btn.style.cssText = "";
-            document.getElementById("score-content").style.display = "none";
-            document.getElementById("mock-score-section").style.display =
-              "none";
-            hideChartAndSummary();
-            showMockScore(e.id);
-          };
-          btn.dataset.mock = "1";
-          selector.appendChild(btn);
-        });
+        const weekList = sortByDateDesc(
+          currentWeeks || [],
+          (w) => w.test_date || w.label,
+        );
+        const examList = sortByDateDesc(exams, (e) => e.exam_date || e.label);
+
+        if (!weekList.length && !examList.length) {
+          const opt = document.createElement("option");
+          opt.textContent = "등록된 주차가 없습니다.";
+          sel.appendChild(opt);
+          sel.disabled = true;
+          return;
+        }
+        sel.disabled = false;
+
+        const addGroup = (label, items, prefix, textOf) => {
+          if (!items.length) return;
+          const g = document.createElement("optgroup");
+          g.label = label;
+          items.forEach((it) => {
+            const opt = document.createElement("option");
+            opt.value = prefix + it.id;
+            opt.textContent = textOf(it);
+            g.appendChild(opt);
+          });
+          sel.appendChild(g);
+        };
+
+        addGroup("주차", weekList, "w", (w) => w.label || w.test_date);
+        // 모의고사는 이름 뒤에 (월.일)을 붙여 언제 본 시험인지 바로 보이게 한다
+        addGroup("모의고사", examList, "m", (e) =>
+          e.label && e.exam_date && e.label !== e.exam_date
+            ? `${e.label} (${e.exam_date})`
+            : e.label || e.exam_date,
+        );
+
+        if (!weekList.length) {
+          hideChartAndSummary();
+          document.getElementById("score-content").innerHTML =
+            '<div class="empty-msg">등록된 주차가 없습니다. 모의고사 결과를 선택해 확인하세요.</div>';
+        }
+
+        // 기본 선택: 가장 최근 주차(없으면 가장 최근 모의고사)
+        sel.value = weekList.length ? "w" + weekList[0].id : "m" + examList[0].id;
+        onPeriodChange(sel.value);
+      }
+
+      function onPeriodChange(value) {
+        if (!value) return;
+        const id = parseInt(value.slice(1));
+        const isMock = value.charAt(0) === "m";
+        document.getElementById("score-content").style.display = isMock
+          ? "none"
+          : "block";
+        document.getElementById("mock-score-section").style.display = "none";
+        if (isMock) {
+          hideChartAndSummary();
+          showMockScore(id);
+        } else {
+          showChartAndSummary();
+          loadScore(id);
+        }
       }
 
       async function showMockScore(examId) {
         const s = window._mockScoreMap?.[examId];
         const section = document.getElementById("mock-score-section");
         section.style.display = "block";
-        if (!s || s.score === null || s.score === undefined) {
+        // 미응시 = score도 항목 점수도 모두 비어 있음
+        const hasAnyScore =
+          s &&
+          ((s.score !== null && s.score !== undefined) ||
+            MOCK_ITEM_KEYS.some(
+              (k) => s[k] !== null && s[k] !== undefined,
+            ));
+        if (!hasAnyScore) {
           section.innerHTML =
             '<div class="empty-msg">해당 모의고사에 응시하지 않았습니다.</div>';
           return;
         }
 
-        // group_id가 있으면 같은 학년 전체 기준으로 평균/석차 계산
+        // group_id가 같은 모의고사 전체(= 관리자가 선택한 반들)를 기준으로 평균/석차 계산
         const examInfo = (loginData.exams || []).find((e) => e.id === examId);
         const groupId = examInfo?.group_id;
+        // 항목 설정이 없으면(옛 모의고사 또는 서버 응답에 item_config 없음)
+        // 예전처럼 '점수' 1개(만점 100)로 동작한다.
+        const mockItems = normalizeItemConfig(
+          examInfo?.item_config,
+          DEFAULT_MOCK_ITEM_CONFIG,
+        ).filter((it) => it.active);
 
         let rankExamIds;
         if (
@@ -826,27 +900,62 @@
           rankExamIds.has(x.exam_id),
         );
 
+        // 항목 점수가 있으면 항목 합계, 없으면 기존 score 폴백.
+        // 0점도 응시로 인정한다(빈 값=미응시만 제외).
+        const rowTotal = (row) => {
+          const vals = mockItems
+            .map((it) => row[it.key])
+            .filter((v) => v !== null && v !== undefined);
+          if (vals.length) return vals.reduce((a, b) => a + parseFloat(b), 0);
+          return row.score === null || row.score === undefined
+            ? null
+            : parseFloat(row.score);
+        };
+
         const validScores = allMockScores
-          .map((x) => x.score)
-          .filter((x) => x !== null && x > 0);
+          .map(rowTotal)
+          .filter((x) => x !== null);
         const avg = validScores.length
           ? (
               validScores.reduce((a, b) => a + b, 0) / validScores.length
             ).toFixed(1)
           : null;
 
+        const myTotal = rowTotal(s);
+        const totalMax = mockItems.reduce((a, it) => a + (it.max || 0), 0);
+
         // 석차 계산
         const sorted = validScores.slice().sort((a, b) => b - a);
         const rank =
-          s.score > 0 ? sorted.findIndex((v) => v === s.score) + 1 : "-";
+          myTotal === null ? "-" : sorted.findIndex((v) => v === myTotal) + 1;
+
+        // 항목이 2개 이상이면 항목별 점수도 함께 보여준다
+        const hasItemValues = mockItems.some(
+          (it) => s[it.key] !== null && s[it.key] !== undefined,
+        );
+        const itemsHtml =
+          mockItems.length > 1 && hasItemValues
+            ? `<div class="score-grid items-${mockItems.length}" style="margin-bottom:10px">
+            ${mockItems
+              .map((it) => {
+                const v = s[it.key];
+                return `<div class="score-item">
+              <div class="score-label">${escapeHtml(it.label) || "-"}</div>
+              <div class="score-value">${v === null || v === undefined ? "-" : v}<span class="score-max"> / ${it.max ?? ""}</span></div>
+            </div>`;
+              })
+              .join("")}
+          </div>`
+            : "";
 
         section.innerHTML = `
     <div class="card">
       <div class="card-header"><div class="dot"></div><h2>모의고사 점수</h2></div>
       <div class="card-body">
+        ${itemsHtml}
         <div class="score-item total" style="border-radius:12px;margin-bottom:10px">
-          <div class="score-label">점수</div>
-          <div><span class="score-value" style="color:white">${s.score}</span><span class="score-max"> / 100</span></div>
+          <div class="score-label">총점</div>
+          <div><span class="score-value" style="color:white">${myTotal === null ? "-" : myTotal}</span><span class="score-max"> / ${totalMax}</span></div>
         </div>
         <div class="meta-grid">
           <div class="meta-item">
@@ -862,7 +971,7 @@
             <div class="meta-value">${validScores.length}명</div>
           </div>
         </div>
-        ${s.memo ? `<div style="margin-top:6px;font-size:13px;color:var(--gray)">${s.memo}</div>` : ""}
+        ${s.memo ? `<div style="margin-top:6px;font-size:13px;color:var(--gray)">${escapeHtml(s.memo)}</div>` : ""}
       </div>
     </div>`;
       }
