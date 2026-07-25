@@ -68,7 +68,7 @@
   .badge { display:inline-block; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:600; }
   .badge-active { background:var(--green-light); color:var(--green); }
   .badge-inactive { background:var(--red-light); color:var(--red); }
-  .score-input-row { display:grid; grid-template-columns:180px 50px 44px 62px 62px 62px 62px 110px 90px 46px 46px 1fr; gap:6px; align-items:center; padding:8px 0; border-bottom:1px solid var(--light-gray); }
+  .score-input-row { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 110px 90px 46px 46px 1fr; gap:6px; align-items:center; padding:8px 0; border-bottom:1px solid var(--light-gray); }
   .score-input-row .total-cell { font-size:15px; font-weight:700; color:var(--navy); text-align:center; }
   .score-input-row:last-child { border-bottom:none; }
   .score-input-row .student-name { font-size:13px; font-weight:500; color:var(--navy); line-height:1.4; word-break:break-all; padding-right:4px; }
@@ -80,7 +80,26 @@
   .score-input-row input[type=number] { -moz-appearance:textfield; appearance:textfield; }
   .score-input-row textarea { padding:6px 8px; border:1.5px solid var(--border); border-radius:6px; font-size:12px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); outline:none; width:100%; transition:border-color 0.2s; resize:none; overflow:hidden; min-height:34px; line-height:1.5; }
   .score-input-row textarea:focus { border-color:var(--gold); background:var(--white); }
-  .score-header { display:grid; grid-template-columns:180px 50px 44px 62px 62px 62px 62px 110px 90px 46px 46px 1fr; gap:6px; padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; }
+  .score-header { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 110px 90px 46px 46px 1fr; gap:6px; padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; }
+  /* 커트라인 미달 강조 */
+  .score-input-row input.below-cut { color:var(--red); border-color:var(--red); font-weight:700; background:var(--red-light); }
+  /* 주차별 항목 설정 편집기 */
+  .item-config-editor { display:flex; flex-direction:column; gap:6px; }
+  .item-config-head, .item-config-row { display:grid; grid-template-columns:52px 1fr 90px 90px; gap:8px; align-items:center; }
+  .item-config-head { font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; padding-bottom:2px; }
+  .item-config-head span { text-align:center; }
+  .item-config-head span:nth-child(2) { text-align:left; }
+  .item-config-row .cfg-active { justify-self:center; width:18px; height:18px; }
+  .item-config-row .cfg-name-fixed { font-size:13px; font-weight:600; color:var(--navy); }
+  .item-config-row.cfg-off .cfg-name-fixed, .item-config-row.cfg-off .cfg-label { opacity:0.45; }
+  .item-config-row input[type=number], .item-config-row input.cfg-label { padding:7px 8px; border:1.5px solid var(--border); border-radius:6px; font-size:13px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); outline:none; width:100%; }
+  .item-config-row input[type=number] { text-align:center; }
+  .item-config-row input:focus { border-color:var(--gold); }
+  .item-config-row input[type=number]::-webkit-inner-spin-button,
+  .item-config-row input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+  .item-config-row input[type=number] { -moz-appearance:textfield; appearance:textfield; }
+  .item-config-total { font-size:12px; color:var(--gray); margin-top:8px; }
+  .item-config-total strong { color:var(--navy); }
   .mini-loading { text-align:center; padding:20px; color:var(--gray); font-size:13px; }
   .memo-author-btn { padding:8px 16px; border:1.5px solid var(--border); border-radius:20px; font-size:13px; font-weight:500; font-family:'Noto Sans KR',sans-serif; color:var(--gray); background:var(--white); cursor:pointer; transition:all 0.15s; }
   .memo-author-btn:hover { border-color:var(--gold); color:var(--navy); }
@@ -96,7 +115,7 @@
   .spinner-sm { width:20px; height:20px; border:2px solid var(--border); border-top-color:var(--gold); border-radius:50%; animation:spin 0.7s linear infinite; display:inline-block; vertical-align:middle; margin-right:8px; }
   @keyframes spin { to { transform:rotate(360deg); } }
   @media(max-width:480px) {
-    .score-input-row, .score-header { grid-template-columns:60px 44px 36px 50px 50px 50px 50px 90px 80px 36px 36px 80px; gap:4px; }
+    .score-input-row, .score-header { grid-template-columns:60px 44px 36px repeat(var(--item-count,3),50px) 50px 90px 80px 36px 36px 80px; gap:4px; }
     .score-input-row input, .score-input-row textarea { padding:6px 4px; font-size:12px; }
   }
 </style>
@@ -169,22 +188,17 @@
           <label style="display:block;font-size:11px;color:var(--gray);font-weight:500;letter-spacing:0.5px;margin-bottom:5px">이번 주 과제 내용</label>
           <textarea id="week-memo" rows="2" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'" onblur="saveWeekMemo()" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;outline:none;resize:none;line-height:1.6;min-height:44px" placeholder="예: 워크북 p.30~35, 단어 암기 1~30번"></textarea>
         </div>
+        <div style="border-top:1px solid var(--light-gray);padding-top:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <label style="font-size:11px;color:var(--gray);font-weight:500;letter-spacing:0.5px">이번 주 채점 항목 설정 (만점·커트라인)</label>
+            <button class="btn btn-primary btn-sm" onclick="saveItemConfig()">항목 설정 저장</button>
+          </div>
+          <div class="item-config-editor" id="item-config-editor"></div>
+          <div class="item-config-total" id="item-config-total"></div>
+        </div>
       </div>
       <div class="section-body" style="overflow-x:auto">
-        <div class="score-header">
-          <span>이름</span>
-          <span style="text-align:center">총점<br><small style="font-weight:400">/100</small></span>
-          <span style="text-align:center">출석</span>
-          <span style="text-align:center">단어<br><small style="font-weight:400">/25</small></span>
-          <span style="text-align:center">해석<br><small style="font-weight:400">/30</small></span>
-          <span style="text-align:center">객관식<br><small style="font-weight:400">/45</small></span>
-          <span style="text-align:center">과제<br><small style="font-weight:400">%</small></span>
-          <span style="text-align:center">과제평가</span>
-          <span style="text-align:center">잔여과제<br>인증</span>
-          <span style="text-align:center">클리닉<br>대상</span>
-          <span style="text-align:center">클리닉<br>참석</span>
-          <span style="text-align:center">클리닉메모</span>
-        </div>
+        <div class="score-header" id="score-header"></div>
         <div id="score-inputs-container"></div>
       </div>
     </div>
@@ -817,6 +831,53 @@ const scoreCache = {};
 let scoreDirty = false; // 저장 안 된 변경사항 추적
 const studentCache = {};
 
+// ── 주차별 채점 항목 설정 ───────────────────────────────
+// 물리 컬럼(scores 테이블)과 1:1 매핑. 앞 3개 이름 고정, item4만 주차별 이름 지정.
+const ITEM_KEYS = ['word_score', 'reading_score', 'mc_score', 'item4_score'];
+const FIXED_ITEM_LABELS = { word_score: '단어', reading_score: '해석', mc_score: '객관식' };
+const DEFAULT_ITEM_CONFIG = [
+  { key: 'word_score',    label: '단어',   max: 25, cut: null, active: true  },
+  { key: 'reading_score', label: '해석',   max: 30, cut: null, active: true  },
+  { key: 'mc_score',      label: '객관식', max: 45, cut: null, active: true  },
+  { key: 'item4_score',   label: '',       max: 20, cut: null, active: false }
+];
+let currentItemConfig = DEFAULT_ITEM_CONFIG.map(it => ({ ...it }));
+
+// weeks.item_config(JSON, NULL 가능) → 항상 4개 슬롯의 정규화된 배열로 변환.
+// NULL(기존 주차)이면 기본값(단어25/해석30/객관식45, item4 비활성)으로 동작.
+function normalizeItemConfig(raw) {
+  const items = raw && Array.isArray(raw.items) ? raw.items : null;
+  return ITEM_KEYS.map((key, i) => {
+    const def = DEFAULT_ITEM_CONFIG[i];
+    const src = items ? items.find(it => it && it.key === key) : null;
+    const s = src || def;
+    return {
+      key,
+      label: key === 'item4_score' ? (s.label ?? '') : FIXED_ITEM_LABELS[key],
+      max: (s.max === undefined || s.max === null || s.max === '') ? def.max : parseFloat(s.max),
+      cut: (s.cut === undefined || s.cut === null || s.cut === '') ? null : parseFloat(s.cut),
+      active: s.active === undefined ? def.active : !!s.active
+    };
+  });
+}
+
+function activeItems() {
+  return currentItemConfig.filter(it => it.active);
+}
+
+function isBelowCut(val, cut) {
+  return val !== null && val !== undefined && val !== '' &&
+    cut !== null && cut !== undefined && cut !== '' &&
+    parseFloat(val) < parseFloat(cut);
+}
+
+// 입력된 점수만 합산 (빈칸은 무시). 하나도 없으면 '–'
+function sumScores(vals) {
+  const nums = vals.filter(v => v !== null && v !== undefined && v !== '');
+  if (!nums.length) return '–';
+  return nums.reduce((a, b) => a + parseFloat(b), 0);
+}
+
 async function loadWeeksForScore() {
   const classId = document.getElementById('score-class').value;
   const sel = document.getElementById('score-week');
@@ -859,13 +920,16 @@ async function loadScoreInputs() {
   const container = document.getElementById('score-inputs-container');
   card.style.display = 'block';
 
-  // 주차 메모 불러오기
-  const weekData = await api(`weeks?id=eq.${weekId}&select=memo`);
+  // 주차 메모 + 항목 설정 불러오기
+  const weekData = await api(`weeks?id=eq.${weekId}&select=memo,item_config`);
   const memoEl = document.getElementById('week-memo');
   memoEl.value = weekData?.[0]?.memo || '';
   memoEl.style.height = 'auto';
   memoEl.style.height = memoEl.scrollHeight + 'px';
   memoEl.dataset.weekId = weekId;
+
+  currentItemConfig = normalizeItemConfig(weekData?.[0]?.item_config);
+  renderItemConfigEditor();
 
   if (scoreCache[weekId]) { renderScoreInputs(classId, weekId, scoreCache[weekId]); return; }
   container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
@@ -878,22 +942,128 @@ async function loadScoreInputs() {
   renderScoreInputs(classId, weekId, scoreCache[weekId]);
 }
 
-// 입력된 점수만 합산 (빈칸은 무시). 셋 다 비면 '–' 표시
-function calcRowTotal(w, r, m) {
-  const vals = [w, r, m].filter(v => v !== null && v !== undefined && v !== '');
-  if (!vals.length) return '–';
-  return vals.reduce((a, b) => a + parseFloat(b), 0);
+// ── 항목 설정 편집기 ────────────────────────────────────
+function renderItemConfigEditor() {
+  const el = document.getElementById('item-config-editor');
+  if (!el) return;
+  el.innerHTML =
+    `<div class="item-config-head"><span>사용</span><span>항목</span><span>만점</span><span>커트라인</span></div>` +
+    currentItemConfig.map((it, i) => {
+      const nameField = it.key === 'item4_score'
+        ? `<input type="text" class="cfg-label" data-i="${i}" value="${it.label || ''}" placeholder="4번째 항목 이름 (예: 듣기)">`
+        : `<span class="cfg-name-fixed">${it.label}</span>`;
+      return `<div class="item-config-row${it.active ? '' : ' cfg-off'}" data-i="${i}">
+        <input type="checkbox" class="cfg-active" data-i="${i}" ${it.active ? 'checked' : ''} onchange="onCfgActiveToggle(${i})" title="이 주차에 사용">
+        ${nameField}
+        <input type="number" class="cfg-max" data-i="${i}" value="${it.max ?? ''}" min="0" placeholder="만점" oninput="updateItemConfigTotal()">
+        <input type="number" class="cfg-cut" data-i="${i}" value="${it.cut ?? ''}" min="0" placeholder="커트라인">
+      </div>`;
+    }).join('');
+  updateItemConfigTotal();
 }
 
-// 점수칸 입력 시 같은 행의 총점 셀 갱신
+function onCfgActiveToggle(i) {
+  const row = document.querySelector(`#item-config-editor .item-config-row[data-i="${i}"]`);
+  const on = document.querySelector(`#item-config-editor .cfg-active[data-i="${i}"]`).checked;
+  if (row) row.classList.toggle('cfg-off', !on);
+  updateItemConfigTotal();
+}
+
+// 편집기의 현재 입력값을 읽어 정규화된 config 배열로 반환
+function readItemConfigFromEditor() {
+  const editor = document.getElementById('item-config-editor');
+  const items = ITEM_KEYS.map((key, i) => {
+    const active = editor.querySelector(`.cfg-active[data-i="${i}"]`).checked;
+    const maxV = editor.querySelector(`.cfg-max[data-i="${i}"]`).value;
+    const cutV = editor.querySelector(`.cfg-cut[data-i="${i}"]`).value;
+    let label = FIXED_ITEM_LABELS[key] || '';
+    if (key === 'item4_score') {
+      label = (editor.querySelector(`.cfg-label[data-i="${i}"]`)?.value || '').trim();
+    }
+    return { key, label, max: maxV === '' ? null : parseFloat(maxV), cut: cutV === '' ? null : parseFloat(cutV), active };
+  });
+  return items;
+}
+
+function updateItemConfigTotal() {
+  const totalEl = document.getElementById('item-config-total');
+  if (!totalEl) return;
+  const items = readItemConfigFromEditor();
+  const active = items.filter(it => it.active);
+  const totalMax = active.reduce((a, it) => a + (it.max || 0), 0);
+  totalEl.innerHTML = `사용 항목 <strong>${active.length}개</strong> · 총점 만점 <strong>${totalMax}</strong>점`;
+}
+
+async function saveItemConfig() {
+  const weekId = document.getElementById('week-memo').dataset.weekId;
+  if (!weekId) { showToast('먼저 주차를 선택하세요.'); return; }
+  const items = readItemConfigFromEditor();
+  if (!items.some(it => it.active)) { showToast('❌ 최소 한 개 항목은 사용해야 합니다.'); return; }
+  const item4 = items.find(it => it.key === 'item4_score');
+  if (item4.active && !item4.label) { showToast('❌ 4번째 항목의 이름을 입력하세요.'); return; }
+
+  // 열 구성이 바뀌므로 입력 중이던 점수를 보존한 뒤 재렌더
+  const preserved = collectCurrentScores();
+  const classId = document.getElementById('score-class').value;
+  try {
+    const res = await apiRaw(`weeks?id=eq.${weekId}`, 'PATCH', { item_config: { items } });
+    if (!res.ok) { showToast('❌ 항목 설정 저장 실패'); return; }
+    currentItemConfig = normalizeItemConfig({ items });
+    renderItemConfigEditor();
+    // 캐시된 점수 위에 입력 중이던 값 병합 후 재렌더 (미저장 점수 유지)
+    const base = scoreCache[weekId] ? JSON.parse(JSON.stringify(scoreCache[weekId])) : {};
+    Object.keys(preserved).forEach(sid => { base[sid] = { ...(base[sid] || {}), ...preserved[sid] }; });
+    renderScoreInputs(classId, weekId, base);
+    showToast('✅ 항목 설정이 저장됐어요!');
+  } catch (e) { showToast('❌ 오류 발생: ' + e.message); }
+}
+
+// 점수 입력행들의 현재 값을 { studentId: {컬럼:값} } 형태로 수집
+function collectCurrentScores() {
+  const map = {};
+  document.querySelectorAll('#score-inputs-container .score-input-row').forEach(row => {
+    const sid = row.dataset.studentId;
+    const obj = {};
+    row.querySelectorAll('.inp-item').forEach(inp => {
+      obj[inp.dataset.key] = inp.value !== '' ? parseFloat(inp.value) : null;
+    });
+    map[sid] = obj;
+  });
+  return map;
+}
+
+// 점수칸 입력 시: 커트라인 강조 + 같은 행 총점 갱신
+function onScoreInput(inputEl) {
+  inputEl.classList.toggle('below-cut', isBelowCut(inputEl.value, inputEl.dataset.cut));
+  recalcTotal(inputEl);
+}
+
 function recalcTotal(inputEl) {
   const row = inputEl.closest('.score-input-row');
   if (!row) return;
-  const w = row.querySelector('.inp-word').value;
-  const r = row.querySelector('.inp-reading').value;
-  const m = row.querySelector('.inp-mc').value;
+  const vals = Array.from(row.querySelectorAll('.inp-item')).map(i => i.value);
   const cell = row.querySelector('.total-cell');
-  if (cell) cell.textContent = calcRowTotal(w, r, m);
+  if (cell) cell.textContent = sumScores(vals);
+}
+
+function renderScoreHeader() {
+  const items = activeItems();
+  const totalMax = items.reduce((a, it) => a + (it.max || 0), 0);
+  const card = document.getElementById('score-input-card');
+  if (card) card.style.setProperty('--item-count', items.length);
+  const header = document.getElementById('score-header');
+  if (!header) return;
+  header.innerHTML =
+    `<span>이름</span>` +
+    `<span style="text-align:center">총점<br><small style="font-weight:400">/${totalMax}</small></span>` +
+    `<span style="text-align:center">출석</span>` +
+    items.map(it => `<span style="text-align:center">${it.label || '-'}<br><small style="font-weight:400">/${it.max ?? ''}</small></span>`).join('') +
+    `<span style="text-align:center">과제<br><small style="font-weight:400">%</small></span>` +
+    `<span style="text-align:center">과제평가</span>` +
+    `<span style="text-align:center">잔여과제<br>인증</span>` +
+    `<span style="text-align:center">클리닉<br>대상</span>` +
+    `<span style="text-align:center">클리닉<br>참석</span>` +
+    `<span style="text-align:center">클리닉메모</span>`;
 }
 
 function renderScoreInputs(classId, weekId, scoreMap) {
@@ -903,15 +1073,22 @@ function renderScoreInputs(classId, weekId, scoreMap) {
   const weekSel = document.getElementById('score-week');
   const weekLabel = weekSel.options[weekSel.selectedIndex]?.text || '';
   document.getElementById('score-input-title').textContent = `${className} — ${weekLabel}`;
+  const items = activeItems();
+  renderScoreHeader();
   container.innerHTML = students.map(st => {
     const sc = scoreMap[st.id] || {};
+    const total = sumScores(items.map(it => sc[it.key]));
+    const itemInputs = items.map(it => {
+      const val = sc[it.key];
+      const below = isBelowCut(val, it.cut) ? ' below-cut' : '';
+      const maxAttr = it.max != null ? ` max="${it.max}"` : '';
+      return `<input type="number" class="inp-item${below}" data-key="${it.key}" data-cut="${it.cut ?? ''}" value="${val ?? ''}" min="0"${maxAttr} placeholder="" oninput="scoreDirty=true;onScoreInput(this)">`;
+    }).join('');
     return `<div class="score-input-row" data-student-id="${st.id}">
       <span class="student-name">${st.name}${st.note ? `<br><small style="color:var(--red);font-weight:400;font-size:11px;line-height:1.4;display:block;margin-top:2px">${st.note}</small>` : ''}</span>
-      <span class="total-cell">${calcRowTotal(sc.word_score, sc.reading_score, sc.mc_score)}</span>
+      <span class="total-cell">${total}</span>
       <input type="checkbox" class="inp-attend" ${sc.attendance === false ? '' : 'checked'} title="출석" onchange="scoreDirty=true">
-      <input type="number" class="inp-word" value="${sc.word_score ?? ''}" min="0" max="25" placeholder="" oninput="scoreDirty=true;recalcTotal(this)">
-      <input type="number" class="inp-reading" value="${sc.reading_score ?? ''}" min="0" max="30" placeholder="" oninput="scoreDirty=true;recalcTotal(this)">
-      <input type="number" class="inp-mc" value="${sc.mc_score ?? ''}" min="0" max="45" placeholder="" oninput="scoreDirty=true;recalcTotal(this)">
+      ${itemInputs}
       <input type="number" class="inp-hw" value="${sc.homework_rate ?? ''}" min="0" max="100" placeholder="" oninput="scoreDirty=true">
       <textarea class="inp-eval" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.homework_eval ?? ''}</textarea>
       <textarea class="inp-hwcert" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.hw_cert ?? ''}</textarea>
@@ -943,27 +1120,32 @@ async function saveAllScores() {
   const weekId = parseInt(document.getElementById('score-week').value);
   const rows = document.querySelectorAll('#score-inputs-container .score-input-row');
   if (!rows.length) return;
-  const upserts = Array.from(rows).map(row => ({
-    student_id: parseInt(row.dataset.studentId),
-    week_id: weekId,
-    word_score: row.querySelector('.inp-word').value !== '' ? parseFloat(row.querySelector('.inp-word').value) : null,
-    reading_score: row.querySelector('.inp-reading').value !== '' ? parseFloat(row.querySelector('.inp-reading').value) : null,
-    mc_score: row.querySelector('.inp-mc').value !== '' ? parseFloat(row.querySelector('.inp-mc').value) : null,
-    homework_rate: row.querySelector('.inp-hw').value !== '' ? parseInt(row.querySelector('.inp-hw').value) : null,
-    homework_eval: row.querySelector('.inp-eval').value.trim(),
-    hw_cert: row.querySelector('.inp-hwcert').value.trim(),
-    attendance: row.querySelector('.inp-attend').checked,
-    clinic_target: row.querySelector('.inp-clinic-target').checked,
-    clinic_attend: row.querySelector('.inp-clinic-attend').checked,
-    clinic_memo: row.querySelector('.inp-clinic-memo').value.trim()
-  }));
+  // 활성 항목의 점수 컬럼만 저장 대상에 포함. 비활성 항목은 PATCH에서 제외 → 기존 값 보존.
+  const upserts = Array.from(rows).map(row => {
+    const u = {
+      student_id: parseInt(row.dataset.studentId),
+      week_id: weekId,
+      homework_rate: row.querySelector('.inp-hw').value !== '' ? parseInt(row.querySelector('.inp-hw').value) : null,
+      homework_eval: row.querySelector('.inp-eval').value.trim(),
+      hw_cert: row.querySelector('.inp-hwcert').value.trim(),
+      attendance: row.querySelector('.inp-attend').checked,
+      clinic_target: row.querySelector('.inp-clinic-target').checked,
+      clinic_attend: row.querySelector('.inp-clinic-attend').checked,
+      clinic_memo: row.querySelector('.inp-clinic-memo').value.trim()
+    };
+    row.querySelectorAll('.inp-item').forEach(inp => {
+      u[inp.dataset.key] = inp.value !== '' ? parseFloat(inp.value) : null;
+    });
+    return u;
+  });
   try {
     const existing = await api(`scores?week_id=eq.${weekId}&select=id,student_id`);
     const existMap = {};
     (existing || []).forEach(e => { existMap[e.student_id] = e.id; });
     const results = await Promise.all(upserts.map(async u => {
       if (existMap[u.student_id]) {
-        return apiRaw(`scores?id=eq.${existMap[u.student_id]}`, 'PATCH', {word_score:u.word_score,reading_score:u.reading_score,mc_score:u.mc_score,homework_rate:u.homework_rate,homework_eval:u.homework_eval,hw_cert:u.hw_cert,attendance:u.attendance,clinic_target:u.clinic_target,clinic_attend:u.clinic_attend,clinic_memo:u.clinic_memo});
+        const { student_id, week_id, ...patchBody } = u;
+        return apiRaw(`scores?id=eq.${existMap[u.student_id]}`, 'PATCH', patchBody);
       } else {
         return apiRaw('scores', 'POST', u);
       }
@@ -1333,15 +1515,19 @@ async function loadAbsentTargets() {
       return sc.score === null || sc.score === undefined;
     });
   } else {
-    const scores = await api(`scores?week_id=eq.${id}&select=*`) || [];
-    scores.forEach(s => { scoreMap[s.student_id] = s; });
-    // 미응시 = 단어/해석/객관식 중 하나라도 비어있음(null)
+    const [scores, weekRow] = await Promise.all([
+      api(`scores?week_id=eq.${id}&select=*`),
+      api(`weeks?id=eq.${id}&select=item_config`)
+    ]);
+    (scores || []).forEach(s => { scoreMap[s.student_id] = s; });
+    // 미응시 = 이 주차에 사용하는(활성) 항목 중 하나라도 비어있음(null)
+    const cfg = normalizeItemConfig(weekRow?.[0]?.item_config);
+    const activeKeys = cfg.filter(it => it.active).map(it => it.key);
+    const empty = v => v === null || v === undefined;
     targets = (students || []).filter(st => {
       const sc = scoreMap[st.id];
       if (!sc) return true;
-      const w = sc.word_score, r = sc.reading_score, m = sc.mc_score;
-      const empty = v => v === null || v === undefined;
-      return empty(w) || empty(r) || empty(m);
+      return activeKeys.some(k => empty(sc[k]));
     });
   }
   targets = targets.map(st => ({
