@@ -1,354 +1,752 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>용산대성N학원 [영어과] 점수 확인</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<style>
-  :root {
-    --navy: #0f1f3d;
-    --navy-light: #1a3060;
-    --gold: #c8a96e;
-    --gold-light: #e8c98e;
-    --cream: #f8f5f0;
-    --white: #ffffff;
-    --gray: #8a8a8a;
-    --light-gray: #f0ede8;
-    --border: #e8e4df;
-    --red: #c0392b;
-    --red-light: #fdf0ef;
-    --orange: #e67e22;
-    --orange-light: #fef5ec;
-    --green: #27ae60;
-    --green-light: #eafaf1;
-    --shadow: 0 4px 20px rgba(15,31,61,0.10);
-    --shadow-lg: 0 8px 32px rgba(15,31,61,0.14);
-  }
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body {
-    font-family:'Noto Sans KR',sans-serif;
-    background:var(--cream);
-    min-height:100vh;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    -webkit-text-size-adjust:100%;
-  }
-  header {
-    width:100%; background:var(--navy);
-    padding:24px 20px 20px; text-align:center;
-    position:relative; overflow:hidden;
-  }
-  header::before {
-    content:''; position:absolute; top:-40px; right:-40px;
-    width:180px; height:180px; border-radius:50%;
-    background:rgba(200,169,110,0.08);
-  }
-  .header-sub { font-size:10px; color:var(--gold); letter-spacing:3px; text-transform:uppercase; margin-bottom:5px; font-weight:500; }
-  header h1 { font-family:'DM Serif Display',serif; font-size:20px; color:var(--white); font-weight:400; }
-  header h1 span { color:var(--gold); }
-  .container { width:100%; max-width:520px; padding:20px 14px 60px; }
-  .card { background:var(--white); border-radius:16px; box-shadow:var(--shadow); overflow:hidden; margin-bottom:14px; }
-  .card-header { background:var(--navy); padding:13px 18px; display:flex; align-items:center; gap:8px; }
-  .card-header .dot { width:7px; height:7px; border-radius:50%; background:var(--gold); }
-  .card-header h2 { font-size:12px; color:var(--white); font-weight:600; letter-spacing:1px; }
-  .card-body { padding:16px 18px; }
-  .form-group { margin-bottom:12px; }
-  .form-group label { display:block; font-size:11px; color:var(--gray); font-weight:500; letter-spacing:1px; margin-bottom:5px; }
-  .form-group input {
-    width:100%; padding:12px 14px;
-    border:1.5px solid var(--border); border-radius:10px;
-    font-size:16px; font-family:'Noto Sans KR',sans-serif;
-    color:var(--navy); background:var(--cream);
-    outline:none; transition:border-color 0.2s, box-shadow 0.2s;
-  }
-  .form-group input:focus { border-color:var(--gold); box-shadow:0 0 0 3px rgba(200,169,110,0.15); background:var(--white); }
-  .btn { width:100%; padding:14px; border:none; border-radius:10px; font-size:14px; font-weight:700; font-family:'Noto Sans KR',sans-serif; cursor:pointer; transition:all 0.2s; letter-spacing:0.3px; }
-  .btn-primary { background:var(--navy); color:var(--white); }
-  .btn-primary:hover { background:var(--navy-light); }
-  .btn-secondary { background:var(--light-gray); color:var(--navy); margin-top:10px; }
-  .error-msg { display:none; background:var(--red-light); border:1px solid #f5c6c2; border-radius:8px; padding:10px 14px; font-size:13px; color:var(--red); margin-top:12px; text-align:center; }
-  .error-msg.show { display:block; }
-  .loading { display:none; text-align:center; padding:28px; color:var(--gray); font-size:13px; }
-  .loading.show { display:block; }
-  .spinner { width:28px; height:28px; border:3px solid var(--light-gray); border-top-color:var(--gold); border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 10px; }
-  @keyframes spin { to { transform:rotate(360deg); } }
-  #result-section { display:none; }
-  .student-info { background:var(--navy); border-radius:14px; padding:18px; margin-bottom:14px; position:relative; overflow:hidden; }
-  .student-info::after { content:''; position:absolute; right:-20px; top:-20px; width:90px; height:90px; border-radius:50%; background:rgba(200,169,110,0.1); }
-  .student-name { font-size:22px; font-weight:700; color:var(--white); margin-bottom:3px; }
-  .student-class { font-size:12px; color:var(--gold); letter-spacing:1px; }
-  .summary-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
-  .summary-item { background:var(--white); border:1.5px solid var(--border); border-radius:12px; padding:13px; text-align:center; }
-  .summary-label { font-size:11px; color:var(--gray); margin-bottom:4px; }
-  .summary-value { font-size:18px; font-weight:700; color:var(--navy); }
-  .chart-wrap { padding:16px 18px 12px; }
-  .chart-wrap canvas { max-height:180px; }
-  .week-selector { display:flex; gap:7px; flex-wrap:wrap; }
-  .week-btn { padding:6px 13px; border:1.5px solid var(--border); border-radius:18px; font-size:12px; font-family:'Noto Sans KR',sans-serif; font-weight:500; color:var(--gray); background:var(--white); cursor:pointer; transition:all 0.15s; }
-  .week-btn:hover { border-color:var(--gold); color:var(--navy); }
-  .week-btn.active { background:var(--navy); border-color:var(--navy); color:var(--white); }
-  .score-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
-  .score-item { background:var(--light-gray); border-radius:12px; padding:13px; }
-  .score-item.total { grid-column:1/-1; background:var(--navy); display:flex; align-items:center; justify-content:space-between; padding:14px 16px; }
-  .score-label { font-size:11px; color:var(--gray); font-weight:500; margin-bottom:5px; }
-  .score-item.total .score-label { color:var(--gold); margin:0; }
-  .score-value { font-size:22px; font-weight:700; color:var(--navy); }
-  .score-item.total .score-value { color:var(--white); font-size:26px; }
-  .score-max { font-size:12px; color:var(--gray); font-weight:400; }
-  .score-item.total .score-max { color:rgba(255,255,255,0.5); font-size:13px; }
-  .meta-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
-  .meta-item { background:var(--white); border:1.5px solid var(--border); border-radius:12px; padding:13px; text-align:center; }
-  .meta-label { font-size:11px; color:var(--gray); margin-bottom:3px; }
-  .meta-value { font-size:15px; font-weight:700; color:var(--navy); }
-  .homework-card { background:var(--white); border:1.5px solid var(--border); border-radius:12px; padding:13px 16px; display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
-  .homework-label { font-size:12px; color:var(--gray); font-weight:500; margin-bottom:2px; }
-  .homework-rate { font-size:20px; font-weight:700; }
-  .homework-eval { font-size:12px; color:var(--gray); margin-top:2px; text-align:right; }
-  .notice-card { border-radius:12px; padding:13px 16px; margin-bottom:10px; display:flex; align-items:flex-start; gap:10px; }
-  .notice-card.warning { background:var(--orange-light); border:1.5px solid #fad4a8; }
-  .notice-card.danger { background:var(--red-light); border:1.5px solid #f5c6c2; }
-  .notice-icon { font-size:16px; margin-top:1px; flex-shrink:0; }
-  .notice-title { font-size:12px; font-weight:700; margin-bottom:3px; }
-  .notice-card.warning .notice-title { color:var(--orange); }
-  .notice-card.danger .notice-title { color:var(--red); }
-  .notice-body { font-size:12px; line-height:1.6; color:#555; }
-  .empty-msg { text-align:center; padding:28px; color:var(--gray); font-size:13px; }
-  footer { width:100%; text-align:center; padding:18px; font-size:11px; color:var(--gray); letter-spacing:0.5px; }
-</style>
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>용산대성N학원 [영어과] 점수 확인</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Serif+Display&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+      :root {
+        --navy: #0f1f3d;
+        --navy-light: #1a3060;
+        --gold: #c8a96e;
+        --gold-light: #e8c98e;
+        --cream: #f8f5f0;
+        --white: #ffffff;
+        --gray: #8a8a8a;
+        --light-gray: #f0ede8;
+        --border: #e8e4df;
+        --red: #c0392b;
+        --red-light: #fdf0ef;
+        --orange: #e67e22;
+        --orange-light: #fef5ec;
+        --green: #27ae60;
+        --green-light: #eafaf1;
+        --shadow: 0 4px 20px rgba(15, 31, 61, 0.1);
+        --shadow-lg: 0 8px 32px rgba(15, 31, 61, 0.14);
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: "Noto Sans KR", sans-serif;
+        background: var(--cream);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        -webkit-text-size-adjust: 100%;
+      }
+      header {
+        width: 100%;
+        background: var(--navy);
+        padding: 24px 20px 20px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+      }
+      header::before {
+        content: "";
+        position: absolute;
+        top: -40px;
+        right: -40px;
+        width: 180px;
+        height: 180px;
+        border-radius: 50%;
+        background: rgba(200, 169, 110, 0.08);
+      }
+      .header-sub {
+        font-size: 10px;
+        color: var(--gold);
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        margin-bottom: 5px;
+        font-weight: 500;
+      }
+      header h1 {
+        font-family: "DM Serif Display", serif;
+        font-size: 20px;
+        color: var(--white);
+        font-weight: 400;
+      }
+      header h1 span {
+        color: var(--gold);
+      }
+      .container {
+        width: 100%;
+        max-width: 520px;
+        padding: 20px 14px 60px;
+      }
+      .card {
+        background: var(--white);
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+        margin-bottom: 14px;
+      }
+      .card-header {
+        background: var(--navy);
+        padding: 13px 18px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .card-header .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--gold);
+      }
+      .card-header h2 {
+        font-size: 12px;
+        color: var(--white);
+        font-weight: 600;
+        letter-spacing: 1px;
+      }
+      .card-body {
+        padding: 16px 18px;
+      }
+      .form-group {
+        margin-bottom: 12px;
+      }
+      .form-group label {
+        display: block;
+        font-size: 11px;
+        color: var(--gray);
+        font-weight: 500;
+        letter-spacing: 1px;
+        margin-bottom: 5px;
+      }
+      .form-group input {
+        width: 100%;
+        padding: 12px 14px;
+        border: 1.5px solid var(--border);
+        border-radius: 10px;
+        font-size: 16px;
+        font-family: "Noto Sans KR", sans-serif;
+        color: var(--navy);
+        background: var(--cream);
+        outline: none;
+        transition:
+          border-color 0.2s,
+          box-shadow 0.2s;
+      }
+      .form-group input:focus {
+        border-color: var(--gold);
+        box-shadow: 0 0 0 3px rgba(200, 169, 110, 0.15);
+        background: var(--white);
+      }
+      .btn {
+        width: 100%;
+        padding: 14px;
+        border: none;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 700;
+        font-family: "Noto Sans KR", sans-serif;
+        cursor: pointer;
+        transition: all 0.2s;
+        letter-spacing: 0.3px;
+      }
+      .btn-primary {
+        background: var(--navy);
+        color: var(--white);
+      }
+      .btn-primary:hover {
+        background: var(--navy-light);
+      }
+      .btn-secondary {
+        background: var(--light-gray);
+        color: var(--navy);
+        margin-top: 10px;
+      }
+      .error-msg {
+        display: none;
+        background: var(--red-light);
+        border: 1px solid #f5c6c2;
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 13px;
+        color: var(--red);
+        margin-top: 12px;
+        text-align: center;
+      }
+      .error-msg.show {
+        display: block;
+      }
+      .loading {
+        display: none;
+        text-align: center;
+        padding: 28px;
+        color: var(--gray);
+        font-size: 13px;
+      }
+      .loading.show {
+        display: block;
+      }
+      .spinner {
+        width: 28px;
+        height: 28px;
+        border: 3px solid var(--light-gray);
+        border-top-color: var(--gold);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        margin: 0 auto 10px;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      #result-section {
+        display: none;
+      }
+      .student-info {
+        background: var(--navy);
+        border-radius: 14px;
+        padding: 18px;
+        margin-bottom: 14px;
+        position: relative;
+        overflow: hidden;
+      }
+      .student-info::after {
+        content: "";
+        position: absolute;
+        right: -20px;
+        top: -20px;
+        width: 90px;
+        height: 90px;
+        border-radius: 50%;
+        background: rgba(200, 169, 110, 0.1);
+      }
+      .student-name {
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--white);
+        margin-bottom: 3px;
+      }
+      .student-class {
+        font-size: 12px;
+        color: var(--gold);
+        letter-spacing: 1px;
+      }
+      .summary-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+      .summary-item {
+        background: var(--white);
+        border: 1.5px solid var(--border);
+        border-radius: 12px;
+        padding: 13px;
+        text-align: center;
+      }
+      .summary-label {
+        font-size: 11px;
+        color: var(--gray);
+        margin-bottom: 4px;
+      }
+      .summary-value {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--navy);
+      }
+      .chart-wrap {
+        padding: 16px 18px 12px;
+      }
+      .chart-wrap canvas {
+        max-height: 180px;
+      }
+      .week-selector {
+        display: flex;
+        gap: 7px;
+        flex-wrap: wrap;
+      }
+      .week-btn {
+        padding: 6px 13px;
+        border: 1.5px solid var(--border);
+        border-radius: 18px;
+        font-size: 12px;
+        font-family: "Noto Sans KR", sans-serif;
+        font-weight: 500;
+        color: var(--gray);
+        background: var(--white);
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .week-btn:hover {
+        border-color: var(--gold);
+        color: var(--navy);
+      }
+      .week-btn.active {
+        background: var(--navy);
+        border-color: var(--navy);
+        color: var(--white);
+      }
+      .score-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+      .score-item {
+        background: var(--light-gray);
+        border-radius: 12px;
+        padding: 13px;
+      }
+      .score-item.total {
+        grid-column: 1/-1;
+        background: var(--navy);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 16px;
+      }
+      .score-label {
+        font-size: 11px;
+        color: var(--gray);
+        font-weight: 500;
+        margin-bottom: 5px;
+      }
+      .score-item.total .score-label {
+        color: var(--gold);
+        margin: 0;
+      }
+      .score-value {
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--navy);
+      }
+      .score-item.total .score-value {
+        color: var(--white);
+        font-size: 26px;
+      }
+      .score-max {
+        font-size: 12px;
+        color: var(--gray);
+        font-weight: 400;
+      }
+      .score-item.total .score-max {
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 13px;
+      }
+      .meta-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+      .meta-item {
+        background: var(--white);
+        border: 1.5px solid var(--border);
+        border-radius: 12px;
+        padding: 13px;
+        text-align: center;
+      }
+      .meta-label {
+        font-size: 11px;
+        color: var(--gray);
+        margin-bottom: 3px;
+      }
+      .meta-value {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--navy);
+      }
+      .homework-card {
+        background: var(--white);
+        border: 1.5px solid var(--border);
+        border-radius: 12px;
+        padding: 13px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+      .homework-label {
+        font-size: 12px;
+        color: var(--gray);
+        font-weight: 500;
+        margin-bottom: 2px;
+      }
+      .homework-rate {
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .homework-eval {
+        font-size: 12px;
+        color: var(--gray);
+        margin-top: 2px;
+        text-align: right;
+      }
+      .notice-card {
+        border-radius: 12px;
+        padding: 13px 16px;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+      }
+      .notice-card.warning {
+        background: var(--orange-light);
+        border: 1.5px solid #fad4a8;
+      }
+      .notice-card.danger {
+        background: var(--red-light);
+        border: 1.5px solid #f5c6c2;
+      }
+      .notice-icon {
+        font-size: 16px;
+        margin-top: 1px;
+        flex-shrink: 0;
+      }
+      .notice-title {
+        font-size: 12px;
+        font-weight: 700;
+        margin-bottom: 3px;
+      }
+      .notice-card.warning .notice-title {
+        color: var(--orange);
+      }
+      .notice-card.danger .notice-title {
+        color: var(--red);
+      }
+      .notice-body {
+        font-size: 12px;
+        line-height: 1.6;
+        color: #555;
+      }
+      .empty-msg {
+        text-align: center;
+        padding: 28px;
+        color: var(--gray);
+        font-size: 13px;
+      }
+      footer {
+        width: 100%;
+        text-align: center;
+        padding: 18px;
+        font-size: 11px;
+        color: var(--gray);
+        letter-spacing: 0.5px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <p class="header-sub">Yongsan Daesung N Academy</p>
+      <h1>영어과 <span>점수 확인</span></h1>
+    </header>
 
-<header>
-  <p class="header-sub">Yongsan Daesung N Academy</p>
-  <h1>영어과 <span>점수 확인</span></h1>
-</header>
-
-<div class="container">
-
-  <div id="login-section">
-    <div class="card">
-      <div class="card-header"><div class="dot"></div><h2>학생 로그인</h2></div>
-      <div class="card-body">
-        <div class="form-group">
-          <label>학생 이름</label>
-          <input type="text" id="input-name" placeholder="이름을 입력하세요" autocomplete="off" lang="ko" inputmode="text">
+    <div class="container">
+      <div id="login-section">
+        <div class="card">
+          <div class="card-header">
+            <div class="dot"></div>
+            <h2>학생 로그인</h2>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label>학생 이름</label>
+              <input
+                type="text"
+                id="input-name"
+                placeholder="이름을 입력하세요"
+                autocomplete="off"
+                lang="ko"
+                inputmode="text"
+              />
+            </div>
+            <div class="form-group">
+              <label>학부모 연락처 뒷 4자리</label>
+              <input
+                type="password"
+                id="input-pin"
+                placeholder="숫자 4자리"
+                maxlength="4"
+                inputmode="numeric"
+              />
+            </div>
+            <button class="btn btn-primary" onclick="login()">
+              점수 확인하기
+            </button>
+            <div class="error-msg" id="error-msg">
+              이름 또는 PIN이 올바르지 않습니다.
+            </div>
+          </div>
         </div>
-        <div class="form-group">
-          <label>학부모 연락처 뒷 4자리</label>
-          <input type="password" id="input-pin" placeholder="숫자 4자리" maxlength="4" inputmode="numeric">
+        <div class="loading" id="login-loading">
+          <div class="spinner"></div>
+          확인 중...
         </div>
-        <button class="btn btn-primary" onclick="login()">점수 확인하기</button>
-        <div class="error-msg" id="error-msg">이름 또는 PIN이 올바르지 않습니다.</div>
+      </div>
+
+      <div id="result-section">
+        <div class="student-info">
+          <div class="student-name" id="result-name"></div>
+          <div class="student-class" id="result-class"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="dot"></div>
+            <h2>주차 선택</h2>
+          </div>
+          <div class="card-body">
+            <div class="week-selector" id="week-selector"></div>
+          </div>
+        </div>
+
+        <div id="score-content">
+          <div class="empty-msg">주차를 선택해주세요.</div>
+        </div>
+
+        <div id="mock-score-section" style="display: none"></div>
+
+        <div class="summary-grid" id="summary-grid" style="display: none">
+          <div class="summary-item">
+            <div class="summary-label">누적 평균</div>
+            <div class="summary-value" id="cum-avg">-</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-label">최고 점수</div>
+            <div class="summary-value" id="cum-best">-</div>
+          </div>
+        </div>
+
+        <div class="card" id="chart-card" style="display: none">
+          <div class="card-header">
+            <div class="dot"></div>
+            <h2>점수 추이</h2>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="score-chart"></canvas>
+          </div>
+        </div>
+
+        <button class="btn btn-secondary" onclick="logout()">
+          ← 다른 학생 조회
+        </button>
       </div>
     </div>
-    <div class="loading" id="login-loading">
-      <div class="spinner"></div>확인 중...
-    </div>
-  </div>
 
-  <div id="result-section">
-    <div class="student-info">
-      <div class="student-name" id="result-name"></div>
-      <div class="student-class" id="result-class"></div>
-    </div>
+    <footer>© 용산대성N학원 영어과</footer>
 
-    <div class="card">
-      <div class="card-header"><div class="dot"></div><h2>주차 선택</h2></div>
-      <div class="card-body">
-        <div class="week-selector" id="week-selector"></div>
-      </div>
-    </div>
+    <script>
+      const SUPABASE_URL = "https://rcpzinsdocmpnfxkfbil.supabase.co";
+      const ANON_KEY =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjcHppbnNkb2NtcG5meGtmYmlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwMzM2NzksImV4cCI6MjA5NTYwOTY3OX0.f_HsTsM4_z2qKeMtIXZ0G8vRuXFmHkXomIdQzFFXHb0";
+      const PARENT_LOGIN_URL =
+        "https://rcpzinsdocmpnfxkfbil.supabase.co/functions/v1/parent-login";
 
-    <div id="score-content">
-      <div class="empty-msg">주차를 선택해주세요.</div>
-    </div>
+      let currentStudent = null;
+      let currentWeeks = [];
+      let allScores = [];
+      let chartInstance = null;
+      let loginData = null; // parent-login이 반환한 전체 데이터 묶음
 
-    <div id="mock-score-section" style="display:none"></div>
+      async function login() {
+        const name = document.getElementById("input-name").value.trim();
+        const pin = document.getElementById("input-pin").value.trim();
+        const err = document.getElementById("error-msg");
+        const load = document.getElementById("login-loading");
+        err.classList.remove("show");
+        if (!name || !pin) {
+          err.textContent = "이름과 PIN을 모두 입력해주세요.";
+          err.classList.add("show");
+          return;
+        }
+        load.classList.add("show");
+        try {
+          const res = await fetch(PARENT_LOGIN_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${ANON_KEY}`,
+            },
+            body: JSON.stringify({ name, pin }),
+          });
+          if (res.status === 401) {
+            err.textContent = "이름 또는 PIN이 올바르지 않습니다.";
+            err.classList.add("show");
+            return;
+          }
+          if (!res.ok) {
+            err.textContent = "오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
+            err.classList.add("show");
+            return;
+          }
+          loginData = await res.json();
+          currentStudent = loginData.student;
+          await showResult();
+        } catch (e) {
+          err.textContent = "오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
+          err.classList.add("show");
+        } finally {
+          load.classList.remove("show");
+        }
+      }
 
-    <div class="summary-grid" id="summary-grid" style="display:none">
-      <div class="summary-item">
-        <div class="summary-label">누적 평균</div>
-        <div class="summary-value" id="cum-avg">-</div>
-      </div>
-      <div class="summary-item">
-        <div class="summary-label">최고 점수</div>
-        <div class="summary-value" id="cum-best">-</div>
-      </div>
-    </div>
+      function showChartAndSummary() {
+        if (allScores.length > 0) {
+          document.getElementById("summary-grid").style.display = "grid";
+          document.getElementById("chart-card").style.display = "block";
+        }
+      }
 
-    <div class="card" id="chart-card" style="display:none">
-      <div class="card-header"><div class="dot"></div><h2>점수 추이</h2></div>
-      <div class="chart-wrap">
-        <canvas id="score-chart"></canvas>
-      </div>
-    </div>
+      function hideChartAndSummary() {
+        document.getElementById("summary-grid").style.display = "none";
+        document.getElementById("chart-card").style.display = "none";
+      }
 
-    <button class="btn btn-secondary" onclick="logout()">← 다른 학생 조회</button>
-  </div>
+      async function showResult() {
+        document.getElementById("login-section").style.display = "none";
+        document.getElementById("result-section").style.display = "block";
+        document.getElementById("result-name").textContent =
+          currentStudent.name;
+        document.getElementById("result-class").textContent =
+          currentStudent.classes?.name || "";
 
-</div>
+        currentWeeks = loginData.weeks || [];
+        allScores = loginData.myScores || [];
 
-<footer>© 용산대성N학원 영어과</footer>
+        if (allScores.length > 0) {
+          const totals = allScores
+            .map((s) => s.total_score)
+            .filter((v) => v !== null);
+          const avg = totals.length
+            ? (totals.reduce((a, b) => a + b, 0) / totals.length).toFixed(1)
+            : "-";
+          const best = totals.length ? Math.max(...totals) : "-";
+          document.getElementById("cum-avg").textContent =
+            avg + (avg !== "-" ? "점" : "");
+          document.getElementById("cum-best").textContent =
+            best + (best !== "-" ? "점" : "");
+          showChartAndSummary();
+          renderChart();
+        }
 
-<script>
-const SUPABASE_URL = 'https://rcpzinsdocmpnfxkfbil.supabase.co';
-const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjcHppbnNkb2NtcG5meGtmYmlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwMzM2NzksImV4cCI6MjA5NTYwOTY3OX0.f_HsTsM4_z2qKeMtIXZ0G8vRuXFmHkXomIdQzFFXHb0';
-const PARENT_LOGIN_URL = 'https://rcpzinsdocmpnfxkfbil.supabase.co/functions/v1/parent-login';
+        const selector = document.getElementById("week-selector");
+        selector.innerHTML = "";
+        if (!currentWeeks.length) {
+          selector.innerHTML =
+            '<span style="font-size:13px;color:#8a8a8a">등록된 주차가 없습니다.</span>';
+          return;
+        }
 
-let currentStudent = null;
-let currentWeeks = [];
-let allScores = [];
-let chartInstance = null;
-let loginData = null; // parent-login이 반환한 전체 데이터 묶음
+        currentWeeks
+          .slice()
+          .reverse()
+          .forEach((w, i) => {
+            const btn = document.createElement("button");
+            btn.className = "week-btn" + (i === 0 ? " active" : "");
+            btn.textContent = w.label || w.test_date;
+            btn.onclick = () => {
+              document.querySelectorAll(".week-btn").forEach((b) => {
+                b.classList.remove("active");
+                if (b.dataset.mock)
+                  b.style.cssText = "border-color:#c8a96e;color:#c8a96e;";
+              });
+              btn.classList.add("active");
+              document.getElementById("score-content").style.display = "block";
+              document.getElementById("mock-score-section").style.display =
+                "none";
+              showChartAndSummary();
+              loadScore(w.id);
+            };
+            selector.appendChild(btn);
+          });
 
-async function login() {
-  const name = document.getElementById('input-name').value.trim();
-  const pin  = document.getElementById('input-pin').value.trim();
-  const err  = document.getElementById('error-msg');
-  const load = document.getElementById('login-loading');
-  err.classList.remove('show');
-  if (!name || !pin) { err.textContent = '이름과 PIN을 모두 입력해주세요.'; err.classList.add('show'); return; }
-  load.classList.add('show');
-  try {
-    const res = await fetch(PARENT_LOGIN_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
-      body: JSON.stringify({ name, pin })
-    });
-    if (res.status === 401) { err.textContent = '이름 또는 PIN이 올바르지 않습니다.'; err.classList.add('show'); return; }
-    if (!res.ok) { err.textContent = '오류가 발생했습니다. 잠시 후 다시 시도해주세요.'; err.classList.add('show'); return; }
-    loginData = await res.json();
-    currentStudent = loginData.student;
-    await showResult();
-  } catch(e) {
-    err.textContent = '오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
-    err.classList.add('show');
-  } finally { load.classList.remove('show'); }
-}
+        addMockButtons(selector);
 
-function showChartAndSummary() {
-  if (allScores.length > 0) {
-    document.getElementById('summary-grid').style.display = 'grid';
-    document.getElementById('chart-card').style.display = 'block';
-  }
-}
+        const latestWeek = currentWeeks[currentWeeks.length - 1];
+        if (latestWeek) loadScore(latestWeek.id);
+      }
 
-function hideChartAndSummary() {
-  document.getElementById('summary-grid').style.display = 'none';
-  document.getElementById('chart-card').style.display = 'none';
-}
+      function addMockButtons(selector) {
+        const exams = loginData.exams || [];
+        if (!exams.length) return;
 
-async function showResult() {
-  document.getElementById('login-section').style.display = 'none';
-  document.getElementById('result-section').style.display = 'block';
-  document.getElementById('result-name').textContent = currentStudent.name;
-  document.getElementById('result-class').textContent = currentStudent.classes?.name || '';
+        window._mockScoreMap = {};
+        (loginData.myMockScores || []).forEach((s) => {
+          window._mockScoreMap[s.exam_id] = s;
+        });
 
-  currentWeeks = loginData.weeks || [];
-  allScores = loginData.myScores || [];
+        exams.forEach((e) => {
+          const btn = document.createElement("button");
+          btn.className = "week-btn";
+          btn.textContent = e.label || e.exam_date;
+          btn.style.cssText = "border-color:#c8a96e;color:#c8a96e;";
+          btn.onclick = () => {
+            document.querySelectorAll(".week-btn").forEach((b) => {
+              b.classList.remove("active");
+              if (b.dataset.mock)
+                b.style.cssText = "border-color:#c8a96e;color:#c8a96e;";
+            });
+            btn.classList.add("active");
+            btn.style.cssText = "";
+            document.getElementById("score-content").style.display = "none";
+            document.getElementById("mock-score-section").style.display =
+              "none";
+            hideChartAndSummary();
+            showMockScore(e.id);
+          };
+          btn.dataset.mock = "1";
+          selector.appendChild(btn);
+        });
+      }
 
-  if (allScores.length > 0) {
-    const totals = allScores.map(s => s.total_score).filter(v => v !== null);
-    const avg = totals.length ? (totals.reduce((a,b)=>a+b,0)/totals.length).toFixed(1) : '-';
-    const best = totals.length ? Math.max(...totals) : '-';
-    document.getElementById('cum-avg').textContent = avg + (avg !== '-' ? '점' : '');
-    document.getElementById('cum-best').textContent = best + (best !== '-' ? '점' : '');
-    showChartAndSummary();
-    renderChart();
-  }
+      async function showMockScore(examId) {
+        const s = window._mockScoreMap?.[examId];
+        const section = document.getElementById("mock-score-section");
+        section.style.display = "block";
+        if (!s || s.score === null || s.score === undefined) {
+          section.innerHTML =
+            '<div class="empty-msg">해당 모의고사에 응시하지 않았습니다.</div>';
+          return;
+        }
 
-  const selector = document.getElementById('week-selector');
-  selector.innerHTML = '';
-  if (!currentWeeks.length) {
-    selector.innerHTML = '<span style="font-size:13px;color:#8a8a8a">등록된 주차가 없습니다.</span>';
-    return;
-  }
+        // group_id가 있으면 같은 학년 전체 기준으로 평균/석차 계산
+        const examInfo = (loginData.exams || []).find((e) => e.id === examId);
+        const groupId = examInfo?.group_id;
 
-  currentWeeks.slice().reverse().forEach((w, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'week-btn' + (i === 0 ? ' active' : '');
-    btn.textContent = w.label || w.test_date;
-    btn.onclick = () => {
-      document.querySelectorAll('.week-btn').forEach(b => {
-        b.classList.remove('active');
-        if (b.dataset.mock) b.style.cssText = 'border-color:#c8a96e;color:#c8a96e;';
-      });
-      btn.classList.add('active');
-      document.getElementById('score-content').style.display = 'block';
-      document.getElementById('mock-score-section').style.display = 'none';
-      showChartAndSummary();
-      loadScore(w.id);
-    };
-    selector.appendChild(btn);
-  });
+        let rankExamIds;
+        if (
+          groupId &&
+          loginData.mockGroupExamMap &&
+          loginData.mockGroupExamMap[groupId]
+        ) {
+          rankExamIds = new Set(loginData.mockGroupExamMap[groupId]);
+        } else {
+          rankExamIds = new Set([examId]);
+        }
+        const allMockScores = (loginData.mockRankScores || []).filter((x) =>
+          rankExamIds.has(x.exam_id),
+        );
 
-  addMockButtons(selector);
+        const validScores = allMockScores
+          .map((x) => x.score)
+          .filter((x) => x !== null && x > 0);
+        const avg = validScores.length
+          ? (
+              validScores.reduce((a, b) => a + b, 0) / validScores.length
+            ).toFixed(1)
+          : null;
 
-  const latestWeek = currentWeeks[currentWeeks.length - 1];
-  if (latestWeek) loadScore(latestWeek.id);
-}
+        // 석차 계산
+        const sorted = validScores.slice().sort((a, b) => b - a);
+        const rank =
+          s.score > 0 ? sorted.findIndex((v) => v === s.score) + 1 : "-";
 
-function addMockButtons(selector) {
-  const exams = loginData.exams || [];
-  if (!exams.length) return;
-
-  window._mockScoreMap = {};
-  (loginData.myMockScores || []).forEach(s => { window._mockScoreMap[s.exam_id] = s; });
-
-  exams.forEach(e => {
-    const btn = document.createElement('button');
-    btn.className = 'week-btn';
-    btn.textContent = e.label || e.exam_date;
-    btn.style.cssText = 'border-color:#c8a96e;color:#c8a96e;';
-    btn.onclick = () => {
-      document.querySelectorAll('.week-btn').forEach(b => {
-        b.classList.remove('active');
-        if (b.dataset.mock) b.style.cssText = 'border-color:#c8a96e;color:#c8a96e;';
-      });
-      btn.classList.add('active');
-      btn.style.cssText = '';
-      document.getElementById('score-content').style.display = 'none';
-      document.getElementById('mock-score-section').style.display = 'none';
-      hideChartAndSummary();
-      showMockScore(e.id);
-    };
-    btn.dataset.mock = '1';
-    selector.appendChild(btn);
-  });
-}
-
-async function showMockScore(examId) {
-  const s = window._mockScoreMap?.[examId];
-  const section = document.getElementById('mock-score-section');
-  section.style.display = 'block';
-  if (!s || s.score === null || s.score === undefined) {
-    section.innerHTML = '<div class="empty-msg">해당 모의고사에 응시하지 않았습니다.</div>';
-    return;
-  }
-
-  // group_id가 있으면 같은 학년 전체 기준으로 평균/석차 계산
-  const examInfo = (loginData.exams || []).find(e => e.id === examId);
-  const groupId = examInfo?.group_id;
-
-  let rankExamIds;
-  if (groupId && loginData.mockGroupExamMap && loginData.mockGroupExamMap[groupId]) {
-    rankExamIds = new Set(loginData.mockGroupExamMap[groupId]);
-  } else {
-    rankExamIds = new Set([examId]);
-  }
-  const allMockScores = (loginData.mockRankScores || []).filter(x => rankExamIds.has(x.exam_id));
-
-  const validScores = allMockScores.map(x => x.score).filter(x => x !== null && x > 0);
-  const avg = validScores.length ? (validScores.reduce((a,b) => a+b, 0) / validScores.length).toFixed(1) : null;
-
-  // 석차 계산
-  const sorted = validScores.slice().sort((a,b) => b-a);
-  const rank = s.score > 0 ? sorted.findIndex(v => v === s.score) + 1 : '-';
-
-  section.innerHTML = `
+        section.innerHTML = `
     <div class="card">
       <div class="card-header"><div class="dot"></div><h2>모의고사 점수</h2></div>
       <div class="card-body">
@@ -359,109 +757,148 @@ async function showMockScore(examId) {
         <div class="meta-grid">
           <div class="meta-item">
             <div class="meta-label">평균</div>
-            <div class="meta-value">${avg ? avg + '점' : '-'}</div>
+            <div class="meta-value">${avg ? avg + "점" : "-"}</div>
           </div>
           <div class="meta-item">
             <div class="meta-label">석차</div>
-            <div class="meta-value">${rank !== '-' ? rank + '등' : '-'}</div>
+            <div class="meta-value">${rank !== "-" ? rank + "등" : "-"}</div>
           </div>
           <div class="meta-item">
             <div class="meta-label">응시 인원</div>
             <div class="meta-value">${validScores.length}명</div>
           </div>
         </div>
-        ${s.memo ? `<div style="margin-top:6px;font-size:13px;color:var(--gray)">${s.memo}</div>` : ''}
+        ${s.memo ? `<div style="margin-top:6px;font-size:13px;color:var(--gray)">${s.memo}</div>` : ""}
       </div>
     </div>`;
-}
-
-function renderChart() {
-  const card = document.getElementById('chart-card');
-  card.style.display = 'block';
-  const scoreMap = {};
-  allScores.forEach(s => { scoreMap[s.week_id] = s.total_score; });
-  const labels = currentWeeks.map(w => w.label || w.test_date);
-  const data   = currentWeeks.map(w => scoreMap[w.id] ?? null);
-  if (chartInstance) chartInstance.destroy();
-  const ctx = document.getElementById('score-chart').getContext('2d');
-  chartInstance = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [{
-        label: '총점',
-        data,
-        borderColor: '#c8a96e',
-        backgroundColor: 'rgba(200,169,110,0.12)',
-        borderWidth: 2.5,
-        pointBackgroundColor: '#0f1f3d',
-        pointRadius: 5,
-        pointHoverRadius: 7,
-        tension: 0.35,
-        fill: true,
-        spanGaps: true
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: ctx => `${ctx.parsed.y}점` } }
-      },
-      scales: {
-        y: { min:0, max:100, ticks:{ font:{size:11}, color:'#8a8a8a' }, grid:{ color:'rgba(0,0,0,0.05)' } },
-        x: { ticks:{ font:{size:11}, color:'#8a8a8a' }, grid:{ display:false } }
       }
-    }
-  });
-}
 
-async function loadScore(weekId) {
-  const content = document.getElementById('score-content');
-  content.innerHTML = '<div class="loading show"><div class="spinner"></div>불러오는 중...</div>';
-  try {
-    const scoreData = allScores.find(s => s.week_id === weekId);
+      function renderChart() {
+        const card = document.getElementById("chart-card");
+        card.style.display = "block";
+        const scoreMap = {};
+        allScores.forEach((s) => {
+          scoreMap[s.week_id] = s.total_score;
+        });
+        const labels = currentWeeks.map((w) => w.label || w.test_date);
+        const data = currentWeeks.map((w) => scoreMap[w.id] ?? null);
+        if (chartInstance) chartInstance.destroy();
+        const ctx = document.getElementById("score-chart").getContext("2d");
+        chartInstance = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels,
+            datasets: [
+              {
+                label: "총점",
+                data,
+                borderColor: "#c8a96e",
+                backgroundColor: "rgba(200,169,110,0.12)",
+                borderWidth: 2.5,
+                pointBackgroundColor: "#0f1f3d",
+                pointRadius: 5,
+                pointHoverRadius: 7,
+                tension: 0.35,
+                fill: true,
+                spanGaps: true,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { label: (ctx) => `${ctx.parsed.y}점` } },
+            },
+            scales: {
+              y: {
+                min: 0,
+                max: 100,
+                ticks: { font: { size: 11 }, color: "#8a8a8a" },
+                grid: { color: "rgba(0,0,0,0.05)" },
+              },
+              x: {
+                ticks: { font: { size: 11 }, color: "#8a8a8a" },
+                grid: { display: false },
+              },
+            },
+          },
+        });
+      }
 
-    if (!scoreData) {
-      content.innerHTML = '<div class="empty-msg">해당 주차 점수가 아직 입력되지 않았습니다.</div>';
-      return;
-    }
+      async function loadScore(weekId) {
+        const content = document.getElementById("score-content");
+        content.innerHTML =
+          '<div class="loading show"><div class="spinner"></div>불러오는 중...</div>';
+        try {
+          const scoreData = allScores.find((s) => s.week_id === weekId);
 
-    const s = scoreData;
-    let rank = '-', total_students = '-';
+          if (!scoreData) {
+            content.innerHTML =
+              '<div class="empty-msg">해당 주차 점수가 아직 입력되지 않았습니다.</div>';
+            return;
+          }
 
-    // group_id가 있으면 같은 그룹 전체, 없으면 해당 주차만 기준으로 평균/석차 계산
-    const weekInfo = (currentWeeks || []).find(w => w.id === weekId);
-    const groupId = weekInfo?.group_id;
+          const s = scoreData;
+          let rank = "-",
+            total_students = "-";
 
-    let rankWeekIds;
-    if (groupId && loginData.groupWeekMap && loginData.groupWeekMap[groupId]) {
-      rankWeekIds = new Set(loginData.groupWeekMap[groupId]);
-    } else {
-      rankWeekIds = new Set([weekId]);
-    }
-    const scoresForRank = (loginData.rankScores || []).filter(x => rankWeekIds.has(x.week_id));
+          // group_id가 있으면 같은 그룹 전체, 없으면 해당 주차만 기준으로 평균/석차 계산
+          const weekInfo = (currentWeeks || []).find((w) => w.id === weekId);
+          const groupId = weekInfo?.group_id;
 
-    const sorted = scoresForRank.map(x => x.total_score).filter(x => x !== null).sort((a,b) => b-a);
-    total_students = sorted.length;
-    rank = s.total_score !== null ? sorted.findIndex(v => v === s.total_score) + 1 : '-';
+          let rankWeekIds;
+          if (
+            groupId &&
+            loginData.groupWeekMap &&
+            loginData.groupWeekMap[groupId]
+          ) {
+            rankWeekIds = new Set(loginData.groupWeekMap[groupId]);
+          } else {
+            rankWeekIds = new Set([weekId]);
+          }
+          const scoresForRank = (loginData.rankScores || []).filter((x) =>
+            rankWeekIds.has(x.week_id),
+          );
 
-    // 평균 계산
-    let displayAvg = '-';
-    const totals = scoresForRank.map(x => x.total_score).filter(x => x !== null);
-    if (totals.length > 0) {
-      displayAvg = (totals.reduce((a,b) => a+b, 0) / totals.length).toFixed(1) + '점';
-    }
+          const sorted = scoresForRank
+            .map((x) => x.total_score)
+            .filter((x) => x !== null)
+            .sort((a, b) => b - a);
+          total_students = sorted.length;
+          rank =
+            s.total_score !== null
+              ? sorted.findIndex((v) => v === s.total_score) + 1
+              : "-";
 
-    // homework_rate가 null이면 미기재 처리
-    const hwNull = s.homework_rate === null || s.homework_rate === undefined;
-    const hwRate = hwNull ? null : s.homework_rate;
-    const hwColor = hwRate === null ? '#8a8a8a' : hwRate >= 90 ? '#27ae60' : hwRate >= 70 ? '#e67e22' : '#c0392b';
-    const hwDisplay = hwRate === null ? '미기재' : hwRate + '%';
+          // 평균 계산
+          let displayAvg = "-";
+          const totals = scoresForRank
+            .map((x) => x.total_score)
+            .filter((x) => x !== null);
+          if (totals.length > 0) {
+            displayAvg =
+              (totals.reduce((a, b) => a + b, 0) / totals.length).toFixed(1) +
+              "점";
+          }
 
-    let noticeHtml = '';
-    if (hwNull) {
-      noticeHtml = `
+          // homework_rate가 null이면 미기재 처리
+          const hwNull =
+            s.homework_rate === null || s.homework_rate === undefined;
+          const hwRate = hwNull ? null : s.homework_rate;
+          const hwColor =
+            hwRate === null
+              ? "#8a8a8a"
+              : hwRate >= 90
+                ? "#27ae60"
+                : hwRate >= 70
+                  ? "#e67e22"
+                  : "#c0392b";
+          const hwDisplay = hwRate === null ? "미기재" : hwRate + "%";
+
+          let noticeHtml = "";
+          if (hwNull) {
+            noticeHtml = `
         <div class="notice-card danger">
           <div class="notice-icon">⚠️</div>
           <div>
@@ -469,8 +906,8 @@ async function loadScore(weekId) {
             <div class="notice-body">이번 과제가 제출되지 않았습니다.<br>토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.<br>미인증 시 <strong>일요일</strong> 보충수업이 실시됩니다.</div>
           </div>
         </div>`;
-    } else if (hwRate === 0) {
-      noticeHtml = `
+          } else if (hwRate === 0) {
+            noticeHtml = `
         <div class="notice-card danger">
           <div class="notice-icon">⚠️</div>
           <div>
@@ -478,8 +915,8 @@ async function loadScore(weekId) {
             <div class="notice-body">이번 과제 수행이 전혀 되지 않았습니다.<br>토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.<br>미인증 시 <strong>일요일</strong> 보충수업이 실시됩니다.</div>
           </div>
         </div>`;
-    } else if (hwRate < 80) {
-      noticeHtml = `
+          } else if (hwRate < 80) {
+            noticeHtml = `
         <div class="notice-card danger">
           <div class="notice-icon">📋</div>
           <div>
@@ -487,8 +924,8 @@ async function loadScore(weekId) {
             <div class="notice-body">이번 과제 수행이 미흡합니다.<br>토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.<br>미인증 시 <strong>일요일</strong> 보충수업이 실시됩니다.</div>
           </div>
         </div>`;
-    } else if (hwRate < 100) {
-      noticeHtml = `
+          } else if (hwRate < 100) {
+            noticeHtml = `
         <div class="notice-card warning">
           <div class="notice-icon">📝</div>
           <div>
@@ -496,8 +933,8 @@ async function loadScore(weekId) {
             <div class="notice-body">빠진 부분은 토요일까지 완료 후 영어알림톡으로 인증해 주세요.<br>보충수업은 과제 미인증 및 개별 안내 학생을 대상으로 <strong>일요일</strong>에 실시됩니다.</div>
           </div>
         </div>`;
-    } else {
-      noticeHtml = `
+          } else {
+            noticeHtml = `
         <div class="notice-card" style="background:var(--green-light);border:1.5px solid #b7efd1">
           <div class="notice-icon">✅</div>
           <div>
@@ -505,9 +942,9 @@ async function loadScore(weekId) {
             <div class="notice-body">이번 주 과제를 모두 완료했습니다.<br>보충수업은 과제 미인증 및 개별 안내 학생을 대상으로 <strong>일요일</strong>에 실시됩니다.</div>
           </div>
         </div>`;
-    }
+          }
 
-    content.innerHTML = `
+          content.innerHTML = `
       <div class="card">
         <div class="card-header"><div class="dot"></div><h2>점수 결과</h2></div>
         <div class="card-body">
@@ -549,29 +986,42 @@ async function loadScore(weekId) {
           ${noticeHtml}
         </div>
       </div>`;
-  } catch(e) {
-    content.innerHTML = '<div class="empty-msg">데이터를 불러오는 중 오류가 발생했습니다.</div>';
-  }
-}
+        } catch (e) {
+          content.innerHTML =
+            '<div class="empty-msg">데이터를 불러오는 중 오류가 발생했습니다.</div>';
+        }
+      }
 
-function logout() {
-  currentStudent = null; currentWeeks = []; allScores = []; loginData = null;
-  window._mockScoreMap = {};
-  if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
-  document.getElementById('result-section').style.display = 'none';
-  document.getElementById('login-section').style.display = 'block';
-  document.getElementById('summary-grid').style.display = 'none';
-  document.getElementById('chart-card').style.display = 'none';
-  document.getElementById('mock-score-section').style.display = 'none';
-  document.getElementById('mock-score-section').innerHTML = '';
-  document.getElementById('input-name').value = '';
-  document.getElementById('input-pin').value = '';
-  document.getElementById('error-msg').classList.remove('show');
-}
+      function logout() {
+        currentStudent = null;
+        currentWeeks = [];
+        allScores = [];
+        loginData = null;
+        window._mockScoreMap = {};
+        if (chartInstance) {
+          chartInstance.destroy();
+          chartInstance = null;
+        }
+        document.getElementById("result-section").style.display = "none";
+        document.getElementById("login-section").style.display = "block";
+        document.getElementById("summary-grid").style.display = "none";
+        document.getElementById("chart-card").style.display = "none";
+        document.getElementById("mock-score-section").style.display = "none";
+        document.getElementById("mock-score-section").innerHTML = "";
+        document.getElementById("input-name").value = "";
+        document.getElementById("input-pin").value = "";
+        document.getElementById("error-msg").classList.remove("show");
+      }
 
-document.getElementById('input-pin').addEventListener('keydown', e => { if(e.key==='Enter') login(); });
-document.getElementById('input-name').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('input-pin').focus(); });
-window.addEventListener('load', () => { document.getElementById('input-name').focus(); });
-</script>
-</body>
+      document.getElementById("input-pin").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") login();
+      });
+      document.getElementById("input-name").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") document.getElementById("input-pin").focus();
+      });
+      window.addEventListener("load", () => {
+        document.getElementById("input-name").focus();
+      });
+    </script>
+  </body>
 </html>
