@@ -214,6 +214,20 @@
           <div class="item-config-editor" id="item-config-editor"></div>
           <div class="item-config-total" id="item-config-total"></div>
           <div class="group-avg-info" id="group-avg-info"></div>
+          <div style="margin-top:8px">
+            <button class="btn btn-light btn-sm" id="group-edit-btn" onclick="toggleGroupEdit(true)" style="display:none">비교 그룹 수정</button>
+          </div>
+          <div id="group-edit-box" style="display:none;margin-top:12px">
+            <div class="picker-head">
+              <label>이 주차의 평균을 함께 낼 반 선택 — 체크한 반들이 하나의 비교 그룹이 됩니다</label>
+              <div class="picker-actions">
+                <button class="btn btn-primary btn-sm" onclick="saveGroupEdit()">비교 그룹 저장</button>
+                <button class="btn btn-light btn-sm" onclick="toggleGroupEdit(false)">취소</button>
+              </div>
+            </div>
+            <div class="class-picker" id="group-class-picker"></div>
+            <div class="picker-preview" id="group-edit-preview"></div>
+          </div>
         </div>
       </div>
       <div class="section-body" style="overflow-x:auto">
@@ -1016,7 +1030,8 @@ async function loadScoreInputs() {
   currentItemConfig = normalizeItemConfig(weekData?.[0]?.item_config);
   currentWeekGroupId = weekData?.[0]?.group_id || null;
   renderItemConfigEditor();
-  refreshGroupInfo();  // 그룹 평균은 느려도 되므로 await 하지 않음
+  toggleGroupEdit(false);  // 주차가 바뀌면 편집 중이던 그룹 선택은 닫는다
+  refreshGroupInfo();      // 그룹 평균은 느려도 되므로 await 하지 않음
 
   if (scoreCache[weekId]) { renderScoreInputs(classId, weekId, scoreCache[weekId]); return; }
   container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
@@ -1055,7 +1070,9 @@ async function refreshGroupInfo() {
   const el = document.getElementById('group-avg-info');
   if (!el) return;
   const weekId = parseInt(document.getElementById('score-week').value);
-  if (!weekId) { el.innerHTML = ''; return; }
+  const editBtn = document.getElementById('group-edit-btn');
+  if (!weekId) { el.innerHTML = ''; if (editBtn) editBtn.style.display = 'none'; return; }
+  if (editBtn && document.getElementById('group-edit-box').style.display === 'none') editBtn.style.display = 'inline-block';
   el.innerHTML = '<span class="spinner-sm"></span> 비교 그룹 평균 계산 중...';
   try {
     currentGroupWeeks = currentWeekGroupId
@@ -1100,6 +1117,138 @@ async function refreshGroupInfo() {
   } catch (e) {
     el.innerHTML = '<span class="warn">비교 그룹 평균을 불러오지 못했습니다.</span>';
   }
+}
+
+// ── 비교 그룹 편집 (주차별) ──────────────────────────────
+// 비교 그룹은 group_id를 공유하는 주차들이고, 한 주차는 한 그룹에만 속한다(대칭).
+// 즉 체크한 반들은 서로 같은 평균·석차를 공유한다.
+let groupEditWeeks = [];  // 편집기용 전체 주차 목록 [{id, class_id, label, test_date, group_id}]
+
+async function toggleGroupEdit(open) {
+  const box = document.getElementById('group-edit-box');
+  const btn = document.getElementById('group-edit-btn');
+  if (!box) return;
+  box.style.display = open ? 'block' : 'none';
+  if (btn) btn.style.display = open ? 'none' : 'inline-block';
+  if (open) await renderGroupEditor();
+}
+
+async function renderGroupEditor() {
+  const el = document.getElementById('group-class-picker');
+  const weekId = parseInt(document.getElementById('score-week').value);
+  const classId = parseInt(document.getElementById('score-class').value);
+  if (!el || !weekId) return;
+  el.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>주차 목록 불러오는 중...</div>';
+  groupEditWeeks = await api('weeks?select=id,class_id,label,test_date,group_id&order=id.desc') || [];
+
+  const curWeek = groupEditWeeks.find(w => w.id === weekId);
+  const curLabel = curWeek?.label || curWeek?.test_date || '';
+
+  el.innerHTML = classes.map(c => {
+    const weeksOfClass = groupEditWeeks.filter(w => w.class_id === c.id);
+    const isCurrent = c.id === classId;
+    if (!weeksOfClass.length) {
+      return `<label class="picker-item" style="opacity:0.5">
+        <input type="checkbox" disabled>
+        <span>${escapeHtml(c.name)}</span><small>주차 없음</small></label>`;
+    }
+    // 기본 선택: ①이미 같은 그룹인 주차 ②없으면 같은 날짜(라벨)의 주차 ③없으면 최신 주차
+    const inGroup = currentWeekGroupId ? weeksOfClass.find(w => w.group_id === currentWeekGroupId) : null;
+    const sameLabel = weeksOfClass.find(w => (w.label || w.test_date) === curLabel);
+    const pick = isCurrent ? curWeek : (inGroup || sameLabel || weeksOfClass[0]);
+    const checked = isCurrent || !!inGroup;
+    const opts = weeksOfClass.map(w =>
+      `<option value="${w.id}"${w.id === pick?.id ? ' selected' : ''}>${escapeHtml(w.label || w.test_date || ('#' + w.id))}</option>`).join('');
+    return `<label class="picker-item${checked ? ' on' : ''}" data-class-id="${c.id}">
+      <input type="checkbox" class="grp-on" value="${c.id}" ${checked ? 'checked' : ''}
+             ${isCurrent ? 'disabled title="지금 편집 중인 반이라 항상 포함됩니다"' : ''}
+             onchange="onGroupEditToggle(this)">
+      <span>${escapeHtml(c.name)}${isCurrent ? ' (현재)' : ''}</span>
+      <select class="grp-week" data-class-id="${c.id}" ${isCurrent ? 'disabled' : ''}
+              onchange="renderGroupEditPreview()"
+              style="border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;color:var(--navy)">${opts}</select>
+    </label>`;
+  }).join('');
+  renderGroupEditPreview();
+}
+
+function onGroupEditToggle(inputEl) {
+  inputEl.closest('.picker-item').classList.toggle('on', inputEl.checked);
+  renderGroupEditPreview();
+}
+
+// 체크된 반 → 그룹에 넣을 주차 목록
+function collectGroupEditSelection() {
+  const weekId = parseInt(document.getElementById('score-week').value);
+  const classId = parseInt(document.getElementById('score-class').value);
+  const picked = [{ classId, weekId }];  // 편집 중인 주차는 항상 포함
+  document.querySelectorAll('#group-class-picker .grp-on:checked').forEach(inp => {
+    const cid = parseInt(inp.value);
+    if (cid === classId) return;
+    const sel = document.querySelector(`#group-class-picker .grp-week[data-class-id="${cid}"]`);
+    if (sel && sel.value) picked.push({ classId: cid, weekId: parseInt(sel.value) });
+  });
+  return picked;
+}
+
+function renderGroupEditPreview() {
+  const el = document.getElementById('group-edit-preview');
+  if (!el) return;
+  const picked = collectGroupEditSelection();
+  const lines = picked.map(p => {
+    const w = groupEditWeeks.find(x => x.id === p.weekId);
+    const cname = classes.find(c => c.id === p.classId)?.name || `반 #${p.classId}`;
+    return `${escapeHtml(cname)} <strong>${escapeHtml(w?.label || w?.test_date || '')}</strong>`;
+  });
+  // 다른 그룹에 속한 주차를 데려오면 그 그룹에서는 빠진다
+  const moved = picked.filter(p => {
+    const w = groupEditWeeks.find(x => x.id === p.weekId);
+    return w && w.group_id && w.group_id !== currentWeekGroupId;
+  }).map(p => {
+    const w = groupEditWeeks.find(x => x.id === p.weekId);
+    const others = groupEditWeeks.filter(x => x.group_id === w.group_id && x.id !== w.id).length;
+    const cname = classes.find(c => c.id === p.classId)?.name || `반 #${p.classId}`;
+    return others ? `${cname}(현재 다른 그룹 ${others + 1}개 반)` : null;
+  }).filter(Boolean);
+
+  let html = `비교 그룹 <strong>${picked.length}개 반</strong> — ${lines.join(' · ')}`;
+  html += `<br>이 반들은 <strong>같은 평균·석차를 공유</strong>합니다. 포함된 모든 반의 학부모가 합산된 평균을 보게 됩니다.`;
+  if (moved.length) {
+    html += `<br><span class="warn">⚠️ ${escapeHtml(moved.join(', '))}은 기존 그룹에서 빠져 이 그룹으로 옮겨집니다.</span>`;
+  }
+  el.innerHTML = html;
+}
+
+async function saveGroupEdit() {
+  const picked = collectGroupEditSelection();
+  const names = picked.map(p => {
+    const w = groupEditWeeks.find(x => x.id === p.weekId);
+    const cname = classes.find(c => c.id === p.classId)?.name || `반 #${p.classId}`;
+    return `${cname} ${w?.label || w?.test_date || ''}`;
+  });
+  const moved = picked.filter(p => {
+    const w = groupEditWeeks.find(x => x.id === p.weekId);
+    return w && w.group_id && w.group_id !== currentWeekGroupId
+      && groupEditWeeks.some(x => x.group_id === w.group_id && x.id !== w.id);
+  }).map(p => classes.find(c => c.id === p.classId)?.name || `반 #${p.classId}`);
+
+  let msg = `이 주차의 비교 그룹을 ${picked.length}개 반으로 설정합니다.\n`
+    + names.map(n => ` · ${n}`).join('\n')
+    + `\n\n이 반들은 같은 평균·석차를 공유합니다.\n포함된 모든 반의 학부모가 합산된 평균을 보게 됩니다.\n`;
+  if (moved.length) msg += `\n⚠️ ${moved.join(', ')}은(는) 기존 비교 그룹에서 빠집니다.\n`;
+  msg += `\n계속할까요?`;
+  if (!confirm(msg)) return;
+
+  const newGid = `grp-${Date.now()}`;
+  const ids = picked.map(p => p.weekId).join(',');
+  try {
+    const res = await apiRaw(`weeks?id=in.(${ids})`, 'PATCH', { group_id: newGid });
+    if (!res.ok) { showToast('❌ 비교 그룹 저장 실패'); return; }
+    currentWeekGroupId = newGid;
+    toggleGroupEdit(false);
+    refreshGroupInfo();
+    showToast(`✅ 비교 그룹이 ${picked.length}개 반으로 설정됐어요!`);
+  } catch (e) { showToast('❌ 오류 발생: ' + e.message); }
 }
 
 function onCfgActiveToggle(i) {
