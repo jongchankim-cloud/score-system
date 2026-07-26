@@ -82,7 +82,26 @@
   .score-input-row textarea:focus { border-color:var(--gold); background:var(--white); }
   .score-header { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 110px 90px 46px 46px 1fr; gap:6px; padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; }
   /* 커트라인 미달 강조 */
-  .score-input-row input.below-cut { color:var(--red); border-color:var(--red); font-weight:700; background:var(--red-light); }
+  .score-input-row input.below-cut, .mock-input-row input.below-cut { color:var(--red); border-color:var(--red); font-weight:700; background:var(--red-light); }
+  /* 모의고사 점수 입력 (이름 · 총점 · 항목들 · 메모) */
+  .mock-header, .mock-input-row { display:grid; grid-template-columns:160px 56px 52px repeat(var(--mock-item-count,1),70px) minmax(140px,1fr); gap:6px; align-items:center; min-width:max-content; }
+  .mock-input-row .inp-mock-absent { justify-self:center; width:18px; height:18px; cursor:pointer; }
+  /* 미응시로 체크한 행은 점수 입력을 막고 흐리게 */
+  .mock-input-row.absent-on .inp-mock-item { background:var(--light-gray); color:var(--gray); }
+  .mock-input-row.absent-on .student-name, .mock-input-row.absent-on .total-cell { opacity:0.5; }
+  .mock-visibility-info { font-size:12px; color:var(--gray); margin:10px 0 4px; }
+  .mock-visibility-info strong { color:var(--navy); }
+  .mock-visibility-info .warn { color:var(--red); }
+  .mock-header { padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; }
+  .mock-input-row { padding:8px 0; border-bottom:1px solid var(--light-gray); }
+  .mock-input-row .student-name { font-size:13px; font-weight:500; color:var(--navy); }
+  .mock-input-row .total-cell { text-align:center; font-size:13px; font-weight:700; color:var(--navy); }
+  .mock-input-row input { padding:8px; border:1.5px solid var(--border); border-radius:6px; font-size:13px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); outline:none; width:100%; }
+  .mock-input-row input[type=number] { text-align:center; }
+  .mock-input-row input:focus { border-color:var(--gold); }
+  .mock-input-row input[type=number]::-webkit-inner-spin-button,
+  .mock-input-row input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+  .mock-input-row input[type=number] { -moz-appearance:textfield; appearance:textfield; }
   /* 주차별 항목 설정 편집기 */
   .item-config-editor { display:flex; flex-direction:column; gap:6px; }
   .item-config-head, .item-config-row { display:grid; grid-template-columns:52px 1fr 90px 90px; gap:8px; align-items:center; }
@@ -90,8 +109,7 @@
   .item-config-head span { text-align:center; }
   .item-config-head span:nth-child(2) { text-align:left; }
   .item-config-row .cfg-active { justify-self:center; width:18px; height:18px; }
-  .item-config-row .cfg-name-fixed { font-size:13px; font-weight:600; color:var(--navy); }
-  .item-config-row.cfg-off .cfg-name-fixed, .item-config-row.cfg-off .cfg-label { opacity:0.45; }
+  .item-config-row.cfg-off .cfg-label { opacity:0.45; }
   .item-config-row input[type=number], .item-config-row input.cfg-label { padding:7px 8px; border:1.5px solid var(--border); border-radius:6px; font-size:13px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); outline:none; width:100%; }
   .item-config-row input[type=number] { text-align:center; }
   .item-config-row input:focus { border-color:var(--gold); }
@@ -100,6 +118,25 @@
   .item-config-row input[type=number] { -moz-appearance:textfield; appearance:textfield; }
   .item-config-total { font-size:12px; color:var(--gray); margin-top:8px; }
   .item-config-total strong { color:var(--navy); }
+  /* 비교 그룹 반 선택 (체크박스) */
+  .btn-light { background:var(--cream); color:var(--navy); border:1.5px solid var(--border); }
+  .btn-light:hover { background:var(--white); border-color:var(--gold); }
+  .picker-head { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:6px; }
+  .picker-head label { font-size:11px; color:var(--gray); font-weight:500; letter-spacing:0.5px; }
+  .picker-actions { display:flex; gap:6px; flex-wrap:wrap; }
+  .class-picker { display:flex; flex-direction:column; gap:12px; border:1.5px solid var(--border); border-radius:8px; padding:12px; background:var(--cream); max-height:260px; overflow-y:auto; }
+  .picker-grade { font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; margin-bottom:6px; }
+  .picker-items { display:flex; flex-wrap:wrap; gap:8px; }
+  .picker-item { display:flex; align-items:center; gap:6px; background:var(--white); border:1.5px solid var(--border); border-radius:7px; padding:7px 10px; font-size:13px; color:var(--navy); cursor:pointer; }
+  .picker-item input { width:16px; height:16px; cursor:pointer; }
+  .picker-item.on { border-color:var(--gold); background:#fffaf0; font-weight:600; }
+  .picker-item small { color:var(--gray); font-weight:400; }
+  .picker-preview { font-size:12px; color:var(--gray); margin:10px 0; line-height:1.7; }
+  .picker-preview strong { color:var(--navy); }
+  .picker-preview .warn { color:var(--red); }
+  .group-avg-info { font-size:12px; color:var(--gray); margin-top:10px; padding-top:10px; border-top:1px dashed var(--border); line-height:1.8; }
+  .group-avg-info strong { color:var(--navy); }
+  .group-avg-info .warn { color:var(--red); }
   .mini-loading { text-align:center; padding:20px; color:var(--gray); font-size:13px; }
   .memo-author-btn { padding:8px 16px; border:1.5px solid var(--border); border-radius:20px; font-size:13px; font-weight:500; font-family:'Noto Sans KR',sans-serif; color:var(--gray); background:var(--white); cursor:pointer; transition:all 0.15s; }
   .memo-author-btn:hover { border-color:var(--gold); color:var(--navy); }
@@ -190,11 +227,26 @@
         </div>
         <div style="border-top:1px solid var(--light-gray);padding-top:14px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-            <label style="font-size:11px;color:var(--gray);font-weight:500;letter-spacing:0.5px">이번 주 채점 항목 설정 (만점·커트라인)</label>
+            <label style="font-size:11px;color:var(--gray);font-weight:500;letter-spacing:0.5px">이번 주 채점 항목 설정 (항목명·만점·커트라인)</label>
             <button class="btn btn-primary btn-sm" onclick="saveItemConfig()">항목 설정 저장</button>
           </div>
           <div class="item-config-editor" id="item-config-editor"></div>
           <div class="item-config-total" id="item-config-total"></div>
+          <div class="group-avg-info" id="group-avg-info"></div>
+          <div style="margin-top:8px">
+            <button class="btn btn-light btn-sm" id="group-edit-btn" onclick="toggleGroupEdit('week', true)" style="display:none">비교 그룹 수정</button>
+          </div>
+          <div id="group-edit-box" style="display:none;margin-top:12px">
+            <div class="picker-head">
+              <label>이 주차의 평균을 함께 낼 반 선택 — 체크한 반들이 하나의 비교 그룹이 됩니다</label>
+              <div class="picker-actions">
+                <button class="btn btn-primary btn-sm" onclick="saveGroupEdit('week')">비교 그룹 저장</button>
+                <button class="btn btn-light btn-sm" onclick="toggleGroupEdit('week', false)">취소</button>
+              </div>
+            </div>
+            <div class="class-picker" id="group-class-picker"></div>
+            <div class="picker-preview" id="group-edit-preview"></div>
+          </div>
         </div>
       </div>
       <div class="section-body" style="overflow-x:auto">
@@ -210,25 +262,24 @@
       <div class="section-head"><h3>새 주차 추가</h3></div>
       <div class="section-body">
         <div class="form-row">
-          <div class="form-group">
-            <label>학년 선택</label>
-            <select id="week-grade">
-              <option value="">학년을 선택하세요</option>
-              <option value="고1">고1 (수요일+토요일)</option>
-              <option value="고2">고2 (목요일+금요일)</option>
-              <option value="single">단일 반 추가</option>
-            </select>
-          </div>
-          <div class="form-group" id="week-date-group">
-            <label id="week-date-label">기준 날짜</label>
-            <input type="text" id="week-date" placeholder="예: 6.3">
-          </div>
-          <div class="form-group" id="week-class-group" style="display:none">
-            <label>반 선택 (단일)</label>
-            <select id="week-class"><option value="">반을 선택하세요</option></select>
+          <div class="form-group" style="max-width:220px">
+            <label>기준 날짜 (그 주의 아무 날짜)</label>
+            <input type="text" id="week-date" placeholder="예: 6.3" oninput="renderWeekPreview()">
           </div>
         </div>
-        <div id="week-preview" style="font-size:12px;color:var(--gray);margin-bottom:10px;display:none"></div>
+        <div style="margin-bottom:10px">
+          <div class="picker-head">
+            <label>평균을 함께 낼 반 선택 — 체크한 반들이 하나의 비교 그룹이 됩니다</label>
+            <div class="picker-actions">
+              <button class="btn btn-light btn-sm" onclick="setPickerSelection('week-class-picker','고1')">고1 전체</button>
+              <button class="btn btn-light btn-sm" onclick="setPickerSelection('week-class-picker','고2')">고2 전체</button>
+              <button class="btn btn-light btn-sm" onclick="setPickerSelection('week-class-picker','all')">전체</button>
+              <button class="btn btn-light btn-sm" onclick="setPickerSelection('week-class-picker','none')">해제</button>
+            </div>
+          </div>
+          <div class="class-picker" id="week-class-picker"></div>
+        </div>
+        <div id="week-preview" class="picker-preview" style="display:none"></div>
         <button class="btn btn-gold" onclick="addWeek()">주차 추가</button>
       </div>
     </div>
@@ -283,19 +334,22 @@
       <div class="section-head"><h3>모의고사 추가</h3></div>
       <div class="section-body">
         <div class="form-row">
-          <div class="form-group">
-            <label>학년 선택</label>
-            <select id="mock-grade">
-              <option value="">학년을 선택하세요</option>
-              <option value="고1">고1 (수요일+토요일)</option>
-              <option value="고2">고2 (목요일+금요일)</option>
-              <option value="single">단일 반</option>
-            </select>
-          </div>
-          <div class="form-group" id="mock-class-group" style="display:none"><label>반 선택 (단일)</label><select id="mock-class"><option value="">반을 선택하세요</option></select></div>
-          <div class="form-group"><label>시험 날짜</label><input type="text" id="mock-date" placeholder="예: 6.10"></div>
+          <div class="form-group" style="max-width:220px"><label>시험 날짜</label><input type="text" id="mock-date" placeholder="예: 6.10"></div>
           <div class="form-group"><label>시험명 (선택)</label><input type="text" id="mock-label" placeholder="예: 6월 모의고사"></div>
         </div>
+        <div style="margin-bottom:10px">
+          <div class="picker-head">
+            <label>평균을 함께 낼 반 선택 — 체크한 반들이 하나의 비교 그룹이 됩니다</label>
+            <div class="picker-actions">
+              <button class="btn btn-light btn-sm" onclick="setPickerSelection('mock-class-picker','고1')">고1 전체</button>
+              <button class="btn btn-light btn-sm" onclick="setPickerSelection('mock-class-picker','고2')">고2 전체</button>
+              <button class="btn btn-light btn-sm" onclick="setPickerSelection('mock-class-picker','all')">전체</button>
+              <button class="btn btn-light btn-sm" onclick="setPickerSelection('mock-class-picker','none')">해제</button>
+            </div>
+          </div>
+          <div class="class-picker" id="mock-class-picker"></div>
+        </div>
+        <div id="mock-preview" class="picker-preview" style="display:none"></div>
         <button class="btn btn-gold" onclick="addMockExam()">모의고사 추가</button>
       </div>
     </div>
@@ -310,10 +364,40 @@
           <div class="form-group"><label>모의고사 선택</label><select id="mock-score-exam" onchange="loadMockScoreInputs()"><option value="">모의고사를 선택하세요</option></select></div>
         </div>
         <div id="mock-score-card" style="display:none">
-          <div style="display:grid;grid-template-columns:1fr 100px 150px;gap:8px;padding:8px 0 4px;font-size:11px;color:var(--gray);font-weight:600;border-bottom:2px solid var(--border);margin-bottom:4px;">
-            <span>이름</span><span style="text-align:center">점수<br><small>/100</small></span><span style="text-align:center">메모</span>
+          <div style="border-top:1px solid var(--light-gray);padding-top:14px;margin-bottom:14px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+              <label style="font-size:11px;color:var(--gray);font-weight:500;letter-spacing:0.5px">이 모의고사 채점 항목 설정 (항목명·만점·커트라인)</label>
+              <button class="btn btn-primary btn-sm" onclick="saveMockItemConfig()">항목 설정 저장</button>
+            </div>
+            <div class="item-config-editor" id="mock-item-config-editor"></div>
+            <div class="item-config-total" id="mock-item-config-total"></div>
+            <div class="group-avg-info" id="mock-group-avg-info"></div>
+            <div style="margin-top:8px">
+              <button class="btn btn-light btn-sm" id="mock-group-edit-btn" onclick="toggleGroupEdit('mock', true)" style="display:none">비교 그룹 수정</button>
+            </div>
+            <div id="mock-group-edit-box" style="display:none;margin-top:12px">
+              <div class="picker-head">
+                <label>이 모의고사의 평균을 함께 낼 반 선택 — 체크한 반들이 하나의 비교 그룹이 됩니다</label>
+                <div class="picker-actions">
+                  <button class="btn btn-primary btn-sm" onclick="saveGroupEdit('mock')">비교 그룹 저장</button>
+                  <button class="btn btn-light btn-sm" onclick="toggleGroupEdit('mock', false)">취소</button>
+                </div>
+              </div>
+              <div class="class-picker" id="mock-group-class-picker"></div>
+              <div class="picker-preview" id="mock-group-edit-preview"></div>
+            </div>
           </div>
-          <div id="mock-score-inputs"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+            <div class="mock-visibility-info" id="mock-visibility-info"></div>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-light btn-sm" onclick="setAllMockAbsent(true)">전체 미응시</button>
+              <button class="btn btn-light btn-sm" onclick="setAllMockAbsent(false)">미응시 해제</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto">
+            <div class="mock-header" id="mock-score-header"></div>
+            <div id="mock-score-inputs"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -705,14 +789,10 @@ async function adminLogin() {
 }
 
 let classes = [];
+const CLASS_SELECT_IDS = ['score-class','week-list-class','new-class','student-list-class','mock-score-class','mock-list-class','sms-class','uncert-class','student-sms-class','absent-class','clinic-sms-class'];
 async function initAdmin() {
   classes = await api('classes?order=id.asc&select=*') || [];
-  ['score-class','week-class','week-list-class','new-class','student-list-class','mock-class','mock-score-class','mock-list-class','sms-class','uncert-class','student-sms-class','absent-class','clinic-sms-class'].forEach(id => {
-    const sel = document.getElementById(id);
-    if (!sel) return;
-    sel.innerHTML = '<option value="">반을 선택하세요</option>';
-    classes.forEach(c => { const opt = document.createElement('option'); opt.value = c.id; opt.textContent = c.name; sel.appendChild(opt); });
-  });
+  refreshClassSelects();
 }
 
 function switchTab(tabId) {
@@ -737,74 +817,139 @@ function switchTab(tabId) {
 }
 
 // ── 주차 관리
-function calcNextDate(dateStr, addDays) {
-  const dot = dateStr.indexOf('.');
-  if (dot < 0) return dateStr;
-  let month = parseInt(dateStr.slice(0, dot));
-  let day = parseInt(dateStr.slice(dot + 1)) + addDays;
-  const daysInMonth = [0,31,28,31,30,31,30,31,31,30,31,30,31];
-  if (day > daysInMonth[month]) { day -= daysInMonth[month]; month++; }
-  return `${month}.${day}`;
+// 'M.D' 문자열 ↔ Date 변환. 요일 계산이 필요하므로 연도를 추론한다.
+// (연말/연초에 걸친 입력만 보정하고, 그 외는 올해로 간주)
+function resolveBaseDate(mdStr) {
+  const m = (mdStr || '').match(/^\s*(\d{1,2})\s*\.\s*(\d{1,2})\s*$/);
+  if (!m) return null;
+  const month = parseInt(m[1]), day = parseInt(m[2]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const now = new Date();
+  let year = now.getFullYear();
+  const nowMonth = now.getMonth() + 1;
+  if (nowMonth >= 11 && month <= 2) year += 1;       // 연말에 내년 초 날짜 입력
+  else if (nowMonth <= 2 && month >= 11) year -= 1;  // 연초에 작년 말 날짜 입력
+  const d = new Date(year, month - 1, day);
+  // 2.30 처럼 존재하지 않는 날짜는 Date가 다음 달로 넘겨버리므로 걸러낸다
+  if (d.getMonth() + 1 !== month || d.getDate() !== day) return null;
+  return d;
 }
 
-document.getElementById('week-grade').addEventListener('change', function() {
-  const grade = this.value;
-  const preview = document.getElementById('week-preview');
-  const classGroup = document.getElementById('week-class-group');
-  const dateLabel = document.getElementById('week-date-label');
-  if (grade === '고1') {
-    dateLabel.textContent = '수요일 날짜 입력';
-    classGroup.style.display = 'none';
-    preview.style.display = 'block';
-    preview.textContent = '토요일 날짜는 자동 계산됩니다 (+3일)';
-  } else if (grade === '고2') {
-    dateLabel.textContent = '목요일 날짜 입력';
-    classGroup.style.display = 'none';
-    preview.style.display = 'block';
-    preview.textContent = '금요일 날짜는 자동 계산됩니다 (+1일)';
-  } else if (grade === 'single') {
-    dateLabel.textContent = '수업 날짜';
-    classGroup.style.display = 'flex';
-    preview.style.display = 'none';
-  } else {
-    dateLabel.textContent = '기준 날짜';
-    classGroup.style.display = 'none';
-    preview.style.display = 'none';
+function fmtMD(d) { return `${d.getMonth() + 1}.${d.getDate()}`; }
+
+// 기준 날짜가 속한 주(월요일 시작)에서 지정 요일의 날짜.
+// Date 연산이라 월·연 경계를 자동으로 넘어간다.
+const DAY_INDEX = { '월':1, '화':2, '수':3, '목':4, '금':5, '토':6, '일':7 };
+function dateForDay(baseDate, day) {
+  const target = DAY_INDEX[day];
+  if (!target) return null;
+  const cur = baseDate.getDay() === 0 ? 7 : baseDate.getDay(); // 1=월 … 7=일
+  const d = new Date(baseDate);
+  d.setDate(d.getDate() + (target - cur));
+  return d;
+}
+
+// ── 반 체크박스 선택기 (주차/모의고사 공용) ──────────────
+function renderClassPicker(containerId, onChangeFn) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (!classes.length) {
+    el.innerHTML = '<p style="font-size:13px;color:var(--gray)">등록된 반이 없습니다.</p>';
+    return;
   }
-});
+  // 학년별로 묶어서 표시. 학년 미지정 반도 선택할 수 있게 함께 노출.
+  const grades = [...new Set(classes.map(c => c.grade || '학년 미지정'))];
+  el.innerHTML = grades.map(g => {
+    const list = classes.filter(c => (c.grade || '학년 미지정') === g);
+    return `<div>
+      <div class="picker-grade">${escapeHtml(g)}</div>
+      <div class="picker-items">${list.map(c => `
+        <label class="picker-item" data-class-id="${c.id}">
+          <input type="checkbox" value="${c.id}" onchange="onPickerToggle(this, '${onChangeFn}')">
+          <span>${escapeHtml(c.name)}</span>
+          <small>${c.day ? c.day + '요일' : '요일 미지정'}</small>
+        </label>`).join('')}</div>
+    </div>`;
+  }).join('');
+}
+
+function onPickerToggle(inputEl, onChangeFn) {
+  inputEl.closest('.picker-item').classList.toggle('on', inputEl.checked);
+  if (onChangeFn && typeof window[onChangeFn] === 'function') window[onChangeFn]();
+}
+
+function setPickerSelection(containerId, kind) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.querySelectorAll('.picker-item').forEach(item => {
+    const inp = item.querySelector('input');
+    const c = classes.find(x => x.id == inp.value);
+    let on = inp.checked;
+    if (kind === 'all') on = true;
+    else if (kind === 'none') on = false;
+    else on = (c?.grade === kind) ? true : on; // 학년 프리셋은 기존 선택에 더한다
+    inp.checked = on;
+    item.classList.toggle('on', on);
+  });
+  if (containerId === 'week-class-picker') renderWeekPreview();
+  else renderMockPreview();
+}
+
+// 체크된 반 목록 (classes 순서 유지, 중복 없음)
+function getPickedClasses(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return [];
+  const ids = new Set(Array.from(el.querySelectorAll('input:checked')).map(i => parseInt(i.value)));
+  return classes.filter(c => ids.has(c.id));
+}
+
+// 선택된 반들의 실제 생성 날짜를 미리 보여준다
+function renderWeekPreview() {
+  const preview = document.getElementById('week-preview');
+  if (!preview) return;
+  const picked = getPickedClasses('week-class-picker');
+  const baseStr = document.getElementById('week-date').value.trim();
+  if (!picked.length && !baseStr) { preview.style.display = 'none'; return; }
+  preview.style.display = 'block';
+  if (!picked.length) { preview.innerHTML = '<span class="warn">평균을 함께 낼 반을 한 개 이상 체크하세요.</span>'; return; }
+  const base = baseStr ? resolveBaseDate(baseStr) : null;
+  if (!base) {
+    preview.innerHTML = `선택된 반 <strong>${picked.length}개</strong> · <span class="warn">기준 날짜를 <strong>6.3</strong> 형식으로 입력하세요.</span>`;
+    return;
+  }
+  const lines = picked.map(c => {
+    const d = c.day ? dateForDay(base, c.day) : null;
+    return d ? `${escapeHtml(c.name)} <strong>${fmtMD(d)}</strong>(${c.day})`
+             : `${escapeHtml(c.name)} <strong>${fmtMD(base)}</strong><span class="warn">(요일 미지정 → 기준 날짜 사용)</span>`;
+  });
+  preview.innerHTML = `선택된 반 <strong>${picked.length}개</strong> — 하나의 비교 그룹으로 평균이 계산됩니다.<br>${lines.join(' · ')}`;
+}
 
 async function addWeek() {
-  const grade = document.getElementById('week-grade').value;
-  const date = document.getElementById('week-date').value.trim();
-  if (!grade || !date) { showToast('학년과 날짜를 입력해주세요.'); return; }
+  const baseStr = document.getElementById('week-date').value.trim();
+  const picked = getPickedClasses('week-class-picker');
+  if (!baseStr) { showToast('기준 날짜를 입력해주세요.'); return; }
+  const base = resolveBaseDate(baseStr);
+  if (!base) { showToast('❌ 날짜 형식이 올바르지 않습니다. (예: 6.3)'); return; }
+  if (!picked.length) { showToast('평균을 함께 낼 반을 한 개 이상 체크해주세요.'); return; }
 
-  const groupId = `${grade}-${date}-${Date.now()}`;
-
-  if (grade === '고1') {
-    const satDate = calcNextDate(date, 3);
-    const wedClasses = classes.filter(c => c.grade === '고1' && c.day === '수');
-    const satClasses = classes.filter(c => c.grade === '고1' && c.day === '토');
-    for (const c of wedClasses) await api('weeks', 'POST', { class_id: c.id, test_date: date, label: date, group_id: groupId });
-    for (const c of satClasses) await api('weeks', 'POST', { class_id: c.id, test_date: satDate, label: satDate, group_id: groupId });
-    showToast(`✅ 고1 주차 추가 — 수요일 ${date} / 토요일 ${satDate}`);
-
-  } else if (grade === '고2') {
-    const friDate = calcNextDate(date, 1);
-    const thuClasses = classes.filter(c => c.grade === '고2' && c.day === '목');
-    const friClasses = classes.filter(c => c.grade === '고2' && c.day === '금');
-    for (const c of thuClasses) await api('weeks', 'POST', { class_id: c.id, test_date: date, label: date, group_id: groupId });
-    for (const c of friClasses) await api('weeks', 'POST', { class_id: c.id, test_date: friDate, label: friDate, group_id: groupId });
-    showToast(`✅ 고2 주차 추가 — 목요일 ${date} / 금요일 ${friDate}`);
-
-  } else if (grade === 'single') {
-    const classId = document.getElementById('week-class').value;
-    if (!classId) { showToast('반을 선택해주세요.'); return; }
-    const className = classes.find(c => c.id == classId)?.name || '';
-    await api('weeks', 'POST', { class_id: parseInt(classId), test_date: date, label: date, group_id: groupId });
-    showToast(`✅ ${className} — ${date} 주차가 추가됐어요.`);
+  // 체크된 반들이 같은 group_id를 공유 → 학부모 화면의 평균·석차 모집단이 된다
+  const groupId = `grp-${fmtMD(base)}-${Date.now()}`;
+  const created = [], failed = [];
+  for (const c of picked) {
+    const d = c.day ? dateForDay(base, c.day) : base;
+    const label = fmtMD(d);
+    try {
+      const res = await apiRaw('weeks', 'POST', { class_id: c.id, test_date: label, label, group_id: groupId });
+      if (res.ok) created.push(`${c.name} ${label}`);
+      else failed.push(c.name);
+    } catch (e) { failed.push(c.name); }
   }
+  if (failed.length) { showToast(`❌ ${failed.length}개 반 추가 실패 (${failed.join(', ')})`, 4000); return; }
+  showToast(`✅ ${created.length}개 반 주차 추가 — ${created.join(' / ')}`, 4000);
 
   document.getElementById('week-date').value = '';
+  setPickerSelection('week-class-picker', 'none');
   loadWeekList();
 }
 
@@ -832,9 +977,9 @@ let scoreDirty = false; // 저장 안 된 변경사항 추적
 const studentCache = {};
 
 // ── 주차별 채점 항목 설정 ───────────────────────────────
-// 물리 컬럼(scores 테이블)과 1:1 매핑. 앞 3개 이름 고정, item4만 주차별 이름 지정.
+// 물리 컬럼(scores 테이블)과 1:1 매핑. 4개 항목 모두 이름·만점·커트라인을 주차별로 직접 입력.
 const ITEM_KEYS = ['word_score', 'reading_score', 'mc_score', 'item4_score'];
-const FIXED_ITEM_LABELS = { word_score: '단어', reading_score: '해석', mc_score: '객관식' };
+// 항목 설정이 아직 없는(기존) 주차에 적용되는 초기값. 저장된 이름이 있으면 항상 그 값을 사용.
 const DEFAULT_ITEM_CONFIG = [
   { key: 'word_score',    label: '단어',   max: 25, cut: null, active: true  },
   { key: 'reading_score', label: '해석',   max: 30, cut: null, active: true  },
@@ -842,18 +987,32 @@ const DEFAULT_ITEM_CONFIG = [
   { key: 'item4_score',   label: '',       max: 20, cut: null, active: false }
 ];
 let currentItemConfig = DEFAULT_ITEM_CONFIG.map(it => ({ ...it }));
+// 현재 선택한 주차의 group_id. 같은 group_id를 가진 주차들이 평균·석차 모집단(비교 그룹)이다.
+let currentWeekGroupId = null;
+let currentGroupWeeks = [];  // [{id, class_id, item_config}] — 비교 그룹에 속한 주차들
 
-// weeks.item_config(JSON, NULL 가능) → 항상 4개 슬롯의 정규화된 배열로 변환.
-// NULL(기존 주차)이면 기본값(단어25/해석30/객관식45, item4 비활성)으로 동작.
-function normalizeItemConfig(raw) {
+// 모의고사 항목: mock_scores의 물리 컬럼과 1:1 매핑. 이름·만점·커트라인은 시험별로 직접 입력.
+// item_config가 없는 기존 모의고사는 예전처럼 '점수' 1개(만점 100)로 동작하고,
+// 그 값은 mock_scores.score에 들어 있다(첫 항목 칸에 채워 보여준다).
+const MOCK_ITEM_KEYS = ['item1_score', 'item2_score', 'item3_score', 'item4_score'];
+const DEFAULT_MOCK_ITEM_CONFIG = [
+  { key: 'item1_score', label: '점수', max: 100,  cut: null, active: true  },
+  { key: 'item2_score', label: '',     max: null, cut: null, active: false },
+  { key: 'item3_score', label: '',     max: null, cut: null, active: false },
+  { key: 'item4_score', label: '',     max: null, cut: null, active: false }
+];
+
+// item_config(JSON, NULL 가능) → 항상 4개 슬롯의 정규화된 배열로 변환.
+// NULL(기존 주차/모의고사)이면 defaults 값으로 동작.
+function normalizeItemConfig(raw, defaults = DEFAULT_ITEM_CONFIG) {
   const items = raw && Array.isArray(raw.items) ? raw.items : null;
-  return ITEM_KEYS.map((key, i) => {
-    const def = DEFAULT_ITEM_CONFIG[i];
+  return defaults.map((def, i) => {
+    const key = def.key;
     const src = items ? items.find(it => it && it.key === key) : null;
     const s = src || def;
     return {
       key,
-      label: key === 'item4_score' ? (s.label ?? '') : FIXED_ITEM_LABELS[key],
+      label: (s.label ?? def.label ?? '').toString(),
       max: (s.max === undefined || s.max === null || s.max === '') ? def.max : parseFloat(s.max),
       cut: (s.cut === undefined || s.cut === null || s.cut === '') ? null : parseFloat(s.cut),
       active: s.active === undefined ? def.active : !!s.active
@@ -921,7 +1080,7 @@ async function loadScoreInputs() {
   card.style.display = 'block';
 
   // 주차 메모 + 항목 설정 불러오기
-  const weekData = await api(`weeks?id=eq.${weekId}&select=memo,item_config`);
+  const weekData = await api(`weeks?id=eq.${weekId}&select=memo,item_config,group_id`);
   const memoEl = document.getElementById('week-memo');
   memoEl.value = weekData?.[0]?.memo || '';
   memoEl.style.height = 'auto';
@@ -929,7 +1088,10 @@ async function loadScoreInputs() {
   memoEl.dataset.weekId = weekId;
 
   currentItemConfig = normalizeItemConfig(weekData?.[0]?.item_config);
+  currentWeekGroupId = weekData?.[0]?.group_id || null;
   renderItemConfigEditor();
+  toggleGroupEdit('week', false);  // 주차가 바뀌면 편집 중이던 그룹 선택은 닫는다
+  refreshGroupInfo();      // 그룹 평균은 느려도 되므로 await 하지 않음
 
   if (scoreCache[weekId]) { renderScoreInputs(classId, weekId, scoreCache[weekId]); return; }
   container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
@@ -947,11 +1109,9 @@ function renderItemConfigEditor() {
   const el = document.getElementById('item-config-editor');
   if (!el) return;
   el.innerHTML =
-    `<div class="item-config-head"><span>사용</span><span>항목</span><span>만점</span><span>커트라인</span></div>` +
+    `<div class="item-config-head"><span>사용</span><span>항목 이름</span><span>만점</span><span>커트라인</span></div>` +
     currentItemConfig.map((it, i) => {
-      const nameField = it.key === 'item4_score'
-        ? `<input type="text" class="cfg-label" data-i="${i}" value="${it.label || ''}" placeholder="4번째 항목 이름 (예: 듣기)">`
-        : `<span class="cfg-name-fixed">${it.label}</span>`;
+      const nameField = `<input type="text" class="cfg-label" data-i="${i}" value="${escapeAttr(it.label)}" placeholder="${i + 1}번째 항목 이름 (예: 단어)">`;
       return `<div class="item-config-row${it.active ? '' : ' cfg-off'}" data-i="${i}">
         <input type="checkbox" class="cfg-active" data-i="${i}" ${it.active ? 'checked' : ''} onchange="onCfgActiveToggle(${i})" title="이 주차에 사용">
         ${nameField}
@@ -960,6 +1120,226 @@ function renderItemConfigEditor() {
       </div>`;
     }).join('');
   updateItemConfigTotal();
+}
+
+// ── 비교 그룹 평균 (학부모 화면에 보이는 값과 같은 기준) ──
+// 학부모 화면(index.html)은 group_id가 같은 주차 전체의 점수를 모아
+// "현재 주차의 항목 설정"으로 총점을 계산한다. 여기서도 같은 방식으로 계산해
+// 관리자가 학부모에게 노출되는 평균을 그대로 확인할 수 있게 한다.
+async function refreshGroupInfo() {
+  const el = document.getElementById('group-avg-info');
+  if (!el) return;
+  const weekId = parseInt(document.getElementById('score-week').value);
+  const editBtn = document.getElementById('group-edit-btn');
+  if (!weekId) { el.innerHTML = ''; if (editBtn) editBtn.style.display = 'none'; return; }
+  if (editBtn && document.getElementById('group-edit-box').style.display === 'none') editBtn.style.display = 'inline-block';
+  el.innerHTML = '<span class="spinner-sm"></span> 비교 그룹 평균 계산 중...';
+  try {
+    currentGroupWeeks = currentWeekGroupId
+      ? (await api(`weeks?group_id=eq.${encodeURIComponent(currentWeekGroupId)}&select=id,class_id,item_config`) || [])
+      : (await api(`weeks?id=eq.${weekId}&select=id,class_id,item_config`) || []);
+    if (!currentGroupWeeks.length) { el.innerHTML = ''; return; }
+
+    const ids = currentGroupWeeks.map(w => w.id).join(',');
+    const rows = await api(`scores?week_id=in.(${ids})&select=week_id,${ITEM_KEYS.join(',')}`) || [];
+    const items = activeItems();
+    const totals = rows
+      .map(r => {
+        const vals = items.map(it => r[it.key]).filter(v => v !== null && v !== undefined && v !== '');
+        return vals.length ? vals.reduce((a, b) => a + parseFloat(b), 0) : null;
+      })
+      .filter(v => v !== null);
+
+    const classNames = currentGroupWeeks
+      .map(w => classes.find(c => c.id === w.class_id)?.name || `반 #${w.class_id}`);
+    const avg = totals.length ? (totals.reduce((a, b) => a + b, 0) / totals.length).toFixed(1) : null;
+    const totalMax = items.reduce((a, it) => a + (it.max || 0), 0);
+
+    // 그룹 내 항목 구성이 다른 주차가 있으면 평균·석차가 왜곡되므로 경고.
+    // (활성 항목과 만점이 다르면 학부모 화면에서 총점 기준이 어긋난다)
+    const sig = cfg => normalizeItemConfig(cfg).filter(it => it.active).map(it => `${it.key}:${it.max}`).join('|');
+    const mySig = currentItemConfig.filter(it => it.active).map(it => `${it.key}:${it.max}`).join('|');
+    const mismatched = currentGroupWeeks.filter(w => sig(w.item_config) !== mySig)
+      .map(w => classes.find(c => c.id === w.class_id)?.name || `반 #${w.class_id}`);
+
+    let html = `비교 그룹 <strong>${currentGroupWeeks.length}개 반</strong> (${escapeHtml(classNames.join(', '))})<br>`
+      + `그룹 평균 <strong>${avg === null ? '–' : avg + '점'}</strong>`
+      + `${avg === null ? '' : ` / ${totalMax}점`} · 표본 <strong>${totals.length}명</strong>`
+      + ` <span style="color:var(--gray)">— 학부모 화면에 이 값이 표시됩니다.</span>`;
+    if (!currentWeekGroupId) {
+      html += `<br><span class="warn">이 주차는 비교 그룹(group_id)이 없어 이 반만으로 평균이 계산됩니다.</span>`;
+    }
+    if (mismatched.length) {
+      html += `<br><span class="warn">⚠️ 항목 구성(활성 항목·만점)이 다른 반: ${escapeHtml(mismatched.join(', '))}`
+        + ` — [항목 설정 저장]을 누르면 그룹 전체가 현재 설정으로 통일됩니다.</span>`;
+    }
+    el.innerHTML = html;
+  } catch (e) {
+    el.innerHTML = '<span class="warn">비교 그룹 평균을 불러오지 못했습니다.</span>';
+  }
+}
+
+// ── 비교 그룹 편집 (주차 / 모의고사 공용) ────────────────
+// 비교 그룹은 group_id를 공유하는 주차(또는 모의고사)들이고, 하나는 한 그룹에만 속한다(대칭).
+// 즉 체크한 반들은 서로 같은 평균·석차를 공유한다.
+const GROUP_KINDS = {
+  week: {
+    table: 'weeks', unit: '주차', selectCols: 'id,class_id,label,test_date,group_id',
+    itemSelId: 'score-week', classSelId: 'score-class',
+    boxId: 'group-edit-box', btnId: 'group-edit-btn',
+    pickerId: 'group-class-picker', previewId: 'group-edit-preview',
+    labelOf: r => r.label || r.test_date || '',
+    getGid: () => currentWeekGroupId, setGid: v => { currentWeekGroupId = v; },
+    onSaved: () => refreshGroupInfo()
+  },
+  mock: {
+    table: 'mock_exams', unit: '모의고사', selectCols: 'id,class_id,label,exam_date,group_id',
+    itemSelId: 'mock-score-exam', classSelId: 'mock-score-class',
+    boxId: 'mock-group-edit-box', btnId: 'mock-group-edit-btn',
+    pickerId: 'mock-group-class-picker', previewId: 'mock-group-edit-preview',
+    labelOf: r => r.label || r.exam_date || '',
+    getGid: () => currentMockGroupId, setGid: v => { currentMockGroupId = v; },
+    onSaved: () => refreshMockGroupInfo()
+  }
+};
+const groupEditRows = { week: [], mock: [] };  // 편집기용 전체 목록
+
+async function toggleGroupEdit(kind, open) {
+  const K = GROUP_KINDS[kind];
+  const box = document.getElementById(K.boxId);
+  const btn = document.getElementById(K.btnId);
+  if (!box) return;
+  box.style.display = open ? 'block' : 'none';
+  if (btn) btn.style.display = open ? 'none' : 'inline-block';
+  if (open) await renderGroupEditor(kind);
+}
+
+async function renderGroupEditor(kind) {
+  const K = GROUP_KINDS[kind];
+  const el = document.getElementById(K.pickerId);
+  const curId = parseInt(document.getElementById(K.itemSelId).value);
+  const classId = parseInt(document.getElementById(K.classSelId).value);
+  if (!el || !curId) return;
+  el.innerHTML = `<div class="mini-loading"><span class="spinner-sm"></span>${K.unit} 목록 불러오는 중...</div>`;
+  groupEditRows[kind] = await api(`${K.table}?select=${K.selectCols}&order=id.desc`) || [];
+  const rows = groupEditRows[kind];
+  const gid = K.getGid();
+
+  const cur = rows.find(r => r.id === curId);
+  const curLabel = cur ? K.labelOf(cur) : '';
+
+  el.innerHTML = classes.map(c => {
+    const ofClass = rows.filter(r => r.class_id === c.id);
+    const isCurrent = c.id === classId;
+    if (!ofClass.length) {
+      return `<label class="picker-item" style="opacity:0.5">
+        <input type="checkbox" disabled>
+        <span>${escapeHtml(c.name)}</span><small>${K.unit} 없음</small></label>`;
+    }
+    // 기본 선택: ①이미 같은 그룹인 것 ②없으면 같은 날짜(라벨) ③없으면 최신
+    const inGroup = gid ? ofClass.find(r => r.group_id === gid) : null;
+    const sameLabel = ofClass.find(r => K.labelOf(r) === curLabel);
+    const pick = isCurrent ? cur : (inGroup || sameLabel || ofClass[0]);
+    const checked = isCurrent || !!inGroup;
+    const opts = ofClass.map(r =>
+      `<option value="${r.id}"${r.id === pick?.id ? ' selected' : ''}>${escapeHtml(K.labelOf(r) || ('#' + r.id))}</option>`).join('');
+    return `<label class="picker-item${checked ? ' on' : ''}" data-class-id="${c.id}">
+      <input type="checkbox" class="grp-on" value="${c.id}" ${checked ? 'checked' : ''}
+             ${isCurrent ? 'disabled title="지금 편집 중인 반이라 항상 포함됩니다"' : ''}
+             onchange="onGroupEditToggle('${kind}', this)">
+      <span>${escapeHtml(c.name)}${isCurrent ? ' (현재)' : ''}</span>
+      <select class="grp-item" data-class-id="${c.id}" ${isCurrent ? 'disabled' : ''}
+              onchange="renderGroupEditPreview('${kind}')"
+              style="border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;color:var(--navy)">${opts}</select>
+    </label>`;
+  }).join('');
+  renderGroupEditPreview(kind);
+}
+
+function onGroupEditToggle(kind, inputEl) {
+  inputEl.closest('.picker-item').classList.toggle('on', inputEl.checked);
+  renderGroupEditPreview(kind);
+}
+
+// 체크된 반 → 그룹에 넣을 주차(모의고사) 목록
+function collectGroupEditSelection(kind) {
+  const K = GROUP_KINDS[kind];
+  const curId = parseInt(document.getElementById(K.itemSelId).value);
+  const classId = parseInt(document.getElementById(K.classSelId).value);
+  const picked = [{ classId, rowId: curId }];  // 편집 중인 것은 항상 포함
+  document.querySelectorAll(`#${K.pickerId} .grp-on:checked`).forEach(inp => {
+    const cid = parseInt(inp.value);
+    if (cid === classId) return;
+    const sel = document.querySelector(`#${K.pickerId} .grp-item[data-class-id="${cid}"]`);
+    if (sel && sel.value) picked.push({ classId: cid, rowId: parseInt(sel.value) });
+  });
+  return picked;
+}
+
+// 다른 그룹에 속한 것을 데려오면 그 그룹에서는 빠진다 → 경고 대상
+function groupEditMoved(kind, picked) {
+  const K = GROUP_KINDS[kind];
+  const rows = groupEditRows[kind];
+  const gid = K.getGid();
+  return picked.map(p => {
+    const r = rows.find(x => x.id === p.rowId);
+    if (!r || !r.group_id || r.group_id === gid) return null;
+    const others = rows.filter(x => x.group_id === r.group_id && x.id !== r.id).length;
+    if (!others) return null;
+    const cname = classes.find(c => c.id === p.classId)?.name || `반 #${p.classId}`;
+    return { name: cname, size: others + 1 };
+  }).filter(Boolean);
+}
+
+function renderGroupEditPreview(kind) {
+  const K = GROUP_KINDS[kind];
+  const el = document.getElementById(K.previewId);
+  if (!el) return;
+  const rows = groupEditRows[kind];
+  const picked = collectGroupEditSelection(kind);
+  const lines = picked.map(p => {
+    const r = rows.find(x => x.id === p.rowId);
+    const cname = classes.find(c => c.id === p.classId)?.name || `반 #${p.classId}`;
+    return `${escapeHtml(cname)} <strong>${escapeHtml(r ? K.labelOf(r) : '')}</strong>`;
+  });
+  const moved = groupEditMoved(kind, picked).map(m => `${m.name}(현재 다른 그룹 ${m.size}개 반)`);
+
+  let html = `비교 그룹 <strong>${picked.length}개 반</strong> — ${lines.join(' · ')}`;
+  html += `<br>이 반들은 <strong>같은 평균·석차를 공유</strong>합니다. 포함된 모든 반의 학부모가 합산된 평균을 보게 됩니다.`;
+  if (moved.length) {
+    html += `<br><span class="warn">⚠️ ${escapeHtml(moved.join(', '))}은 기존 그룹에서 빠져 이 그룹으로 옮겨집니다.</span>`;
+  }
+  el.innerHTML = html;
+}
+
+async function saveGroupEdit(kind) {
+  const K = GROUP_KINDS[kind];
+  const rows = groupEditRows[kind];
+  const picked = collectGroupEditSelection(kind);
+  const names = picked.map(p => {
+    const r = rows.find(x => x.id === p.rowId);
+    const cname = classes.find(c => c.id === p.classId)?.name || `반 #${p.classId}`;
+    return `${cname} ${r ? K.labelOf(r) : ''}`;
+  });
+  const moved = groupEditMoved(kind, picked).map(m => m.name);
+
+  let msg = `이 ${K.unit}의 비교 그룹을 ${picked.length}개 반으로 설정합니다.\n`
+    + names.map(n => ` · ${n}`).join('\n')
+    + `\n\n이 반들은 같은 평균·석차를 공유합니다.\n포함된 모든 반의 학부모가 합산된 평균을 보게 됩니다.\n`;
+  if (moved.length) msg += `\n⚠️ ${moved.join(', ')}은(는) 기존 비교 그룹에서 빠집니다.\n`;
+  msg += `\n계속할까요?`;
+  if (!confirm(msg)) return;
+
+  const newGid = `grp-${Date.now()}`;
+  const ids = picked.map(p => p.rowId).join(',');
+  try {
+    const res = await apiRaw(`${K.table}?id=in.(${ids})`, 'PATCH', { group_id: newGid });
+    if (!res.ok) { showToast('❌ 비교 그룹 저장 실패'); return; }
+    K.setGid(newGid);
+    toggleGroupEdit(kind, false);
+    K.onSaved();
+    showToast(`✅ 비교 그룹이 ${picked.length}개 반으로 설정됐어요!`);
+  } catch (e) { showToast('❌ 오류 발생: ' + e.message); }
 }
 
 function onCfgActiveToggle(i) {
@@ -976,10 +1356,7 @@ function readItemConfigFromEditor() {
     const active = editor.querySelector(`.cfg-active[data-i="${i}"]`).checked;
     const maxV = editor.querySelector(`.cfg-max[data-i="${i}"]`).value;
     const cutV = editor.querySelector(`.cfg-cut[data-i="${i}"]`).value;
-    let label = FIXED_ITEM_LABELS[key] || '';
-    if (key === 'item4_score') {
-      label = (editor.querySelector(`.cfg-label[data-i="${i}"]`)?.value || '').trim();
-    }
+    const label = (editor.querySelector(`.cfg-label[data-i="${i}"]`)?.value || '').trim();
     return { key, label, max: maxV === '' ? null : parseFloat(maxV), cut: cutV === '' ? null : parseFloat(cutV), active };
   });
   return items;
@@ -999,14 +1376,21 @@ async function saveItemConfig() {
   if (!weekId) { showToast('먼저 주차를 선택하세요.'); return; }
   const items = readItemConfigFromEditor();
   if (!items.some(it => it.active)) { showToast('❌ 최소 한 개 항목은 사용해야 합니다.'); return; }
-  const item4 = items.find(it => it.key === 'item4_score');
-  if (item4.active && !item4.label) { showToast('❌ 4번째 항목의 이름을 입력하세요.'); return; }
+  const noName = items.map((it, i) => ({ ...it, no: i + 1 })).filter(it => it.active && !it.label);
+  if (noName.length) { showToast(`❌ ${noName.map(it => it.no + '번째').join(', ')} 항목의 이름을 입력하세요.`); return; }
 
   // 열 구성이 바뀌므로 입력 중이던 점수를 보존한 뒤 재렌더
   const preserved = collectCurrentScores();
   const classId = document.getElementById('score-class').value;
+  // 항목 설정은 비교 그룹 전체에 동일하게 적용한다.
+  // 그룹 내 주차마다 활성 항목·만점이 다르면 학부모 화면의 평균·석차가
+  // 서로 다른 기준의 총점을 섞어 계산하게 되므로(다른 반 학생이 모집단에서
+  // 조용히 빠지거나 총점이 낮게 잡힘) group_id 단위로 통일한다.
+  const target = currentWeekGroupId
+    ? `weeks?group_id=eq.${encodeURIComponent(currentWeekGroupId)}`
+    : `weeks?id=eq.${weekId}`;
   try {
-    const res = await apiRaw(`weeks?id=eq.${weekId}`, 'PATCH', { item_config: { items } });
+    const res = await apiRaw(target, 'PATCH', { item_config: { items } });
     if (!res.ok) { showToast('❌ 항목 설정 저장 실패'); return; }
     currentItemConfig = normalizeItemConfig({ items });
     renderItemConfigEditor();
@@ -1014,7 +1398,11 @@ async function saveItemConfig() {
     const base = scoreCache[weekId] ? JSON.parse(JSON.stringify(scoreCache[weekId])) : {};
     Object.keys(preserved).forEach(sid => { base[sid] = { ...(base[sid] || {}), ...preserved[sid] }; });
     renderScoreInputs(classId, weekId, base);
-    showToast('✅ 항목 설정이 저장됐어요!');
+    refreshGroupInfo();
+    const n = currentGroupWeeks.length;
+    showToast(currentWeekGroupId && n > 1
+      ? `✅ 항목 설정이 저장됐어요! (비교 그룹 ${n}개 반 공통 적용)`
+      : '✅ 항목 설정이 저장됐어요!');
   } catch (e) { showToast('❌ 오류 발생: ' + e.message); }
 }
 
@@ -1057,7 +1445,7 @@ function renderScoreHeader() {
     `<span>이름</span>` +
     `<span style="text-align:center">총점<br><small style="font-weight:400">/${totalMax}</small></span>` +
     `<span style="text-align:center">출석</span>` +
-    items.map(it => `<span style="text-align:center">${it.label || '-'}<br><small style="font-weight:400">/${it.max ?? ''}</small></span>`).join('') +
+    items.map(it => `<span style="text-align:center">${escapeHtml(it.label) || '-'}<br><small style="font-weight:400">/${it.max ?? ''}</small></span>`).join('') +
     `<span style="text-align:center">과제<br><small style="font-weight:400">%</small></span>` +
     `<span style="text-align:center">과제평가</span>` +
     `<span style="text-align:center">잔여과제<br>인증</span>` +
@@ -1154,6 +1542,7 @@ async function saveAllScores() {
     if (failed.length > 0) { showToast(`❌ ${failed.length}건 저장 실패`); return; }
     delete scoreCache[weekId];
     scoreDirty = false;
+    refreshGroupInfo();  // 저장된 점수를 반영해 그룹 평균 갱신
     showToast('✅ 점수가 저장됐어요!');
   } catch(e) { showToast('❌ 오류 발생: ' + e.message); }
 }
@@ -1508,12 +1897,10 @@ async function loadAbsentTargets() {
   if (isMock) {
     const scores = await api(`mock_scores?exam_id=eq.${id}&select=*`) || [];
     scores.forEach(s => { scoreMap[s.student_id] = s; });
-    // 모의고사 미응시 = score가 비어있음(null)
-    targets = (students || []).filter(st => {
-      const sc = scoreMap[st.id];
-      if (!sc) return true;
-      return sc.score === null || sc.score === undefined;
-    });
+    // 모의고사 미응시 = 점수 입력 화면에서 '미응시'로 체크한 학생.
+    // 점수가 비어 있다는 것만으로는 응시 대상이 아니었던 학생과 구분되지 않는다
+    // (일부 학생만 응시하는 모의고사가 있어, 그 기준으로는 볼 필요도 없던 학생에게 문자가 간다).
+    targets = (students || []).filter(st => scoreMap[st.id]?.absent === true);
   } else {
     const [scores, weekRow] = await Promise.all([
       api(`scores?week_id=eq.${id}&select=*`),
@@ -1927,12 +2314,17 @@ async function loadClassList() {
 }
 
 function refreshClassSelects() {
-  ['score-class','week-class','week-list-class','new-class','student-list-class','mock-class','mock-score-class','mock-list-class','sms-class','uncert-class','student-sms-class','absent-class','clinic-sms-class'].forEach(id => {
+  CLASS_SELECT_IDS.forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
     sel.innerHTML = '<option value="">반을 선택하세요</option>';
     classes.forEach(c => { const opt = document.createElement('option'); opt.value = c.id; opt.textContent = c.name; sel.appendChild(opt); });
   });
+  // 반이 추가/수정/삭제되면 체크박스 목록도 다시 그린다 (선택은 초기화됨)
+  renderClassPicker('week-class-picker', 'renderWeekPreview');
+  renderClassPicker('mock-class-picker', 'renderMockPreview');
+  renderWeekPreview();
+  renderMockPreview();
 }
 
 async function updateClassName(id, name) {
@@ -2136,37 +2528,44 @@ async function sendAllSms() {
 // ── 모의고사
 const mockScoreCache = {};
 let mockDirty = false;
+let currentMockItemConfig = DEFAULT_MOCK_ITEM_CONFIG.map(it => ({ ...it }));
+let currentMockGroupId = null;      // 현재 모의고사의 비교 그룹 id
+let currentMockGroupExams = [];     // 그룹에 속한 모의고사들 [{id, class_id, item_config}]
+
+// 모의고사는 전 반이 같은 날 시행하므로 반별 날짜 계산 없이 날짜 하나를 공유한다
+function renderMockPreview() {
+  const preview = document.getElementById('mock-preview');
+  if (!preview) return;
+  const picked = getPickedClasses('mock-class-picker');
+  if (!picked.length) { preview.style.display = 'none'; return; }
+  preview.style.display = 'block';
+  preview.innerHTML = `선택된 반 <strong>${picked.length}개</strong> — 하나의 비교 그룹으로 평균이 계산됩니다.<br>${picked.map(c => escapeHtml(c.name)).join(' · ')}`;
+}
 
 async function addMockExam() {
-  const grade = document.getElementById('mock-grade').value;
   const date = document.getElementById('mock-date').value.trim();
   const label = document.getElementById('mock-label').value.trim();
-  if (!grade || !date) { showToast('학년과 날짜를 입력해주세요.'); return; }
+  const picked = getPickedClasses('mock-class-picker');
+  if (!date) { showToast('시험 날짜를 입력해주세요.'); return; }
+  if (!picked.length) { showToast('평균을 함께 낼 반을 한 개 이상 체크해주세요.'); return; }
 
-  const groupId = `${grade}-${date}-mock-${Date.now()}`;
-
-  if (grade === '고1' || grade === '고2') {
-    const gradeClasses = classes.filter(c => c.grade === grade);
-    if (!gradeClasses.length) { showToast(`${grade} 반이 없습니다.`); return; }
-    for (const c of gradeClasses) {
-      await api('mock_exams', 'POST', { class_id: c.id, exam_date: date, label: label || date, group_id: groupId });
-    }
-    showToast(`✅ ${grade} 모의고사가 추가됐어요. (${gradeClasses.length}개 반)`);
-  } else if (grade === 'single') {
-    const classId = document.getElementById('mock-class').value;
-    if (!classId) { showToast('반을 선택해주세요.'); return; }
-    await api('mock_exams', 'POST', { class_id: parseInt(classId), exam_date: date, label: label || date, group_id: groupId });
-    showToast('✅ 모의고사가 추가됐어요.');
+  // 체크된 반들이 같은 group_id를 공유 → 학부모 화면의 모의고사 평균·석차 모집단
+  const groupId = `grp-${date}-mock-${Date.now()}`;
+  const failed = [];
+  for (const c of picked) {
+    try {
+      const res = await apiRaw('mock_exams', 'POST', { class_id: c.id, exam_date: date, label: label || date, group_id: groupId });
+      if (!res.ok) failed.push(c.name);
+    } catch (e) { failed.push(c.name); }
   }
+  if (failed.length) { showToast(`❌ ${failed.length}개 반 추가 실패 (${failed.join(', ')})`, 4000); return; }
+  showToast(`✅ 모의고사가 추가됐어요. (${picked.length}개 반 공통 그룹)`);
 
   document.getElementById('mock-date').value = '';
   document.getElementById('mock-label').value = '';
+  setPickerSelection('mock-class-picker', 'none');
   loadMockList();
 }
-
-document.getElementById('mock-grade').addEventListener('change', function() {
-  document.getElementById('mock-class-group').style.display = this.value === 'single' ? 'flex' : 'none';
-});
 
 async function loadMockExams() {
   if (mockDirty) {
@@ -2195,6 +2594,15 @@ async function loadMockScoreInputs() {
   const card = document.getElementById('mock-score-card');
   const container = document.getElementById('mock-score-inputs');
   card.style.display = 'block';
+
+  // 시험별 항목 설정 + 비교 그룹 불러오기
+  const examRow = await api(`mock_exams?id=eq.${examId}&select=item_config,group_id`);
+  currentMockItemConfig = normalizeItemConfig(examRow?.[0]?.item_config, DEFAULT_MOCK_ITEM_CONFIG);
+  currentMockGroupId = examRow?.[0]?.group_id || null;
+  renderMockItemConfigEditor();
+  toggleGroupEdit('mock', false);  // 시험이 바뀌면 편집 중이던 그룹 선택은 닫는다
+  refreshMockGroupInfo();
+
   if (mockScoreCache[examId]) { renderMockInputs(classId, examId, mockScoreCache[examId]); return; }
   container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
   if (!studentCache[classId]) { studentCache[classId] = await api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`) || []; }
@@ -2204,33 +2612,291 @@ async function loadMockScoreInputs() {
   renderMockInputs(classId, examId, mockScoreCache[examId]);
 }
 
+// ── 모의고사 항목 설정 편집기 ───────────────────────────
+function mockActiveItems() {
+  return currentMockItemConfig.filter(it => it.active);
+}
+
+function renderMockItemConfigEditor() {
+  const el = document.getElementById('mock-item-config-editor');
+  if (!el) return;
+  el.innerHTML =
+    `<div class="item-config-head"><span>사용</span><span>항목 이름</span><span>만점</span><span>커트라인</span></div>` +
+    currentMockItemConfig.map((it, i) => `<div class="item-config-row${it.active ? '' : ' cfg-off'}" data-i="${i}">
+        <input type="checkbox" class="cfg-active" data-i="${i}" ${it.active ? 'checked' : ''} onchange="onMockCfgActiveToggle(${i})" title="이 시험에 사용">
+        <input type="text" class="cfg-label" data-i="${i}" value="${escapeAttr(it.label)}" placeholder="${i + 1}번째 항목 이름 (예: 듣기)">
+        <input type="number" class="cfg-max" data-i="${i}" value="${it.max ?? ''}" min="0" placeholder="만점" oninput="updateMockItemConfigTotal()">
+        <input type="number" class="cfg-cut" data-i="${i}" value="${it.cut ?? ''}" min="0" placeholder="커트라인">
+      </div>`).join('');
+  updateMockItemConfigTotal();
+}
+
+function onMockCfgActiveToggle(i) {
+  const row = document.querySelector(`#mock-item-config-editor .item-config-row[data-i="${i}"]`);
+  const on = document.querySelector(`#mock-item-config-editor .cfg-active[data-i="${i}"]`).checked;
+  if (row) row.classList.toggle('cfg-off', !on);
+  updateMockItemConfigTotal();
+}
+
+function readMockItemConfigFromEditor() {
+  const editor = document.getElementById('mock-item-config-editor');
+  return MOCK_ITEM_KEYS.map((key, i) => {
+    const active = editor.querySelector(`.cfg-active[data-i="${i}"]`).checked;
+    const maxV = editor.querySelector(`.cfg-max[data-i="${i}"]`).value;
+    const cutV = editor.querySelector(`.cfg-cut[data-i="${i}"]`).value;
+    const label = (editor.querySelector(`.cfg-label[data-i="${i}"]`)?.value || '').trim();
+    return { key, label, max: maxV === '' ? null : parseFloat(maxV), cut: cutV === '' ? null : parseFloat(cutV), active };
+  });
+}
+
+function updateMockItemConfigTotal() {
+  const el = document.getElementById('mock-item-config-total');
+  if (!el) return;
+  const items = readMockItemConfigFromEditor().filter(it => it.active);
+  const totalMax = items.reduce((a, it) => a + (it.max || 0), 0);
+  el.innerHTML = `사용 항목 <strong>${items.length}개</strong> · 총점 만점 <strong>${totalMax}</strong>점`;
+}
+
+async function saveMockItemConfig() {
+  const examId = parseInt(document.getElementById('mock-score-exam').value);
+  if (!examId) { showToast('먼저 모의고사를 선택하세요.'); return; }
+  const items = readMockItemConfigFromEditor();
+  if (!items.some(it => it.active)) { showToast('❌ 최소 한 개 항목은 사용해야 합니다.'); return; }
+  const noName = items.map((it, i) => ({ ...it, no: i + 1 })).filter(it => it.active && !it.label);
+  if (noName.length) { showToast(`❌ ${noName.map(it => it.no + '번째').join(', ')} 항목의 이름을 입력하세요.`); return; }
+
+  // 주차와 같은 이유로 비교 그룹 전체에 동일 설정을 적용한다 (총점 기준 통일)
+  const target = currentMockGroupId
+    ? `mock_exams?group_id=eq.${encodeURIComponent(currentMockGroupId)}`
+    : `mock_exams?id=eq.${examId}`;
+  const preserved = collectCurrentMockScores();
+  const classId = document.getElementById('mock-score-class').value;
+  try {
+    const res = await apiRaw(target, 'PATCH', { item_config: { items } });
+    if (!res.ok) { showToast('❌ 항목 설정 저장 실패'); return; }
+    currentMockItemConfig = normalizeItemConfig({ items }, DEFAULT_MOCK_ITEM_CONFIG);
+    renderMockItemConfigEditor();
+    const base = mockScoreCache[examId] ? JSON.parse(JSON.stringify(mockScoreCache[examId])) : {};
+    Object.keys(preserved).forEach(sid => { base[sid] = { ...(base[sid] || {}), ...preserved[sid] }; });
+    renderMockInputs(classId, examId, base);
+    refreshMockGroupInfo();
+    const n = currentMockGroupExams.length;
+    showToast(currentMockGroupId && n > 1
+      ? `✅ 항목 설정이 저장됐어요! (비교 그룹 ${n}개 반 공통 적용)`
+      : '✅ 항목 설정이 저장됐어요!');
+  } catch (e) { showToast('❌ 오류 발생: ' + e.message); }
+}
+
+// 입력 중인 모의고사 점수를 { studentId: {컬럼:값} }로 수집 (열 구성 변경 시 보존용)
+function collectCurrentMockScores() {
+  const map = {};
+  document.querySelectorAll('#mock-score-inputs .mock-input-row').forEach(row => {
+    const obj = {};
+    row.querySelectorAll('.inp-mock-item').forEach(inp => {
+      obj[inp.dataset.key] = inp.value !== '' ? parseFloat(inp.value) : null;
+    });
+    obj.memo = row.querySelector('.mock-memo')?.value ?? '';
+    obj.absent = !!row.querySelector('.inp-mock-absent')?.checked;
+    map[row.dataset.studentId] = obj;
+  });
+  return map;
+}
+
+// ── 모의고사 비교 그룹 평균 (학부모 화면과 같은 기준) ────
+async function refreshMockGroupInfo() {
+  const el = document.getElementById('mock-group-avg-info');
+  if (!el) return;
+  const examId = parseInt(document.getElementById('mock-score-exam').value);
+  const editBtn = document.getElementById('mock-group-edit-btn');
+  if (!examId) { el.innerHTML = ''; if (editBtn) editBtn.style.display = 'none'; return; }
+  if (editBtn && document.getElementById('mock-group-edit-box').style.display === 'none') editBtn.style.display = 'inline-block';
+  el.innerHTML = '<span class="spinner-sm"></span> 비교 그룹 평균 계산 중...';
+  try {
+    currentMockGroupExams = currentMockGroupId
+      ? (await api(`mock_exams?group_id=eq.${encodeURIComponent(currentMockGroupId)}&select=id,class_id,item_config`) || [])
+      : (await api(`mock_exams?id=eq.${examId}&select=id,class_id,item_config`) || []);
+    if (!currentMockGroupExams.length) { el.innerHTML = ''; return; }
+
+    const ids = currentMockGroupExams.map(e => e.id).join(',');
+    const rows = await api(`mock_scores?exam_id=in.(${ids})&select=exam_id,score,${MOCK_ITEM_KEYS.join(',')}`) || [];
+    const items = mockActiveItems();
+    const totals = rows.map(r => mockRowTotal(r, items)).filter(v => v !== null);
+
+    const classNames = currentMockGroupExams
+      .map(e => classes.find(c => c.id === e.class_id)?.name || `반 #${e.class_id}`);
+    const avg = totals.length ? (totals.reduce((a, b) => a + b, 0) / totals.length).toFixed(1) : null;
+    const totalMax = items.reduce((a, it) => a + (it.max || 0), 0);
+
+    const sig = cfg => normalizeItemConfig(cfg, DEFAULT_MOCK_ITEM_CONFIG).filter(it => it.active).map(it => `${it.key}:${it.max}`).join('|');
+    const mySig = currentMockItemConfig.filter(it => it.active).map(it => `${it.key}:${it.max}`).join('|');
+    const mismatched = currentMockGroupExams.filter(e => sig(e.item_config) !== mySig)
+      .map(e => classes.find(c => c.id === e.class_id)?.name || `반 #${e.class_id}`);
+
+    let html = `비교 그룹 <strong>${currentMockGroupExams.length}개 반</strong> (${escapeHtml(classNames.join(', '))})<br>`
+      + `그룹 평균 <strong>${avg === null ? '–' : avg + '점'}</strong>`
+      + `${avg === null ? '' : ` / ${totalMax}점`} · 표본 <strong>${totals.length}명</strong>`
+      + ` <span style="color:var(--gray)">— 학부모 화면에 이 값이 표시됩니다.</span>`;
+    if (!currentMockGroupId) {
+      html += `<br><span class="warn">이 모의고사는 비교 그룹(group_id)이 없어 이 반만으로 평균이 계산됩니다.</span>`;
+    }
+    if (mismatched.length) {
+      html += `<br><span class="warn">⚠️ 항목 구성(활성 항목·만점)이 다른 반: ${escapeHtml(mismatched.join(', '))}`
+        + ` — [항목 설정 저장]을 누르면 그룹 전체가 현재 설정으로 통일됩니다.</span>`;
+    }
+    el.innerHTML = html;
+  } catch (e) {
+    el.innerHTML = '<span class="warn">비교 그룹 평균을 불러오지 못했습니다.</span>';
+  }
+}
+
+// 항목 점수가 하나라도 입력돼 있으면 항목 합계, 아니면 기존 score 폴백(옛 데이터).
+function mockRowTotal(row, items) {
+  const vals = items.map(it => row[it.key]).filter(v => v !== null && v !== undefined && v !== '');
+  if (vals.length) return vals.reduce((a, b) => a + parseFloat(b), 0);
+  return (row.score === null || row.score === undefined) ? null : parseFloat(row.score);
+}
+
+function renderMockScoreHeader() {
+  const items = mockActiveItems();
+  const totalMax = items.reduce((a, it) => a + (it.max || 0), 0);
+  const card = document.getElementById('mock-score-card');
+  if (card) card.style.setProperty('--mock-item-count', items.length);
+  const header = document.getElementById('mock-score-header');
+  if (!header) return;
+  header.innerHTML =
+    `<span>이름</span>` +
+    `<span style="text-align:center">총점<br><small style="font-weight:400">/${totalMax}</small></span>` +
+    `<span style="text-align:center">미응시</span>` +
+    items.map(it => `<span style="text-align:center">${escapeHtml(it.label) || '-'}<br><small style="font-weight:400">/${it.max ?? ''}</small></span>`).join('') +
+    `<span style="text-align:center">메모</span>`;
+}
+
 function renderMockInputs(classId, examId, scoreMap) {
   const container = document.getElementById('mock-score-inputs');
   const students = studentCache[classId] || [];
+  const items = mockActiveItems();
+  renderMockScoreHeader();
   container.innerHTML = students.map(st => {
     const sc = scoreMap[st.id] || {};
-    return `<div style="display:grid;grid-template-columns:1fr 100px 150px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--light-gray)" data-student-id="${st.id}">
-      <span style="font-size:13px;font-weight:500">${st.name}</span>
-      <input type="number" class="mock-score" value="${sc.score ?? ''}" min="0" max="100" placeholder="" oninput="mockDirty=true" style="padding:8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;text-align:center;outline:none;width:100%">
-      <input type="text" class="mock-memo" value="${sc.memo ?? ''}" placeholder="" oninput="mockDirty=true" style="padding:8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;outline:none;width:100%">
+    // 옛 데이터(항목 컬럼 없이 score만 있는 행)는 첫 항목 칸에 채워 보여준다.
+    // 그대로 저장하면 항목 컬럼으로 옮겨진다.
+    const noItemVals = MOCK_ITEM_KEYS.every(k => sc[k] === null || sc[k] === undefined);
+    const legacyScore = (noItemVals && sc.score !== null && sc.score !== undefined) ? sc.score : null;
+    const itemInputs = items.map((it, idx) => {
+      const val = sc[it.key] ?? (idx === 0 ? legacyScore : null);
+      const below = isBelowCut(val, it.cut) ? ' below-cut' : '';
+      const maxAttr = it.max != null ? ` max="${it.max}"` : '';
+      return `<input type="number" class="inp-mock-item${below}" data-key="${it.key}" data-cut="${it.cut ?? ''}" value="${val ?? ''}" min="0"${maxAttr} placeholder="" oninput="mockDirty=true;onMockScoreInput(this)">`;
+    }).join('');
+    const total = sumScores(items.map((it, idx) => sc[it.key] ?? (idx === 0 ? legacyScore : null)));
+    const absent = !!sc.absent;
+    return `<div class="mock-input-row${absent ? ' absent-on' : ''}" data-student-id="${st.id}">
+      <span class="student-name">${escapeHtml(st.name)}</span>
+      <span class="total-cell">${absent ? '미응시' : total}</span>
+      <input type="checkbox" class="inp-mock-absent" ${absent ? 'checked' : ''} title="봐야 했는데 안 본 학생" onchange="onMockAbsentToggle(this)">
+      ${itemInputs}
+      <input type="text" class="mock-memo" value="${escapeAttr(sc.memo ?? '')}" placeholder="" oninput="mockDirty=true">
     </div>`;
   }).join('');
+  // 저장된 미응시 상태에 맞춰 점수 칸 잠금
+  document.querySelectorAll('#mock-score-inputs .mock-input-row').forEach(row => {
+    applyMockAbsentState(row, row.querySelector('.inp-mock-absent').checked, false);
+  });
   mockDirty = false;
+  updateMockVisibilityInfo();
   document.getElementById('mock-save-btn').style.display = 'block';
+}
+
+// 미응시 = 점수 없음. 체크하면 점수 칸을 잠그고(clear=true면 값도 비움) 총점을 '미응시'로 표시.
+function applyMockAbsentState(row, absent, clear) {
+  row.classList.toggle('absent-on', absent);
+  row.querySelectorAll('.inp-mock-item').forEach(inp => {
+    inp.disabled = absent;
+    if (absent && clear) { inp.value = ''; inp.classList.remove('below-cut'); }
+  });
+  const cell = row.querySelector('.total-cell');
+  if (!cell) return;
+  cell.textContent = absent
+    ? '미응시'
+    : sumScores(Array.from(row.querySelectorAll('.inp-mock-item')).map(i => i.value));
+}
+
+function onMockAbsentToggle(inputEl) {
+  const row = inputEl.closest('.mock-input-row');
+  if (!row) return;
+  mockDirty = true;
+  applyMockAbsentState(row, inputEl.checked, true);
+  updateMockVisibilityInfo();
+}
+
+function setAllMockAbsent(on) {
+  const rows = document.querySelectorAll('#mock-score-inputs .mock-input-row');
+  if (!rows.length) return;
+  if (on && !confirm('이 반 전원을 미응시로 표시합니다.\n입력된 점수는 지워집니다. 계속할까요?')) return;
+  rows.forEach(row => {
+    row.querySelector('.inp-mock-absent').checked = on;
+    applyMockAbsentState(row, on, true);
+  });
+  mockDirty = true;
+  updateMockVisibilityInfo();
+}
+
+// 학부모에게 이 시험이 보이는 학생 수. 점수도 미응시도 없으면 시험 자체가 안 보인다.
+function updateMockVisibilityInfo() {
+  const el = document.getElementById('mock-visibility-info');
+  if (!el) return;
+  const rows = Array.from(document.querySelectorAll('#mock-score-inputs .mock-input-row'));
+  if (!rows.length) { el.innerHTML = ''; return; }
+  let scored = 0, absent = 0;
+  rows.forEach(row => {
+    if (row.querySelector('.inp-mock-absent').checked) { absent++; return; }
+    if (Array.from(row.querySelectorAll('.inp-mock-item')).some(i => i.value !== '')) scored++;
+  });
+  const hidden = rows.length - scored - absent;
+  el.innerHTML = `학부모에게 보이는 학생 <strong>${scored + absent}명</strong>`
+    + ` (점수 ${scored}명 · 미응시 ${absent}명) / 전체 ${rows.length}명`
+    + (hidden ? ` · <span class="warn">${hidden}명은 이 시험이 보이지 않습니다</span>` : '');
+}
+
+function onMockScoreInput(inputEl) {
+  inputEl.classList.toggle('below-cut', isBelowCut(inputEl.value, inputEl.dataset.cut));
+  const row = inputEl.closest('.mock-input-row');
+  if (!row) return;
+  const cell = row.querySelector('.total-cell');
+  if (cell) cell.textContent = sumScores(Array.from(row.querySelectorAll('.inp-mock-item')).map(i => i.value));
+  updateMockVisibilityInfo();
 }
 
 async function saveMockScores() {
   const examId = parseInt(document.getElementById('mock-score-exam').value);
-  const rows = document.querySelectorAll('#mock-score-inputs [data-student-id]');
+  const rows = document.querySelectorAll('#mock-score-inputs .mock-input-row');
   if (!rows.length) return;
   const existing = await api(`mock_scores?exam_id=eq.${examId}&select=id,student_id`) || [];
   const existMap = {};
   existing.forEach(e => { existMap[e.student_id] = e.id; });
-  const upserts = Array.from(rows).map(row => ({ student_id: parseInt(row.dataset.studentId), exam_id: examId, score: row.querySelector('.mock-score').value !== '' ? parseFloat(row.querySelector('.mock-score').value) : null, memo: row.querySelector('.mock-memo').value.trim() }));
+  // 활성 항목 컬럼 + 기존 score(항목 합계)를 함께 저장한다.
+  // score를 계속 채워두면 학부모 화면이 항목 컬럼 없이도 총점·평균을 그대로 계산할 수 있다.
+  const upserts = Array.from(rows).map(row => {
+    const absent = row.querySelector('.inp-mock-absent').checked;
+    const u = {
+      student_id: parseInt(row.dataset.studentId), exam_id: examId,
+      memo: row.querySelector('.mock-memo').value.trim(), absent
+    };
+    const vals = [];
+    row.querySelectorAll('.inp-mock-item').forEach(inp => {
+      // 미응시는 점수 없음으로 통일 (점수와 미응시가 동시에 남지 않게)
+      const v = (!absent && inp.value !== '') ? parseFloat(inp.value) : null;
+      u[inp.dataset.key] = v;
+      if (v !== null) vals.push(v);
+    });
+    u.score = vals.length ? vals.reduce((a, b) => a + b, 0) : null;
+    return u;
+  });
   try {
     const results = await Promise.all(upserts.map(async u => {
       if (existMap[u.student_id]) {
-        return apiRaw(`mock_scores?id=eq.${existMap[u.student_id]}`, 'PATCH', {score:u.score,memo:u.memo});
+        const { student_id, exam_id, ...patchBody } = u;
+        return apiRaw(`mock_scores?id=eq.${existMap[u.student_id]}`, 'PATCH', patchBody);
       } else {
         return apiRaw('mock_scores', 'POST', u);
       }
@@ -2239,6 +2905,7 @@ async function saveMockScores() {
     if (failed.length > 0) { showToast(`❌ ${failed.length}건 저장 실패`); return; }
     delete mockScoreCache[examId];
     mockDirty = false;
+    refreshMockGroupInfo();
     showToast('✅ 모의고사 점수가 저장됐어요!');
   } catch(e) { showToast('❌ 오류 발생: ' + e.message); }
 }
@@ -2437,6 +3104,11 @@ function pickMemoAuthor(btn) {
 
 function escapeHtml(str) {
   return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// HTML 속성값(value="...")에 넣을 때는 따옴표까지 이스케이프
+function escapeAttr(str) {
+  return escapeHtml(str).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 function formatMemoTime(iso) {
