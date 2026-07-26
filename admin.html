@@ -81,6 +81,13 @@
   .score-input-row textarea { padding:6px 8px; border:1.5px solid var(--border); border-radius:6px; font-size:12px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); outline:none; width:100%; transition:border-color 0.2s; resize:none; overflow:hidden; min-height:34px; line-height:1.5; }
   .score-input-row textarea:focus { border-color:var(--gold); background:var(--white); }
   .score-header { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 110px 90px 46px 46px 1fr; gap:6px; padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; }
+  /* 항목 칸: 점수 입력 + (커트라인 미달 시) 재시험 통과 체크 */
+  .item-cell { display:flex; flex-direction:column; gap:3px; }
+  .retest-chk { display:none; align-items:center; justify-content:center; gap:3px; font-size:10px; color:var(--red); font-weight:600; cursor:pointer; white-space:nowrap; }
+  .retest-chk.show { display:flex; }
+  /* .score-input-row input / .mock-input-row input 규칙(width:100%)에 덮이지 않도록 선택자를 더 좁힌다 */
+  .retest-chk input[type=checkbox] { -webkit-appearance:checkbox; appearance:checkbox; width:13px; min-width:13px; height:13px; margin:0; padding:0; border:none; border-radius:0; background:none; cursor:pointer; flex:none; }
+  .retest-chk.passed { color:var(--green); }
   /* 커트라인 미달 강조 */
   .score-input-row input.below-cut, .mock-input-row input.below-cut { color:var(--red); border-color:var(--red); font-weight:700; background:var(--red-light); }
   /* 모의고사 점수 입력 (이름 · 총점 · 항목들 · 메모) */
@@ -1030,6 +1037,48 @@ function isBelowCut(val, cut) {
     parseFloat(val) < parseFloat(cut);
 }
 
+// ── 재시험 ─────────────────────────────────────────────
+// 커트라인 미달 항목에만 '재시험 통과' 체크박스를 노출한다.
+// 커트라인을 넘기면 재시험 대상이 아니므로 체크를 숨기고 해제한다.
+function retestCheckbox(key, below, passed) {
+  const on = below && passed;
+  return `<label class="retest-chk${below ? ' show' : ''}${on ? ' passed' : ''}" title="재시험 통과">`
+    + `<input type="checkbox" class="inp-retest" data-key="${key}" ${on ? 'checked' : ''} onchange="onRetestToggle(this)">`
+    + `<span>재시험</span></label>`;
+}
+
+function onRetestToggle(inputEl) {
+  const label = inputEl.closest('.retest-chk');
+  if (label) label.classList.toggle('passed', inputEl.checked);
+  if (inputEl.closest('.mock-input-row')) mockDirty = true;
+  else scoreDirty = true;
+}
+
+// 점수가 바뀌면 재시험 체크 노출 여부를 다시 판단
+function syncRetestVisibility(scoreInput) {
+  const cell = scoreInput.closest('.item-cell');
+  if (!cell) return;
+  const label = cell.querySelector('.retest-chk');
+  if (!label) return;
+  const below = isBelowCut(scoreInput.value, scoreInput.dataset.cut);
+  label.classList.toggle('show', below);
+  if (!below) {
+    const chk = label.querySelector('.inp-retest');
+    chk.checked = false;
+    label.classList.remove('passed');
+  }
+}
+
+// 행에서 재시험 통과 항목만 모아 { 항목키: true } 로 반환.
+// 커트라인을 넘긴 항목은 대상이 아니므로 저장하지 않는다.
+function collectRetestPass(row) {
+  const out = {};
+  row.querySelectorAll('.retest-chk.show .inp-retest:checked').forEach(chk => {
+    out[chk.dataset.key] = true;
+  });
+  return Object.keys(out).length ? out : null;
+}
+
 // 입력된 점수만 합산 (빈칸은 무시). 하나도 없으면 '–'
 function sumScores(vals) {
   const nums = vals.filter(v => v !== null && v !== undefined && v !== '');
@@ -1415,6 +1464,7 @@ function collectCurrentScores() {
     row.querySelectorAll('.inp-item').forEach(inp => {
       obj[inp.dataset.key] = inp.value !== '' ? parseFloat(inp.value) : null;
     });
+    obj.retest_pass = collectRetestPass(row);
     map[sid] = obj;
   });
   return map;
@@ -1423,6 +1473,7 @@ function collectCurrentScores() {
 // 점수칸 입력 시: 커트라인 강조 + 같은 행 총점 갱신
 function onScoreInput(inputEl) {
   inputEl.classList.toggle('below-cut', isBelowCut(inputEl.value, inputEl.dataset.cut));
+  syncRetestVisibility(inputEl);
   recalcTotal(inputEl);
 }
 
@@ -1466,11 +1517,15 @@ function renderScoreInputs(classId, weekId, scoreMap) {
   container.innerHTML = students.map(st => {
     const sc = scoreMap[st.id] || {};
     const total = sumScores(items.map(it => sc[it.key]));
+    const retest = sc.retest_pass || {};
     const itemInputs = items.map(it => {
       const val = sc[it.key];
-      const below = isBelowCut(val, it.cut) ? ' below-cut' : '';
+      const below = isBelowCut(val, it.cut);
       const maxAttr = it.max != null ? ` max="${it.max}"` : '';
-      return `<input type="number" class="inp-item${below}" data-key="${it.key}" data-cut="${it.cut ?? ''}" value="${val ?? ''}" min="0"${maxAttr} placeholder="" oninput="scoreDirty=true;onScoreInput(this)">`;
+      return `<div class="item-cell">`
+        + `<input type="number" class="inp-item${below ? ' below-cut' : ''}" data-key="${it.key}" data-cut="${it.cut ?? ''}" value="${val ?? ''}" min="0"${maxAttr} placeholder="" oninput="scoreDirty=true;onScoreInput(this)">`
+        + retestCheckbox(it.key, below, retest[it.key] === true)
+        + `</div>`;
     }).join('');
     return `<div class="score-input-row" data-student-id="${st.id}">
       <span class="student-name">${st.name}${st.note ? `<br><small style="color:var(--red);font-weight:400;font-size:11px;line-height:1.4;display:block;margin-top:2px">${st.note}</small>` : ''}</span>
@@ -1524,6 +1579,7 @@ async function saveAllScores() {
     row.querySelectorAll('.inp-item').forEach(inp => {
       u[inp.dataset.key] = inp.value !== '' ? parseFloat(inp.value) : null;
     });
+    u.retest_pass = collectRetestPass(row);
     return u;
   });
   try {
@@ -2697,6 +2753,7 @@ function collectCurrentMockScores() {
     });
     obj.memo = row.querySelector('.mock-memo')?.value ?? '';
     obj.absent = !!row.querySelector('.inp-mock-absent')?.checked;
+    obj.retest_pass = collectRetestPass(row);
     map[row.dataset.studentId] = obj;
   });
   return map;
@@ -2782,11 +2839,15 @@ function renderMockInputs(classId, examId, scoreMap) {
     // 그대로 저장하면 항목 컬럼으로 옮겨진다.
     const noItemVals = MOCK_ITEM_KEYS.every(k => sc[k] === null || sc[k] === undefined);
     const legacyScore = (noItemVals && sc.score !== null && sc.score !== undefined) ? sc.score : null;
+    const retest = sc.retest_pass || {};
     const itemInputs = items.map((it, idx) => {
       const val = sc[it.key] ?? (idx === 0 ? legacyScore : null);
-      const below = isBelowCut(val, it.cut) ? ' below-cut' : '';
+      const below = isBelowCut(val, it.cut);
       const maxAttr = it.max != null ? ` max="${it.max}"` : '';
-      return `<input type="number" class="inp-mock-item${below}" data-key="${it.key}" data-cut="${it.cut ?? ''}" value="${val ?? ''}" min="0"${maxAttr} placeholder="" oninput="mockDirty=true;onMockScoreInput(this)">`;
+      return `<div class="item-cell">`
+        + `<input type="number" class="inp-mock-item${below ? ' below-cut' : ''}" data-key="${it.key}" data-cut="${it.cut ?? ''}" value="${val ?? ''}" min="0"${maxAttr} placeholder="" oninput="mockDirty=true;onMockScoreInput(this)">`
+        + retestCheckbox(it.key, below, retest[it.key] === true)
+        + `</div>`;
     }).join('');
     const total = sumScores(items.map((it, idx) => sc[it.key] ?? (idx === 0 ? legacyScore : null)));
     const absent = !!sc.absent;
@@ -2813,6 +2874,7 @@ function applyMockAbsentState(row, absent, clear) {
   row.querySelectorAll('.inp-mock-item').forEach(inp => {
     inp.disabled = absent;
     if (absent && clear) { inp.value = ''; inp.classList.remove('below-cut'); }
+    if (absent) syncRetestVisibility(inp);  // 미응시는 재시험 대상 판정에서 제외
   });
   const cell = row.querySelector('.total-cell');
   if (!cell) return;
@@ -2860,6 +2922,7 @@ function updateMockVisibilityInfo() {
 
 function onMockScoreInput(inputEl) {
   inputEl.classList.toggle('below-cut', isBelowCut(inputEl.value, inputEl.dataset.cut));
+  syncRetestVisibility(inputEl);
   const row = inputEl.closest('.mock-input-row');
   if (!row) return;
   const cell = row.querySelector('.total-cell');
@@ -2890,6 +2953,7 @@ async function saveMockScores() {
       if (v !== null) vals.push(v);
     });
     u.score = vals.length ? vals.reduce((a, b) => a + b, 0) : null;
+    u.retest_pass = absent ? null : collectRetestPass(row);
     return u;
   });
   try {
