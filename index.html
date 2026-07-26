@@ -265,6 +265,32 @@
       .chart-wrap canvas {
         max-height: 180px;
       }
+      /* 커트라인 미달 항목 강조 (관리자 화면과 같은 규칙) */
+      .score-item.below-cut {
+        background: var(--red-light);
+        border: 1.5px solid #f5c6c2;
+        padding: 11.5px;
+      }
+      .score-item.below-cut .score-value {
+        color: var(--red);
+      }
+      /* 재시험 표시 */
+      .retest-pass {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--green);
+        line-height: 1.4;
+      }
+      .retest-target {
+        display: inline-block;
+        margin-top: 3px;
+        padding: 2px 7px;
+        border-radius: 10px;
+        background: var(--red-light);
+        color: var(--red);
+        font-size: 10px;
+        font-weight: 600;
+      }
       .period-select {
         width: 100%;
         padding: 11px 38px 11px 14px;
@@ -784,6 +810,42 @@
           .map((x) => x.item);
       }
 
+      // 커트라인 미달 판정 (admin.html과 같은 규칙)
+      function isBelowCut(val, cut) {
+        return (
+          val !== null &&
+          val !== undefined &&
+          val !== "" &&
+          cut !== null &&
+          cut !== undefined &&
+          cut !== "" &&
+          parseFloat(val) < parseFloat(cut)
+        );
+      }
+
+      // 항목 한 칸의 표시 내용.
+      // 커트라인 미달 + 재시험 통과 → 점수 대신 '재시험 통과' (초록)
+      // 커트라인 미달 + 미통과     → 점수를 빨간색으로 + '재시험 대상'
+      // 재시험은 점수가 아니라 통과 여부만 관리하므로, 통과하면 원점수를 감춘다.
+      function itemCellHtml(item, value, retestPass) {
+        const below = isBelowCut(value, item.cut);
+        const passed = below && retestPass?.[item.key] === true;
+        const label = `<div class="score-label">${escapeHtml(item.label) || "-"}</div>`;
+        if (passed) {
+          return `<div class="score-item">
+            ${label}
+            <div class="retest-pass">재시험 통과</div>
+          </div>`;
+        }
+        const shown = value === null || value === undefined ? "-" : value;
+        const max = item.max ?? "";
+        return `<div class="score-item${below ? " below-cut" : ""}">
+            ${label}
+            <div class="score-value">${shown}<span class="score-max"> / ${max}</span></div>
+            ${below ? `<div class="retest-target">재시험 대상</div>` : ""}
+          </div>`;
+      }
+
       // 점수(항목 점수 또는 총점)가 하나라도 입력돼 있는지
       function hasMockScore(row) {
         if (!row) return false;
@@ -964,21 +1026,19 @@
         const rank =
           myTotal === null ? "-" : sorted.findIndex((v) => v === myTotal) + 1;
 
-        // 항목이 2개 이상이면 항목별 점수도 함께 보여준다
+        // 항목이 2개 이상이면 항목별 점수도 함께 보여준다.
+        // 항목이 1개여도 재시험 상태(통과/대상)가 있으면 보여줘야 하므로 함께 판단한다.
         const hasItemValues = mockItems.some(
           (it) => s[it.key] !== null && s[it.key] !== undefined,
         );
+        const hasRetestInfo = mockItems.some((it) =>
+          isBelowCut(s[it.key], it.cut),
+        );
         const itemsHtml =
-          mockItems.length > 1 && hasItemValues
+          hasItemValues && (mockItems.length > 1 || hasRetestInfo)
             ? `<div class="score-grid items-${mockItems.length}" style="margin-bottom:10px">
             ${mockItems
-              .map((it) => {
-                const v = s[it.key];
-                return `<div class="score-item">
-              <div class="score-label">${escapeHtml(it.label) || "-"}</div>
-              <div class="score-value">${v === null || v === undefined ? "-" : v}<span class="score-max"> / ${it.max ?? ""}</span></div>
-            </div>`;
-              })
+              .map((it) => itemCellHtml(it, s[it.key], s.retest_pass))
               .join("")}
           </div>`
             : "";
@@ -1210,14 +1270,7 @@
         <div class="card-body">
           <div class="score-grid items-${itemsForWeek(weekId).length}">
             ${itemsForWeek(weekId)
-              .map((it) => {
-                const v = s[it.key];
-                const shown = v === null || v === undefined ? "-" : v;
-                return `<div class="score-item">
-              <div class="score-label">${escapeHtml(it.label) || "-"}</div>
-              <div class="score-value">${shown}<span class="score-max"> / ${it.max}</span></div>
-            </div>`;
-              })
+              .map((it) => itemCellHtml(it, s[it.key], s.retest_pass))
               .join("")}
             <div class="score-item total">
               <div class="score-label">총점</div>
