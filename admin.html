@@ -17,6 +17,8 @@
     --border: #e8e4df;
     --red: #c0392b;
     --red-light: #fdf0ef;
+    --orange: #e67e22;
+    --orange-light: #fef5ec;
     --green: #27ae60;
     --green-light: #eafaf1;
     --shadow: 0 4px 20px rgba(15,31,61,0.1);
@@ -81,6 +83,9 @@
   .score-input-row textarea { padding:6px 8px; border:1.5px solid var(--border); border-radius:6px; font-size:12px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); outline:none; width:100%; transition:border-color 0.2s; resize:none; overflow:hidden; min-height:34px; line-height:1.5; }
   .score-input-row textarea:focus { border-color:var(--gold); background:var(--white); }
   .score-header { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 110px 90px 46px 46px 1fr; gap:6px; padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; }
+  /* 만점 초과·음수 입력 강조 — 커트라인 미달(빨강)과 구분되도록 주황 */
+  .score-input-row input.over-max, .mock-input-row input.over-max { color:var(--orange); border-color:var(--orange); font-weight:700; background:var(--orange-light); }
+  .range-warn { font-size:12px; color:var(--orange); font-weight:600; margin:10px 0 4px; }
   /* 항목 칸: 점수 입력 + (커트라인 미달 시) 재시험 통과 체크 */
   .item-cell { display:flex; flex-direction:column; gap:3px; }
   .retest-chk { display:none; align-items:center; justify-content:center; gap:3px; font-size:10px; color:var(--red); font-weight:600; cursor:pointer; white-space:nowrap; }
@@ -263,6 +268,7 @@
         </div>
       </div>
       <div class="section-body" style="overflow-x:auto">
+        <div class="range-warn" id="score-range-warn"></div>
         <div class="score-header" id="score-header"></div>
         <div id="score-inputs-container"></div>
       </div>
@@ -401,7 +407,10 @@
             </div>
           </div>
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-            <div class="mock-visibility-info" id="mock-visibility-info"></div>
+            <div>
+              <div class="mock-visibility-info" id="mock-visibility-info"></div>
+              <div class="range-warn" id="mock-range-warn"></div>
+            </div>
             <div style="display:flex;gap:6px">
               <button class="btn btn-light btn-sm" onclick="setAllMockAbsent(true)">전체 미응시</button>
               <button class="btn btn-light btn-sm" onclick="setAllMockAbsent(false)">미응시 해제</button>
@@ -1050,6 +1059,58 @@ function isBelowCut(val, cut) {
     parseFloat(val) < parseFloat(cut);
 }
 
+// ── 점수 범위 검사 ─────────────────────────────────────
+// type=number의 min/max는 화살표에만 적용되고 직접 타이핑한 값은 막지 못한다.
+// (만점 25인데 22.5를 225로 잘못 치는 실수를 잡기 위한 검사)
+function scoreRangeIssue(val, max) {
+  if (val === null || val === undefined || val === '') return null;
+  const v = parseFloat(val);
+  if (isNaN(v)) return null;
+  if (v < 0) return 'negative';
+  if (max !== null && max !== undefined && max !== '' && v > parseFloat(max)) return 'over';
+  return null;
+}
+
+// 225처럼 소수점을 빠뜨린 실수로 보이면 10으로 나눈 값을 제안한다.
+// 10의 배수(예: 40)는 소수점 실수가 아니므로 제안하지 않는다.
+function decimalSlipHint(v, max) {
+  if (v % 10 === 0) return '';
+  const alt = v / 10;
+  if (max === null || max === undefined || max === '' || alt > parseFloat(max)) return '';
+  return ` → ${alt}를 잘못 입력하신 건 아닌가요?`;
+}
+
+// 표 전체를 훑어 범위를 벗어난 입력을 모은다
+function collectRangeIssues(rowSelector, inputSelector, items) {
+  const out = [];
+  document.querySelectorAll(rowSelector).forEach(row => {
+    row.querySelectorAll(inputSelector).forEach(inp => {
+      const it = items.find(x => x.key === inp.dataset.key);
+      const kind = scoreRangeIssue(inp.value, it?.max);
+      if (!kind) return;
+      out.push({
+        name: row.dataset.studentName || '',
+        label: it?.label || '',
+        value: parseFloat(inp.value),
+        max: it?.max,
+        kind
+      });
+    });
+  });
+  return out;
+}
+
+// 범위 이탈이 있으면 확인창을 띄운다. 계속 저장하면 true.
+function confirmRangeIssues(issues) {
+  if (!issues.length) return true;
+  const lines = issues.slice(0, 8).map(i => i.kind === 'negative'
+    ? ` · ${i.name} ${i.label} ${i.value}점 (0점 미만)`
+    : ` · ${i.name} ${i.label} ${i.value}점 (만점 ${i.max})${decimalSlipHint(i.value, i.max)}`);
+  const more = issues.length > 8 ? `\n   … 외 ${issues.length - 8}건` : '';
+  return confirm(`⚠️ 만점을 넘거나 0점 미만인 점수가 ${issues.length}건 있습니다.\n\n`
+    + lines.join('\n') + more + `\n\n그대로 저장할까요?`);
+}
+
 // ── 재시험 ─────────────────────────────────────────────
 // 커트라인 미달 항목에만 '재시험 통과' 체크박스를 노출한다.
 // 커트라인을 넘기면 재시험 대상이 아니므로 체크를 숨기고 해제한다.
@@ -1536,8 +1597,19 @@ function applyNoHomeworkState() {
 // 점수칸 입력 시: 커트라인 강조 + 같은 행 총점 갱신
 function onScoreInput(inputEl) {
   inputEl.classList.toggle('below-cut', isBelowCut(inputEl.value, inputEl.dataset.cut));
+  const it = activeItems().find(x => x.key === inputEl.dataset.key);
+  inputEl.classList.toggle('over-max', !!scoreRangeIssue(inputEl.value, it?.max));
   syncRetestVisibility(inputEl);
   recalcTotal(inputEl);
+  updateScoreRangeWarn();
+}
+
+// 표 위에 만점 초과 건수를 띄운다 (스크롤이 길어도 놓치지 않도록)
+function updateScoreRangeWarn() {
+  const el = document.getElementById('score-range-warn');
+  if (!el) return;
+  const n = collectRangeIssues('#score-inputs-container .score-input-row', '.inp-item', activeItems()).length;
+  el.innerHTML = n ? `⚠️ 만점을 넘거나 0점 미만인 점수 <strong>${n}건</strong> — 저장 전에 확인해 주세요.` : '';
 }
 
 function recalcTotal(inputEl) {
@@ -1584,13 +1656,14 @@ function renderScoreInputs(classId, weekId, scoreMap) {
     const itemInputs = items.map(it => {
       const val = sc[it.key];
       const below = isBelowCut(val, it.cut);
+      const over = scoreRangeIssue(val, it.max) ? ' over-max' : '';
       const maxAttr = it.max != null ? ` max="${it.max}"` : '';
       return `<div class="item-cell">`
-        + `<input type="number" class="inp-item${below ? ' below-cut' : ''}" data-key="${it.key}" data-cut="${it.cut ?? ''}" value="${val ?? ''}" min="0"${maxAttr} placeholder="" oninput="scoreDirty=true;onScoreInput(this)">`
+        + `<input type="number" class="inp-item${below ? ' below-cut' : ''}${over}" data-key="${it.key}"" data-cut="${it.cut ?? ''}" value="${val ?? ''}" min="0"${maxAttr} placeholder="" oninput="scoreDirty=true;onScoreInput(this)">`
         + retestCheckbox(it.key, below, retest[it.key] === true)
         + `</div>`;
     }).join('');
-    return `<div class="score-input-row" data-student-id="${st.id}">
+    return `<div class="score-input-row" data-student-id="${st.id}" data-student-name="${escapeAttr(st.name)}">
       <span class="student-name">${st.name}${st.note ? `<br><small style="color:var(--red);font-weight:400;font-size:11px;line-height:1.4;display:block;margin-top:2px">${st.note}</small>` : ''}</span>
       <span class="total-cell">${total}</span>
       <input type="checkbox" class="inp-attend" ${sc.attendance === false ? '' : 'checked'} title="출석" onchange="scoreDirty=true">
@@ -1605,6 +1678,7 @@ function renderScoreInputs(classId, weekId, scoreMap) {
   }).join('');
   scoreDirty = false;
   applyNoHomeworkState();
+  updateScoreRangeWarn();
 
   // 기존 내용 있는 textarea 높이 초기화
   setTimeout(() => {
@@ -1627,6 +1701,7 @@ async function saveAllScores() {
   const weekId = parseInt(document.getElementById('score-week').value);
   const rows = document.querySelectorAll('#score-inputs-container .score-input-row');
   if (!rows.length) return;
+  if (!confirmRangeIssues(collectRangeIssues('#score-inputs-container .score-input-row', '.inp-item', activeItems()))) return;
   // 활성 항목의 점수 컬럼만 저장 대상에 포함. 비활성 항목은 PATCH에서 제외 → 기존 값 보존.
   const upserts = Array.from(rows).map(row => {
     const u = {
@@ -2932,15 +3007,16 @@ function renderMockInputs(classId, examId, scoreMap) {
     const itemInputs = items.map((it, idx) => {
       const val = sc[it.key] ?? (idx === 0 ? legacyScore : null);
       const below = isBelowCut(val, it.cut);
+      const over = scoreRangeIssue(val, it.max) ? ' over-max' : '';
       const maxAttr = it.max != null ? ` max="${it.max}"` : '';
       return `<div class="item-cell">`
-        + `<input type="number" class="inp-mock-item${below ? ' below-cut' : ''}" data-key="${it.key}" data-cut="${it.cut ?? ''}" value="${val ?? ''}" min="0"${maxAttr} placeholder="" oninput="mockDirty=true;onMockScoreInput(this)">`
+        + `<input type="number" class="inp-mock-item${below ? ' below-cut' : ''}${over}" data-key="${it.key}"" data-cut="${it.cut ?? ''}" value="${val ?? ''}" min="0"${maxAttr} placeholder="" oninput="mockDirty=true;onMockScoreInput(this)">`
         + retestCheckbox(it.key, below, retest[it.key] === true)
         + `</div>`;
     }).join('');
     const total = sumScores(items.map((it, idx) => sc[it.key] ?? (idx === 0 ? legacyScore : null)));
     const absent = !!sc.absent;
-    return `<div class="mock-input-row${absent ? ' absent-on' : ''}" data-student-id="${st.id}">
+    return `<div class="mock-input-row${absent ? ' absent-on' : ''}" data-student-id="${st.id}" data-student-name="${escapeAttr(st.name)}">
       <span class="student-name">${escapeHtml(st.name)}</span>
       <span class="total-cell">${absent ? '미응시' : total}</span>
       <input type="checkbox" class="inp-mock-absent" ${absent ? 'checked' : ''} title="봐야 했는데 안 본 학생" onchange="onMockAbsentToggle(this)">
@@ -2954,6 +3030,7 @@ function renderMockInputs(classId, examId, scoreMap) {
   });
   mockDirty = false;
   updateMockVisibilityInfo();
+  updateMockRangeWarn();
   document.getElementById('mock-save-btn').style.display = 'block';
 }
 
@@ -3011,6 +3088,9 @@ function updateMockVisibilityInfo() {
 
 function onMockScoreInput(inputEl) {
   inputEl.classList.toggle('below-cut', isBelowCut(inputEl.value, inputEl.dataset.cut));
+  const it = mockActiveItems().find(x => x.key === inputEl.dataset.key);
+  inputEl.classList.toggle('over-max', !!scoreRangeIssue(inputEl.value, it?.max));
+  updateMockRangeWarn();
   syncRetestVisibility(inputEl);
   const row = inputEl.closest('.mock-input-row');
   if (!row) return;
@@ -3019,10 +3099,18 @@ function onMockScoreInput(inputEl) {
   updateMockVisibilityInfo();
 }
 
+function updateMockRangeWarn() {
+  const el = document.getElementById('mock-range-warn');
+  if (!el) return;
+  const n = collectRangeIssues('#mock-score-inputs .mock-input-row', '.inp-mock-item', mockActiveItems()).length;
+  el.innerHTML = n ? `⚠️ 만점을 넘거나 0점 미만인 점수 <strong>${n}건</strong> — 저장 전에 확인해 주세요.` : '';
+}
+
 async function saveMockScores() {
   const examId = parseInt(document.getElementById('mock-score-exam').value);
   const rows = document.querySelectorAll('#mock-score-inputs .mock-input-row');
   if (!rows.length) return;
+  if (!confirmRangeIssues(collectRangeIssues('#mock-score-inputs .mock-input-row', '.inp-mock-item', mockActiveItems()))) return;
   const existing = await api(`mock_scores?exam_id=eq.${examId}&select=id,student_id`) || [];
   const existMap = {};
   existing.forEach(e => { existMap[e.student_id] = e.id; });
