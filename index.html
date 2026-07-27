@@ -276,10 +276,14 @@
       }
       /* 재시험 표시 */
       .retest-pass {
-        font-size: 13px;
-        font-weight: 700;
+        display: inline-block;
+        margin-top: 3px;
+        padding: 2px 7px;
+        border-radius: 10px;
+        background: var(--green-light);
         color: var(--green);
-        line-height: 1.4;
+        font-size: 10px;
+        font-weight: 600;
       }
       .retest-target {
         display: inline-block;
@@ -831,18 +835,14 @@
         const below = isBelowCut(value, item.cut);
         const passed = below && retestPass?.[item.key] === true;
         const label = `<div class="score-label">${escapeHtml(item.label) || "-"}</div>`;
-        if (passed) {
-          return `<div class="score-item">
-            ${label}
-            <div class="retest-pass">재시험 통과</div>
-          </div>`;
-        }
         const shown = value === null || value === undefined ? "-" : value;
         const max = item.max ?? "";
-        return `<div class="score-item${below ? " below-cut" : ""}">
+        // 통과했으면 기준 미달 강조를 풀고 초록 배지만 붙인다 (점수는 항상 그대로 보여준다)
+        return `<div class="score-item${below && !passed ? " below-cut" : ""}">
             ${label}
             <div class="score-value">${shown}<span class="score-max"> / ${max}</span></div>
-            ${below ? `<div class="retest-target">재시험 대상</div>` : ""}
+            ${passed ? `<div class="retest-pass">재시험 통과</div>` : ""}
+            ${below && !passed ? `<div class="retest-target">재시험 대상</div>` : ""}
           </div>`;
       }
 
@@ -1202,6 +1202,8 @@
               "점";
           }
 
+          // 관리자가 '이번 주 과제 없음'을 체크한 주차는 과제 관련 표시를 전부 숨긴다
+          const noHomework = s.no_homework === true;
           // homework_rate가 null이면 미기재 처리
           const hwNull =
             s.homework_rate === null || s.homework_rate === undefined;
@@ -1287,14 +1289,17 @@
               <div class="meta-value">${rank}등 / ${total_students}명</div>
             </div>
           </div>
-          <div class="homework-card">
+          ${
+            noHomework
+              ? ""
+              : `<div class="homework-card">
             <div><div class="homework-label">과제 수행률</div></div>
             <div style="text-align:right">
               <div class="homework-rate" style="color:${hwColor}">${hwDisplay}</div>
-              
             </div>
           </div>
-          ${noticeHtml}
+          ${noticeHtml}`
+          }
         </div>
       </div>`;
         } catch (e) {

@@ -229,7 +229,13 @@
       </div>
       <div class="section-body">
         <div style="margin-bottom:12px">
-          <label style="display:block;font-size:11px;color:var(--gray);font-weight:500;letter-spacing:0.5px;margin-bottom:5px">이번 주 과제 내용</label>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px;flex-wrap:wrap">
+            <label style="font-size:11px;color:var(--gray);font-weight:500;letter-spacing:0.5px">이번 주 과제 내용</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:500;color:var(--navy);cursor:pointer" title="체크하면 학부모 화면에서 과제 수행률과 과제 안내가 표시되지 않습니다">
+              <input type="checkbox" id="week-no-homework" onchange="onNoHomeworkToggle()" style="width:15px;height:15px;cursor:pointer">
+              이번 주 과제 없음
+            </label>
+          </div>
           <textarea id="week-memo" rows="2" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'" onblur="saveWeekMemo()" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;outline:none;resize:none;line-height:1.6;min-height:44px" placeholder="예: 워크북 p.30~35, 단어 암기 1~30번"></textarea>
         </div>
         <div style="border-top:1px solid var(--light-gray);padding-top:14px">
@@ -958,6 +964,7 @@ async function addWeek() {
   document.getElementById('week-date').value = '';
   setPickerSelection('week-class-picker', 'none');
   loadWeekList();
+  refreshScoreWeekOptions();
 }
 
 async function loadWeekList() {
@@ -976,6 +983,7 @@ async function deleteWeek(id) {
   await api(`weeks?id=eq.${id}`, 'DELETE');
   showToast('🗑 주차가 삭제됐어요.');
   loadWeekList();
+  refreshScoreWeekOptions();
 }
 
 // ── 점수 입력
@@ -994,6 +1002,11 @@ const DEFAULT_ITEM_CONFIG = [
   { key: 'item4_score',   label: '',       max: 20, cut: null, active: false }
 ];
 let currentItemConfig = DEFAULT_ITEM_CONFIG.map(it => ({ ...it }));
+// 이번 주차에 과제가 없었는지. 체크하면 학부모 화면에서 과제 수행률·안내가 사라진다.
+// 주차 단위 설정이지만 scores(학생별)에 저장한다 — 학부모 화면이 받는 myScores가
+// select=* 라서 엣지 함수를 고치지 않아도 바로 반영되기 때문이다.
+let currentNoHomework = false;
+
 // 현재 선택한 주차의 group_id. 같은 group_id를 가진 주차들이 평균·석차 모집단(비교 그룹)이다.
 let currentWeekGroupId = null;
 let currentGroupWeeks = [];  // [{id, class_id, item_config}] — 비교 그룹에 속한 주차들
@@ -1110,6 +1123,29 @@ async function loadWeeksForScore() {
   }
 }
 
+// 주차를 추가·삭제한 뒤 점수 입력 탭의 주차 드롭다운을 다시 채운다.
+// 입력 중이던 점수를 잃지 않도록 현재 선택은 그대로 두고, 목록만 갱신한다.
+async function refreshScoreWeekOptions() {
+  const classId = document.getElementById('score-class').value;
+  const sel = document.getElementById('score-week');
+  if (!sel || !classId) return;
+  const prev = sel.value;
+  const weeks = await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`) || [];
+  sel.innerHTML = '<option value="">주차를 선택하세요</option>';
+  weeks.forEach(w => { const opt = document.createElement('option'); opt.value = w.id; opt.textContent = w.label || w.test_date; sel.appendChild(opt); });
+
+  if (prev && weeks.some(w => String(w.id) === prev)) {
+    sel.value = prev;                       // 보고 있던 주차 유지
+  } else if (prev) {
+    sel.value = '';                         // 보고 있던 주차가 삭제됨
+    document.getElementById('score-input-card').style.display = 'none';
+    scoreDirty = false;
+  } else if (weeks.length) {
+    sel.value = weeks[0].id;                // 아무것도 안 보고 있었다면 새로 만든 주차를 바로 연다
+    loadScoreInputs();
+  }
+}
+
 async function loadScoreInputs() {
   const classId = document.getElementById('score-class').value;
   const weekId = document.getElementById('score-week').value;
@@ -1142,7 +1178,11 @@ async function loadScoreInputs() {
   toggleGroupEdit('week', false);  // 주차가 바뀌면 편집 중이던 그룹 선택은 닫는다
   refreshGroupInfo();      // 그룹 평균은 느려도 되므로 await 하지 않음
 
-  if (scoreCache[weekId]) { renderScoreInputs(classId, weekId, scoreCache[weekId]); return; }
+  if (scoreCache[weekId]) {
+    currentNoHomework = hasNoHomework(scoreCache[weekId]);
+    renderScoreInputs(classId, weekId, scoreCache[weekId]);
+    return;
+  }
   container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
   if (!studentCache[classId]) {
     studentCache[classId] = await api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`) || [];
@@ -1150,7 +1190,13 @@ async function loadScoreInputs() {
   const scores = await api(`scores?week_id=eq.${weekId}&select=*`) || [];
   scoreCache[weekId] = {};
   scores.forEach(s => { scoreCache[weekId][s.student_id] = s; });
+  currentNoHomework = hasNoHomework(scoreCache[weekId]);
   renderScoreInputs(classId, weekId, scoreCache[weekId]);
+}
+
+// 저장된 점수 행 중 하나라도 '과제 없음'이면 그 주차는 과제 없음으로 본다
+function hasNoHomework(scoreMap) {
+  return Object.values(scoreMap || {}).some(r => r && r.no_homework === true);
 }
 
 // ── 항목 설정 편집기 ────────────────────────────────────
@@ -1470,6 +1516,23 @@ function collectCurrentScores() {
   return map;
 }
 
+// '이번 주 과제 없음' 체크 시 과제 수행률 입력칸을 잠근다 (저장 시 null로 기록)
+function onNoHomeworkToggle() {
+  currentNoHomework = document.getElementById('week-no-homework').checked;
+  scoreDirty = true;
+  applyNoHomeworkState();
+}
+
+function applyNoHomeworkState() {
+  const chk = document.getElementById('week-no-homework');
+  if (chk) chk.checked = currentNoHomework;
+  document.querySelectorAll('#score-inputs-container .inp-hw').forEach(inp => {
+    inp.disabled = currentNoHomework;
+    if (currentNoHomework) inp.value = '';
+    inp.style.background = currentNoHomework ? 'var(--light-gray)' : '';
+  });
+}
+
 // 점수칸 입력 시: 커트라인 강조 + 같은 행 총점 갱신
 function onScoreInput(inputEl) {
   inputEl.classList.toggle('below-cut', isBelowCut(inputEl.value, inputEl.dataset.cut));
@@ -1541,6 +1604,7 @@ function renderScoreInputs(classId, weekId, scoreMap) {
     </div>`;
   }).join('');
   scoreDirty = false;
+  applyNoHomeworkState();
 
   // 기존 내용 있는 textarea 높이 초기화
   setTimeout(() => {
@@ -1568,7 +1632,8 @@ async function saveAllScores() {
     const u = {
       student_id: parseInt(row.dataset.studentId),
       week_id: weekId,
-      homework_rate: row.querySelector('.inp-hw').value !== '' ? parseInt(row.querySelector('.inp-hw').value) : null,
+      no_homework: currentNoHomework,
+      homework_rate: (!currentNoHomework && row.querySelector('.inp-hw').value !== '') ? parseInt(row.querySelector('.inp-hw').value) : null,
       homework_eval: row.querySelector('.inp-eval').value.trim(),
       hw_cert: row.querySelector('.inp-hwcert').value.trim(),
       attendance: row.querySelector('.inp-attend').checked,
@@ -2621,6 +2686,7 @@ async function addMockExam() {
   document.getElementById('mock-label').value = '';
   setPickerSelection('mock-class-picker', 'none');
   loadMockList();
+  refreshMockExamOptions();
 }
 
 async function loadMockExams() {
@@ -2637,6 +2703,29 @@ async function loadMockExams() {
   exams.forEach(e => { const opt = document.createElement('option'); opt.value = e.id; opt.textContent = e.label || e.exam_date; sel.appendChild(opt); });
   // 최근 회차 자동 선택
   if (exams.length > 0) { sel.value = exams[0].id; loadMockScoreInputs(); }
+}
+
+// 모의고사를 추가·삭제한 뒤 점수 입력 섹션의 시험 드롭다운을 다시 채운다.
+// (기존에는 모의고사 목록만 갱신돼서, 새로 만든 시험을 고르려면 새로고침이 필요했다)
+async function refreshMockExamOptions() {
+  const classId = document.getElementById('mock-score-class').value;
+  const sel = document.getElementById('mock-score-exam');
+  if (!sel || !classId) return;
+  const prev = sel.value;
+  const exams = await api(`mock_exams?class_id=eq.${classId}&order=id.desc&select=*`) || [];
+  sel.innerHTML = '<option value="">모의고사를 선택하세요</option>';
+  exams.forEach(e => { const opt = document.createElement('option'); opt.value = e.id; opt.textContent = e.label || e.exam_date; sel.appendChild(opt); });
+
+  if (prev && exams.some(e => String(e.id) === prev)) {
+    sel.value = prev;                       // 보고 있던 시험 유지
+  } else if (prev) {
+    sel.value = '';                         // 보고 있던 시험이 삭제됨
+    document.getElementById('mock-score-card').style.display = 'none';
+    mockDirty = false;
+  } else if (exams.length) {
+    sel.value = exams[0].id;                // 아무것도 안 보고 있었다면 새로 만든 시험을 바로 연다
+    loadMockScoreInputs();
+  }
 }
 
 async function loadMockScoreInputs() {
@@ -2990,6 +3079,7 @@ async function deleteMockExam(id) {
   await api(`mock_exams?id=eq.${id}`, 'DELETE');
   showToast('🗑 모의고사가 삭제됐어요.');
   loadMockList();
+  refreshMockExamOptions();
 }
 
 // ── 학생 관리
