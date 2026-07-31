@@ -83,6 +83,21 @@
   .score-input-row textarea { padding:6px 8px; border:1.5px solid var(--border); border-radius:6px; font-size:12px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); outline:none; width:100%; transition:border-color 0.2s; resize:none; overflow:hidden; min-height:34px; line-height:1.5; }
   .score-input-row textarea:focus { border-color:var(--gold); background:var(--white); }
   .score-header { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 110px 90px 46px 46px 1fr; gap:6px; padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; }
+  /* 반 이동 — 주차 매칭 표 */
+  .move-row { display:grid; grid-template-columns:1fr 16px 1.4fr; gap:6px; align-items:center; padding:5px 0; border-bottom:1px solid var(--border); }
+  .move-row:last-child { border-bottom:none; }
+  .move-row .from { font-size:12px; color:var(--navy); font-weight:600; }
+  .move-row .arrow { color:var(--gray); text-align:center; }
+  .move-row select { width:100%; padding:5px 6px; border:1.5px solid var(--border); border-radius:6px; font-size:12px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); background:var(--white); outline:none; }
+  .move-row select.none { color:var(--red); border-color:#f5c6c2; }
+  .move-how { font-size:10px; color:var(--gray); margin-top:2px; }
+  .move-how.auto { color:var(--green); }
+  .move-how.warn { color:var(--red); }
+  /* 접을 수 있는 설정 영역 */
+  .cfg-toggle { display:flex; align-items:center; gap:6px; padding:0; border:none; background:none; cursor:pointer; font-family:'Noto Sans KR',sans-serif; font-size:11px; color:var(--gray); font-weight:500; letter-spacing:0.5px; text-align:left; }
+  .cfg-toggle:hover { color:var(--navy); }
+  .cfg-toggle .chev { display:inline-block; font-size:10px; color:var(--gold); transition:transform 0.15s; }
+  .cfg-toggle.collapsed .chev { transform:rotate(-90deg); }
   /* 만점 초과·음수 입력 강조 — 커트라인 미달(빨강)과 구분되도록 주황 */
   .score-input-row input.over-max, .mock-input-row input.over-max { color:var(--orange); border-color:var(--orange); font-weight:700; background:var(--orange-light); }
   .range-warn { font-size:12px; color:var(--orange); font-weight:600; margin:10px 0 4px; }
@@ -244,11 +259,15 @@
           <textarea id="week-memo" rows="2" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'" onblur="saveWeekMemo()" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;outline:none;resize:none;line-height:1.6;min-height:44px" placeholder="예: 워크북 p.30~35, 단어 암기 1~30번"></textarea>
         </div>
         <div style="border-top:1px solid var(--light-gray);padding-top:14px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-            <label style="font-size:11px;color:var(--gray);font-weight:500;letter-spacing:0.5px">이번 주 채점 항목 설정 (항목명·만점·커트라인)</label>
-            <button class="btn btn-primary btn-sm" onclick="saveItemConfig()">항목 설정 저장</button>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
+            <button class="cfg-toggle" id="item-config-toggle" onclick="toggleItemConfigBox('week')">
+              <span class="chev">▾</span>이번 주 채점 항목 설정 (항목명·만점·커트라인)
+            </button>
+            <button class="btn btn-primary btn-sm" id="item-config-save-btn" onclick="saveItemConfig()">항목 설정 저장</button>
           </div>
-          <div class="item-config-editor" id="item-config-editor"></div>
+          <div id="item-config-body">
+            <div class="item-config-editor" id="item-config-editor"></div>
+          </div>
           <div class="item-config-total" id="item-config-total"></div>
           <div class="group-avg-info" id="group-avg-info"></div>
           <div style="margin-top:8px">
@@ -384,11 +403,15 @@
         </div>
         <div id="mock-score-card" style="display:none">
           <div style="border-top:1px solid var(--light-gray);padding-top:14px;margin-bottom:14px">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-              <label style="font-size:11px;color:var(--gray);font-weight:500;letter-spacing:0.5px">이 모의고사 채점 항목 설정 (항목명·만점·커트라인)</label>
-              <button class="btn btn-primary btn-sm" onclick="saveMockItemConfig()">항목 설정 저장</button>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
+              <button class="cfg-toggle" id="mock-item-config-toggle" onclick="toggleItemConfigBox('mock')">
+                <span class="chev">▾</span>이 모의고사 채점 항목 설정 (항목명·만점·커트라인)
+              </button>
+              <button class="btn btn-primary btn-sm" id="mock-item-config-save-btn" onclick="saveMockItemConfig()">항목 설정 저장</button>
             </div>
-            <div class="item-config-editor" id="mock-item-config-editor"></div>
+            <div id="mock-item-config-body">
+              <div class="item-config-editor" id="mock-item-config-editor"></div>
+            </div>
             <div class="item-config-total" id="mock-item-config-total"></div>
             <div class="group-avg-info" id="mock-group-avg-info"></div>
             <div style="margin-top:8px">
@@ -727,14 +750,14 @@
 
 <!-- 반 이동 모달 -->
 <div id="move-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
-  <div style="background:var(--white);border-radius:16px;padding:28px;width:90%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+  <div style="background:var(--white);border-radius:16px;padding:28px;width:90%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
     <h3 style="font-size:16px;font-weight:700;color:var(--navy);margin-bottom:6px" id="move-modal-title">반 이동</h3>
     <p style="font-size:13px;color:var(--gray);margin-bottom:20px">이동할 반을 선택하면 기존 점수 데이터도 함께 이전됩니다.</p>
     <div style="margin-bottom:16px">
       <label style="display:block;font-size:11px;color:var(--gray);font-weight:500;margin-bottom:5px">이동할 반</label>
       <select id="move-target-class" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'Noto Sans KR',sans-serif;color:var(--navy);background:var(--cream);outline:none"></select>
     </div>
-    <div id="move-match-preview" style="font-size:12px;color:var(--gray);margin-bottom:16px;background:var(--light-gray);border-radius:8px;padding:10px;display:none"></div>
+    <div id="move-match-preview" style="font-size:12px;color:var(--gray);margin-bottom:16px;background:var(--light-gray);border-radius:8px;padding:10px;display:none;max-height:300px;overflow-y:auto"></div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-primary" style="flex:1" onclick="confirmMoveStudent()">이동 확인</button>
       <button class="btn" style="flex:1;background:var(--light-gray);color:var(--navy)" onclick="closeMoveModal()">취소</button>
@@ -1059,6 +1082,37 @@ function isBelowCut(val, cut) {
     parseFloat(val) < parseFloat(cut);
 }
 
+// ── 항목 설정 접기 ─────────────────────────────────────
+// 편집기가 화면을 많이 차지해 점수 표가 한 화면에 안 들어오므로 접을 수 있게 한다.
+// 접어도 '사용 항목 N개 · 총점 만점 M점' 요약과 비교 그룹 평균은 그대로 보인다.
+// 접힌 상태는 브라우저에 기억해 주차·시험을 옮겨도 유지된다.
+const CFG_BOX = {
+  week: { body: 'item-config-body', toggle: 'item-config-toggle', saveBtn: 'item-config-save-btn', key: 'cfgCollapsed.week' },
+  mock: { body: 'mock-item-config-body', toggle: 'mock-item-config-toggle', saveBtn: 'mock-item-config-save-btn', key: 'cfgCollapsed.mock' }
+};
+
+function isItemConfigCollapsed(kind) {
+  try { return localStorage.getItem(CFG_BOX[kind].key) === '1'; } catch (e) { return false; }
+}
+
+function applyItemConfigBox(kind) {
+  const K = CFG_BOX[kind];
+  const body = document.getElementById(K.body);
+  const toggle = document.getElementById(K.toggle);
+  const saveBtn = document.getElementById(K.saveBtn);
+  if (!body) return;
+  const collapsed = isItemConfigCollapsed(kind);
+  body.style.display = collapsed ? 'none' : 'block';
+  if (toggle) toggle.classList.toggle('collapsed', collapsed);
+  if (saveBtn) saveBtn.style.display = collapsed ? 'none' : 'inline-block';
+}
+
+function toggleItemConfigBox(kind) {
+  const K = CFG_BOX[kind];
+  try { localStorage.setItem(K.key, isItemConfigCollapsed(kind) ? '0' : '1'); } catch (e) {}
+  applyItemConfigBox(kind);
+}
+
 // ── 점수 범위 검사 ─────────────────────────────────────
 // type=number의 min/max는 화살표에만 적용되고 직접 타이핑한 값은 막지 못한다.
 // (만점 25인데 22.5를 225로 잘못 치는 실수를 잡기 위한 검사)
@@ -1276,6 +1330,7 @@ function renderItemConfigEditor() {
       </div>`;
     }).join('');
   updateItemConfigTotal();
+  applyItemConfigBox('week');
 }
 
 // ── 비교 그룹 평균 (학부모 화면에 보이는 값과 같은 기준) ──
@@ -1951,36 +2006,104 @@ async function previewMoveMatch(studentId, fromClassId, toClassId) {
   const scores = await api(`scores?student_id=eq.${studentId}&select=week_id`) || [];
   const scoredWeekIds = new Set(scores.map(s => s.week_id));
 
-  // group_id 기준으로 매칭
-  let matched = 0, unmatched = 0;
-  const matchLines = [];
-
-  fromWeeks.filter(w => scoredWeekIds.has(w.id)).forEach(fw => {
-    if (fw.group_id) {
-      const tw = toWeeks.find(w => w.group_id === fw.group_id);
-      if (tw) {
-        matched++;
-        matchLines.push(`✅ ${fw.label || fw.test_date} → ${tw.label || tw.test_date}`);
-      } else {
-        unmatched++;
-        matchLines.push(`⚠️ ${fw.label || fw.test_date} → 매칭 주차 없음`);
-      }
-    } else {
-      unmatched++;
-      matchLines.push(`⚠️ ${fw.label || fw.test_date} → group_id 없음`);
-    }
-  });
-
-  if (matchLines.length === 0) {
-    preview.textContent = '이전할 점수 데이터가 없습니다.';
-  } else {
-    preview.innerHTML = matchLines.join('<br>') + `<br><strong style="color:var(--navy)">매칭 ${matched}건 / 미매칭 ${unmatched}건</strong>`;
-  }
-
   window._moveToClassId = parseInt(toClassId);
-  window._moveFromWeeks = fromWeeks;  
+  window._moveFromWeeks = fromWeeks;
   window._moveToWeeks = toWeeks;
   window._moveScoreedWeekIds = scoredWeekIds;
+
+  renderMoveMatch();
+}
+
+// 'M.D' → 그 날짜가 속한 주의 월요일. 요일이 다른 반끼리 매칭할 때 쓴다.
+// (고2 목요일반 7.29 과 금요일반 7.31 은 날짜는 다르지만 같은 주의 시험이다)
+function weekStartKey(label) {
+  const d = resolveBaseDate(label);
+  if (!d) return null;
+  const cur = d.getDay() === 0 ? 7 : d.getDay();   // 1=월 … 7=일
+  const mon = new Date(d);
+  mon.setDate(mon.getDate() - (cur - 1));
+  return `${mon.getFullYear()}-${mon.getMonth() + 1}-${mon.getDate()}`;
+}
+
+// 이전할 주차를 자동으로 짝지어 보여주고, 필요하면 직접 고를 수 있게 한다.
+// 자동 매칭 순서: ①같은 비교 그룹(group_id) ②같은 날짜 ③같은 주(월~일)
+// group_id만으로 찾으면, 반별로 주차를 따로 만들었거나 비교 그룹을 수정한 뒤에는
+// 대응 주차가 있어도 '매칭 없음'으로 나온다.
+// ③은 수업 요일이 다른 반끼리(목요일반 ↔ 금요일반) 필요하다.
+function renderMoveMatch() {
+  const preview = document.getElementById('move-match-preview');
+  const fromWeeks = window._moveFromWeeks || [];
+  const toWeeks = window._moveToWeeks || [];
+  const scoredIds = window._moveScoreedWeekIds || new Set();
+  const targets = fromWeeks.filter(w => scoredIds.has(w.id));
+
+  if (!targets.length) {
+    preview.textContent = '이전할 점수 데이터가 없습니다.';
+    return;
+  }
+
+  const labelOf = w => w.label || w.test_date || `#${w.id}`;
+  const used = new Set();
+  const rows = targets.map(fw => {
+    let tw = null, how = '';
+    if (fw.group_id) {
+      tw = toWeeks.find(w => w.group_id === fw.group_id && !used.has(w.id)) || null;
+      if (tw) how = '비교 그룹 일치';
+    }
+    if (!tw) {
+      tw = toWeeks.find(w => labelOf(w) === labelOf(fw) && !used.has(w.id)) || null;
+      if (tw) how = '같은 날짜';
+    }
+    if (!tw) {
+      const key = weekStartKey(labelOf(fw));
+      if (key) {
+        tw = toWeeks.find(w => weekStartKey(labelOf(w)) === key && !used.has(w.id)) || null;
+        if (tw) how = '같은 주';
+      }
+    }
+    if (tw) used.add(tw.id);
+    return { fw, tw, how };
+  });
+
+  preview.innerHTML = rows.map(({ fw, tw, how }) => {
+    const opts = `<option value="">— 이전하지 않음 —</option>` +
+      toWeeks.map(w => `<option value="${w.id}"${tw && w.id === tw.id ? ' selected' : ''}>${escapeHtml(labelOf(w))}</option>`).join('');
+    return `<div class="move-row" data-from-week="${fw.id}">
+      <div>
+        <div class="from">${escapeHtml(labelOf(fw))}</div>
+        <div class="move-how ${tw ? 'auto' : 'warn'}">${tw ? how : '자동 매칭 없음 — 직접 선택'}</div>
+      </div>
+      <div class="arrow">→</div>
+      <select class="move-target${tw ? '' : ' none'}" onchange="onMoveTargetChange(this)">${opts}</select>
+    </div>`;
+  }).join('') + `<div id="move-match-summary" style="margin-top:8px"></div>`;
+
+  updateMoveMatchSummary();
+}
+
+function onMoveTargetChange(sel) {
+  sel.classList.toggle('none', !sel.value);
+  const how = sel.closest('.move-row').querySelector('.move-how');
+  if (how) { how.textContent = sel.value ? '직접 선택' : '이전하지 않음'; how.className = `move-how ${sel.value ? 'auto' : 'warn'}`; }
+  updateMoveMatchSummary();
+}
+
+// 화면에서 선택된 매칭을 읽는다
+function collectMoveMapping() {
+  return Array.from(document.querySelectorAll('#move-match-preview .move-row')).map(row => ({
+    from_week_id: parseInt(row.dataset.fromWeek),
+    to_week_id: row.querySelector('.move-target').value ? parseInt(row.querySelector('.move-target').value) : null
+  }));
+}
+
+function updateMoveMatchSummary() {
+  const el = document.getElementById('move-match-summary');
+  if (!el) return;
+  const map = collectMoveMapping();
+  const matched = map.filter(m => m.to_week_id !== null);
+  const dupes = matched.map(m => m.to_week_id).filter((v, i, a) => a.indexOf(v) !== i);
+  el.innerHTML = `<strong style="color:var(--navy)">이전 ${matched.length}건 / 제외 ${map.length - matched.length}건</strong>`
+    + (dupes.length ? `<br><span style="color:var(--red)">⚠️ 같은 주차를 두 번 선택했습니다. 하나만 남겨주세요.</span>` : '');
 }
 
 async function confirmMoveStudent() {
@@ -1994,7 +2117,15 @@ async function confirmMoveStudent() {
 
   const fromWeeks = window._moveFromWeeks || [];
   const toWeeks   = window._moveToWeeks || [];
-  const scoredIds = window._moveScoreedWeekIds || new Set();
+  const labelOf = w => w?.label || w?.test_date || '';
+
+  // 같은 주차를 두 번 고르면 점수가 겹쳐 저장되므로 막는다
+  const mapping = collectMoveMapping();
+  const picked = mapping.filter(m => m.to_week_id !== null).map(m => m.to_week_id);
+  if (picked.length !== new Set(picked).size) {
+    showToast('❌ 같은 주차를 두 번 선택했습니다. 하나만 남겨주세요.');
+    return;
+  }
 
   // 이동할 반 주차에 이미 점수 행이 있는지 확인 (덮어쓰기 방지)
   let destHas = new Set();
@@ -2005,21 +2136,22 @@ async function confirmMoveStudent() {
   }
 
   const updates = [], orphans = [], conflicts = [];
-  fromWeeks.filter(w => scoredIds.has(w.id)).forEach(fw => {
-    const label = fw.label || fw.test_date;
-    const tw = fw.group_id ? toWeeks.find(w => w.group_id === fw.group_id) : null;
-    if (!tw)                  orphans.push(label);
-    else if (destHas.has(tw.id)) conflicts.push(label);
-    else                      updates.push({ from_week_id: fw.id, to_week_id: tw.id });
+  mapping.forEach(m => {
+    const fw = fromWeeks.find(w => w.id === m.from_week_id);
+    const label = labelOf(fw);
+    if (m.to_week_id === null)        orphans.push(label);
+    else if (destHas.has(m.to_week_id)) conflicts.push(label);
+    else                              updates.push(m);
   });
 
   if (orphans.length || conflicts.length) {
     let msg = '';
     if (orphans.length) {
-      msg += `⚠️ 이동할 반에 대응 주차가 없는 기록 ${orphans.length}건\n`
+      msg += `⚠️ 이전하지 않는 기록 ${orphans.length}건\n`
            + `   (${orphans.join(', ')})\n`
            + `   → 그대로 이동하면 관리자 화면에서 보이지 않게 됩니다.\n`
-           + `   → 먼저 [주차 관리]에서 해당 주차를 만든 뒤 이동하세요.\n\n`;
+           + `   → 대응 주차가 있다면 목록에서 직접 선택하고, 없다면\n`
+           + `      [주차 관리]에서 먼저 만든 뒤 이동하세요.\n\n`;
     }
     if (conflicts.length) {
       msg += `⚠️ 이동할 반에 이미 점수가 입력된 주차 ${conflicts.length}건\n`
@@ -2849,6 +2981,7 @@ function renderMockItemConfigEditor() {
         <input type="number" class="cfg-cut" data-i="${i}" value="${it.cut ?? ''}" min="0" placeholder="커트라인">
       </div>`).join('');
   updateMockItemConfigTotal();
+  applyItemConfigBox('mock');
 }
 
 function onMockCfgActiveToggle(i) {
