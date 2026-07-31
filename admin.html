@@ -799,6 +799,14 @@ async function apiRaw(path, method, body=null, prefer='return=minimal') {
   return { ok: res.ok, status: res.status };
 }
 
+// DELETE는 실패해도 조용히 넘어가면 안 된다.
+// 참조 중인 점수가 남아 있으면 외래키 제약으로 거부되는데,
+// api()는 응답 상태를 보지 않아서 실패해도 성공한 것처럼 보였다.
+async function apiDelete(path) {
+  const res = await apiRaw(path, 'DELETE');
+  if (!res.ok) throw new Error(`${path} → status ${res.status}`);
+}
+
 function handleAuthError() {
   showToast('❌ 인증이 만료됐습니다. 다시 로그인해주세요.');
   setTimeout(() => location.reload(), 1500);
@@ -1011,11 +1019,24 @@ async function loadWeekList() {
 
 async function deleteWeek(id) {
   if (!confirm('이 주차를 삭제하면 해당 주차의 모든 점수도 삭제됩니다. 계속할까요?')) return;
-  await api(`scores?week_id=eq.${id}`, 'DELETE');
-  await api(`weeks?id=eq.${id}`, 'DELETE');
+  try {
+    await apiDelete(`scores?week_id=eq.${id}`);
+    await apiDelete(`weeks?id=eq.${id}`);
+  } catch (e) {
+    showToast('❌ 주차 삭제에 실패했어요.', 4000);
+    console.error('deleteWeek 실패:', e);
+    return;
+  }
+  clearAdminCaches();
   showToast('🗑 주차가 삭제됐어요.');
   loadWeekList();
   refreshScoreWeekOptions();
+}
+
+// 삭제·이동 후 화면에 옛 명단이 남지 않도록 캐시를 비운다
+function clearAdminCaches() {
+  [studentCache, scoreCache, mockScoreCache, _uncertScoreData]
+    .forEach(c => c && Object.keys(c).forEach(k => delete c[k]));
 }
 
 // ── 점수 입력
@@ -2715,16 +2736,27 @@ async function addClass() {
 
 async function deleteClass(id, name) {
   if (!confirm(`"${name}" 반을 삭제할까요?\n해당 반의 학생, 주차, 점수 데이터도 모두 삭제됩니다.`)) return;
-  const students = await api(`students?class_id=eq.${id}&select=id`) || [];
-  for (const s of students) { await api(`scores?student_id=eq.${s.id}`, 'DELETE'); }
-  await api(`students?class_id=eq.${id}`, 'DELETE');
-  const weeks = await api(`weeks?class_id=eq.${id}&select=id`) || [];
-  for (const w of weeks) { await api(`scores?week_id=eq.${w.id}`, 'DELETE'); }
-  await api(`weeks?class_id=eq.${id}`, 'DELETE');
-  const exams = await api(`mock_exams?class_id=eq.${id}&select=id`) || [];
-  for (const e of exams) { await api(`mock_scores?exam_id=eq.${e.id}`, 'DELETE'); }
-  await api(`mock_exams?class_id=eq.${id}`, 'DELETE');
-  await api(`classes?id=eq.${id}`, 'DELETE');
+  try {
+    // 점수(주차·모의고사)를 먼저 전부 지운 뒤에야 학생·주차·시험·반을 지울 수 있다
+    const students = await api(`students?class_id=eq.${id}&select=id`) || [];
+    for (const s of students) {
+      await apiDelete(`scores?student_id=eq.${s.id}`);
+      await apiDelete(`mock_scores?student_id=eq.${s.id}`);
+    }
+    const weeks = await api(`weeks?class_id=eq.${id}&select=id`) || [];
+    for (const w of weeks) { await apiDelete(`scores?week_id=eq.${w.id}`); }
+    const exams = await api(`mock_exams?class_id=eq.${id}&select=id`) || [];
+    for (const e of exams) { await apiDelete(`mock_scores?exam_id=eq.${e.id}`); }
+    await apiDelete(`students?class_id=eq.${id}`);
+    await apiDelete(`weeks?class_id=eq.${id}`);
+    await apiDelete(`mock_exams?class_id=eq.${id}`);
+    await apiDelete(`classes?id=eq.${id}`);
+  } catch (e) {
+    showToast(`❌ ${name} 반 삭제에 실패했어요. 남아 있는 기록이 있는지 확인이 필요합니다.`, 4500);
+    console.error('deleteClass 실패:', e);
+    return;
+  }
+  clearAdminCaches();
   showToast(`🗑 ${name} 반이 삭제됐어요.`);
   classes = await api('classes?order=id.asc&select=*') || [];
   refreshClassSelects();
@@ -3296,8 +3328,15 @@ async function loadMockList() {
 
 async function deleteMockExam(id) {
   if (!confirm('이 모의고사를 삭제하면 모든 점수도 삭제됩니다. 계속할까요?')) return;
-  await api(`mock_scores?exam_id=eq.${id}`, 'DELETE');
-  await api(`mock_exams?id=eq.${id}`, 'DELETE');
+  try {
+    await apiDelete(`mock_scores?exam_id=eq.${id}`);
+    await apiDelete(`mock_exams?id=eq.${id}`);
+  } catch (e) {
+    showToast('❌ 모의고사 삭제에 실패했어요.', 4000);
+    console.error('deleteMockExam 실패:', e);
+    return;
+  }
+  clearAdminCaches();
   showToast('🗑 모의고사가 삭제됐어요.');
   loadMockList();
   refreshMockExamOptions();
@@ -3422,9 +3461,21 @@ async function toggleStudent(id, active) {
 }
 
 async function deleteStudent(id, name) {
-  if (!confirm(`${name} 학생을 완전히 삭제할까요?\n점수 기록도 함께 삭제됩니다.`)) return;
-  await api(`scores?student_id=eq.${id}`, 'DELETE');
-  await api(`students?id=eq.${id}`, 'DELETE');
+  if (!confirm(`${name} 학생을 완전히 삭제할까요?\n주차 점수와 모의고사 점수도 함께 삭제됩니다.`)) return;
+  try {
+    // 이 학생을 참조하는 점수를 먼저 모두 지워야 학생 삭제가 허용된다.
+    // mock_scores를 빠뜨려서, 모의고사 점수가 있는 학생은 삭제가 거부되고도
+    // 성공 메시지만 뜨고 목록에 그대로 남아 있었다.
+    await apiDelete(`scores?student_id=eq.${id}`);
+    await apiDelete(`mock_scores?student_id=eq.${id}`);
+    await apiDelete(`students?id=eq.${id}`);
+  } catch (e) {
+    showToast(`❌ ${name} 학생 삭제에 실패했어요. 남아 있는 기록이 있는지 확인이 필요합니다.`, 4500);
+    console.error('deleteStudent 실패:', e);
+    refreshStudentList();
+    return;
+  }
+  clearAdminCaches();
   showToast(`🗑 ${name} 학생이 삭제됐어요.`);
   refreshStudentList();
 }
