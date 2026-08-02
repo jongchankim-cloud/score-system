@@ -3386,12 +3386,12 @@ function renderStudentTable(students, showClass) {
       <td><span class="badge ${s.is_active ? 'badge-active' : 'badge-inactive'}">${s.is_active ? '재원' : '퇴원'}</span></td>
       <td><textarea oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'" onblur="updateStudentNote(${s.id}, this.value)" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;width:160px;outline:none;resize:none;overflow:hidden;min-height:36px;line-height:1.5;vertical-align:middle">${s.note || ''}</textarea></td>
       <td style="white-space:nowrap">
-      <div style="display:flex;gap:6px">
-        ${s.is_active ? `...퇴원...` : `...복귀...`}
-        <button ...>반 이동</button>
-        <button ...>삭제</button>
-      </div>
-    </td>
+        <div style="display:flex;gap:6px">
+          ${s.is_active ? `<button class="btn btn-danger btn-sm" onclick="toggleStudent(${s.id}, false)">퇴원</button>` : `<button class="btn btn-sm" style="background:var(--green-light);color:var(--green);border:1px solid #b7efd1" onclick="toggleStudent(${s.id}, true)">복귀</button>`}
+          <button class="btn btn-sm" style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe" onclick="showMoveStudent(${s.id},'${s.name}',${s.class_id})">반 이동</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteStudent(${s.id},'${s.name}')">삭제</button>
+        </div>
+      </td>
     </tr>`).join('')}</tbody></table>`;
 }
 
