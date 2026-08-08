@@ -897,33 +897,46 @@
         }
         sel.disabled = false;
 
-        const addGroup = (label, items, prefix, textOf) => {
-          if (!items.length) return;
-          const g = document.createElement("optgroup");
-          g.label = label;
-          items.forEach((it) => {
-            const opt = document.createElement("option");
-            opt.value = prefix + it.id;
-            opt.textContent = textOf(it);
-            g.appendChild(opt);
-          });
-          sel.appendChild(g);
-        };
-
         // 결석한 주차는 드롭다운에서 바로 구분되게 표시한다
-        addGroup("주차", weekList, "w", (w) => {
+        const weekOptionText = (w) => {
           const name = w.label || w.test_date;
           const row = (allScores || []).find((s) => s.week_id === w.id);
           return isAbsentWeek(row) ? `${name} — 결석` : name;
-        });
-        // 모의고사는 이름 뒤에 (월.일)을 붙여 언제 본 시험인지 바로 보이게 한다
-        addGroup("모의고사", examList, "m", (e) => {
+        };
+        // 모의고사는 이름 뒤에 (월.일)을 붙여 언제 본 시험인지 바로 보이게 한다.
+        // 이름을 따로 안 붙인 시험은 주차와 구분되도록 '모의고사'를 앞에 붙인다.
+        const examOptionText = (e) => {
           const name =
             e.label && e.exam_date && e.label !== e.exam_date
               ? `${e.label} (${e.exam_date})`
-              : e.label || e.exam_date;
+              : `모의고사 (${e.exam_date || e.label})`;
           const row = window._mockScoreMap[e.id];
           return hasMockScore(row) ? name : `${name} — 미응시`;
+        };
+
+        // 주차와 모의고사를 한 목록에 섞어 날짜 최신순으로 정렬한다.
+        // (예전에는 둘을 그룹으로 나눠 넣어서, 모의고사가 날짜와 상관없이 항상 맨 아래에 모였다)
+        const periodItems = sortByDateDesc(
+          [
+            ...weekList.map((w) => ({
+              value: "w" + w.id,
+              date: w.test_date || w.label,
+              text: weekOptionText(w),
+            })),
+            ...examList.map((e) => ({
+              value: "m" + e.id,
+              date: e.exam_date || e.label,
+              text: examOptionText(e),
+            })),
+          ],
+          (p) => p.date,
+        );
+
+        periodItems.forEach((p) => {
+          const opt = document.createElement("option");
+          opt.value = p.value;
+          opt.textContent = p.text;
+          sel.appendChild(opt);
         });
 
         if (!weekList.length) {
