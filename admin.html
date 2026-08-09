@@ -716,7 +716,14 @@
             </select>
           </div>
         </div>
-        <p style="font-size:12px;color:var(--gray);margin:0">학부모 연락처로 발송됩니다. 보낼 학생만 골라서 발송하세요.</p>
+        <div class="form-group">
+          <label>발송처</label>
+          <div id="score-sms-recipient-btns" style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" class="memo-author-btn active" data-recipient="parent" onclick="pickScoreSmsRecipient(this)">학부모</button>
+            <button type="button" class="memo-author-btn" data-recipient="student" onclick="pickScoreSmsRecipient(this)">학생</button>
+          </div>
+        </div>
+        <p style="font-size:12px;color:var(--gray);margin:0">보낼 학생만 골라서 발송하세요. 발송처를 바꾸면 연락처가 없는 학생은 자동으로 빠집니다.</p>
       </div>
     </div>
 
@@ -2948,6 +2955,22 @@ async function sendAllSms() {
 // 보낼 학생을 직접 골라 발송하고, 점수 기록이 하나도 없는 학생은 '미응시'로 분류한다.
 // 양식과 클리닉 공통 문구는 브라우저에 저장돼 매주 다시 쓰지 않아도 된다.
 const SCORE_SMS_STORE = 'scoreSms.v1';
+// 성적 문자를 학부모께 보낼지 학생에게 보낼지. 발송처가 바뀌면 쓰는 연락처가 달라진다.
+let _scoreSmsRecipient = 'parent';   // 'parent' | 'student'
+
+function scoreSmsPhone(t) {
+  return _scoreSmsRecipient === 'parent' ? t.phone : t.studentPhone;
+}
+
+function pickScoreSmsRecipient(btn) {
+  document.querySelectorAll('#score-sms-recipient-btns .memo-author-btn')
+    .forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  _scoreSmsRecipient = btn.dataset.recipient;
+  saveScoreSmsSettings();
+  // 발송처가 바뀌면 쓰는 연락처가 달라지므로 기본 선택부터 다시 잡는다
+  if (window._scoreSmsTargets) renderScoreSmsList(true);
+}
 const DEFAULT_SCORE_SMS_TEMPLATE = `[용산대성N학원 영어과]
 {이름} 학생 {주차} 테스트 결과입니다.
 {점수}
@@ -2967,6 +2990,10 @@ function loadScoreSmsSettings() {
   el('score-sms-template').value = saved.template ?? DEFAULT_SCORE_SMS_TEMPLATE;
   el('score-sms-absent-template').value = saved.absentTemplate ?? DEFAULT_SCORE_SMS_ABSENT_TEMPLATE;
   el('score-sms-clinic-default').value = saved.clinicDefault ?? '';
+  _scoreSmsRecipient = saved.recipient === 'student' ? 'student' : 'parent';
+  document.querySelectorAll('#score-sms-recipient-btns .memo-author-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.recipient === _scoreSmsRecipient);
+  });
 }
 
 function saveScoreSmsSettings() {
@@ -2974,7 +3001,8 @@ function saveScoreSmsSettings() {
     localStorage.setItem(SCORE_SMS_STORE, JSON.stringify({
       template: document.getElementById('score-sms-template').value,
       absentTemplate: document.getElementById('score-sms-absent-template').value,
-      clinicDefault: document.getElementById('score-sms-clinic-default').value
+      clinicDefault: document.getElementById('score-sms-clinic-default').value,
+      recipient: _scoreSmsRecipient
     }));
   } catch (e) {}
 }
@@ -3055,6 +3083,7 @@ async function loadScoreSmsTargets() {
       id: st.id,
       name: st.name,
       phone: st.phone || '',
+      studentPhone: st.student_phone || '',
       absent: scored.length === 0,
       attendanceFalse: sc ? sc.attendance === false : false,
       scoreText: scored.map(x => `${x.label || '항목'} ${fmtSmsNum(x.value)}${hasMax(x) ? '/' + fmtSmsNum(x.max) : ''}`).join(', '),
@@ -3112,23 +3141,25 @@ function renderScoreSmsList(first) {
       .forEach(cb => { prev[cb.dataset.idx] = cb.checked; });
   }
 
+  const phoneLabel = _scoreSmsRecipient === 'parent' ? '학부모 연락처' : '학생 연락처';
   listEl.innerHTML = `<table class="data-table" style="min-width:820px">
     <thead><tr>
       <th style="width:36px"><input type="checkbox" id="check-all-score-sms" onchange="toggleAllScoreSms(this.checked)"></th>
-      <th style="white-space:nowrap">이름</th><th style="white-space:nowrap">학부모 연락처</th>
+      <th style="white-space:nowrap">이름</th><th style="white-space:nowrap">${phoneLabel}</th>
       <th style="white-space:nowrap">상태</th><th>발송될 문구</th><th style="white-space:nowrap">길이</th>
     </tr></thead>
     <tbody>${targets.map((t, i) => {
       const text = composeScoreSms(t);
       const bytes = smsByteLength(text);
-      const checked = first ? (!!t.phone && !t.absent) : !!prev[i];
-      const badge = !t.phone ? '<span class="badge badge-inactive">번호없음</span>'
+      const phone = scoreSmsPhone(t);
+      const checked = first ? (!!phone && !t.absent) : !!prev[i];
+      const badge = !phone ? '<span class="badge badge-inactive">번호없음</span>'
         : t.absent ? `<span class="badge badge-inactive">미응시${t.attendanceFalse ? ' · 결석' : ''}</span>`
         : '<span class="badge badge-active">성적</span>';
       return `<tr data-student-id="${t.id}">
-        <td><input type="checkbox" class="score-sms-check" data-idx="${i}" ${checked ? 'checked' : ''} ${t.phone ? '' : 'disabled'}></td>
+        <td><input type="checkbox" class="score-sms-check" data-idx="${i}" ${checked ? 'checked' : ''} ${phone ? '' : 'disabled'}></td>
         <td style="white-space:nowrap"><strong>${attrEsc(t.name)}</strong></td>
-        <td style="font-size:12px;font-family:monospace">${attrEsc(t.phone) || '번호없음'}</td>
+        <td style="font-size:12px;font-family:monospace">${attrEsc(phone) || '번호없음'}</td>
         <td style="white-space:nowrap">${badge}</td>
         <td><div style="white-space:pre-wrap;font-size:11px;line-height:1.6;color:var(--navy);background:var(--cream);border-radius:6px;padding:8px 10px;min-width:260px">${attrEsc(text)}</div></td>
         <td style="white-space:nowrap;font-size:11px;color:${bytes > 90 ? 'var(--gold)' : 'var(--gray)'}">${bytes}바이트<br>${bytes > 90 ? 'LMS' : 'SMS'}</td>
@@ -3154,16 +3185,18 @@ async function sendScoreSms() {
   const targets = window._scoreSmsTargets || [];
   const selected = Array.from(document.querySelectorAll('.score-sms-check:checked'))
     .map(cb => targets[parseInt(cb.dataset.idx)])
-    .filter(t => t && t.phone);
+    .filter(t => t && scoreSmsPhone(t));
   if (!selected.length) { showToast('선택된 발송 대상이 없습니다.'); return; }
   if (scoreDirty && !confirm('점수 입력 탭에 저장하지 않은 변경사항이 있습니다.\n저장 전 점수로 문자가 발송됩니다. 계속할까요?')) return;
 
+  // 성적 문자는 잘못 보내면 곤란하므로 발송처를 확인창에 분명히 적는다
+  const who = _scoreSmsRecipient === 'parent' ? '학부모님' : '학생';
   const absentCount = selected.filter(t => t.absent).length;
   const detail = absentCount ? `\n(성적 ${selected.length - absentCount}명 · 미응시 ${absentCount}명)` : '';
-  if (!confirm(`${selected.length}명의 학부모님께 문자를 발송할까요?${detail}`)) return;
+  if (!confirm(`${who} ${selected.length}명에게 문자를 발송할까요?${detail}`)) return;
 
   showToast('발송 중...');
-  const messages = selected.map(t => ({ to: t.phone, text: composeScoreSms(t) }));
+  const messages = selected.map(t => ({ to: scoreSmsPhone(t), text: composeScoreSms(t) }));
   try {
     const res = await fetch(SMS_FUNCTION_URL, {
       method: 'POST',
