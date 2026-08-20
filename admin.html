@@ -753,7 +753,11 @@
               oninput="onScoreSmsTemplateChange()"></textarea>
           </div>
         </div>
-        <p style="font-size:11px;color:var(--gray);margin:0 0 12px">양식에서 <code>{재시험}</code>·<code>{클리닉}</code>처럼 내용이 없는 항목이 들어간 줄은 자동으로 사라집니다.</p>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px">
+          <p style="font-size:11px;color:var(--gray);margin:0;flex:1;min-width:240px">양식에서 <code>{재시험}</code>·<code>{클리닉}</code>처럼 내용이 없는 항목이 들어간 줄은 자동으로 사라집니다.</p>
+          <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="resetScoreSmsTemplate()">기본 양식으로 되돌리기</button>
+        </div>
+        <div id="score-sms-notice"></div>
         <div id="score-sms-list"></div>
       </div>
     </div>
@@ -3011,6 +3015,17 @@ function onScoreSmsTemplateChange() {
   renderScoreSmsList();
 }
 
+// 양식은 브라우저에 저장돼 계속 재사용된다. 한 번 {재시험}·{클리닉} 자리표시자를 지운 양식을
+// 저장하면 이후 모든 문자에서 그 줄이 영영 빠지므로, 기본 양식으로 돌아올 길을 남긴다.
+function resetScoreSmsTemplate() {
+  if (!confirm('성적/미응시 문자 양식을 기본값으로 되돌릴까요?\n지금 입력해 둔 양식은 사라집니다.')) return;
+  document.getElementById('score-sms-template').value = DEFAULT_SCORE_SMS_TEMPLATE;
+  document.getElementById('score-sms-absent-template').value = DEFAULT_SCORE_SMS_ABSENT_TEMPLATE;
+  saveScoreSmsSettings();
+  renderScoreSmsList();
+  showToast('✅ 기본 양식으로 되돌렸어요!');
+}
+
 // 한글 문자는 2바이트(EUC-KR)로 계산 — 90바이트를 넘으면 LMS로 발송된다
 function smsByteLength(text) {
   return [...(text || '')].reduce((n, ch) => n + (ch.charCodeAt(0) > 127 ? 2 : 1), 0);
@@ -3077,6 +3092,14 @@ async function loadScoreSmsTargets() {
     const pass = (sc && sc.retest_pass) || {};
     const below = scored.filter(x => isBelowCut(x.value, x.cut));
     const hasMax = x => Number.isFinite(x.max);
+    // 항목별 판정을 점수 옆에 바로 붙인다. 어떤 항목이 통과고 어떤 항목이 재시험인지
+    // 학부모가 점수만 보고는 알 수 없어서, 커트라인이 설정된 항목에 판정을 표기한다.
+    // 커트라인이 없는 항목(cut null)은 판정 기준이 없으므로 점수만 적는다.
+    const verdict = x => {
+      if (x.cut === null || x.cut === undefined) return '';
+      if (!isBelowCut(x.value, x.cut)) return ' (통과)';
+      return pass[x.key] === true ? ' (재시험 통과)' : ' (재시험)';
+    };
 
     return {
       id: st.id,
@@ -3085,7 +3108,8 @@ async function loadScoreSmsTargets() {
       studentPhone: st.student_phone || '',
       absent: scored.length === 0,
       attendanceFalse: sc ? sc.attendance === false : false,
-      scoreText: scored.map(x => `${x.label || '항목'} ${fmtSmsNum(x.value)}${hasMax(x) ? '/' + fmtSmsNum(x.max) : ''}`).join(', '),
+      scoreText: scored.map(x => `${x.label || '항목'} ${fmtSmsNum(x.value)}${hasMax(x) ? '/' + fmtSmsNum(x.max) : ''}${verdict(x)}`).join(', '),
+      cutCount: scored.filter(x => x.cut !== null && x.cut !== undefined).length,
       totalText: `${fmtSmsNum(scored.reduce((a, x) => a + x.value, 0))}/${fmtSmsNum(scored.filter(hasMax).reduce((a, x) => a + x.max, 0))}`,
       retestTargets: below.filter(x => pass[x.key] !== true).map(x => x.label || '항목'),
       retestPassed: below.filter(x => pass[x.key] === true).map(x => x.label || '항목'),
@@ -3118,6 +3142,32 @@ function composeScoreSms(t) {
   });
 }
 
+// 재시험·클리닉 줄은 값이 비면 조용히 사라진다. 화면에는 아무 표시도 없어
+// 빠진 줄 없이 발송되는지 확인할 방법이 없으므로, 빠지는 이유를 미리 짚어준다.
+function renderScoreSmsNotice(targets) {
+  const box = document.getElementById('score-sms-notice');
+  if (!box) return;
+  const tpl = document.getElementById('score-sms-template').value;
+  const clinicDefault = document.getElementById('score-sms-clinic-default').value.trim();
+  const scored = targets.filter(t => !t.absent);
+  const warns = [];
+
+  if (!tpl.includes('{재시험}')) warns.push('양식에 <code>{재시험}</code>이 없어 재시험 안내가 발송되지 않습니다.');
+  if (!tpl.includes('{클리닉}')) warns.push('양식에 <code>{클리닉}</code>이 없어 클리닉 일정이 발송되지 않습니다.');
+  if (scored.length && scored.every(t => t.cutCount === 0)) {
+    warns.push('이 주차 항목 설정에 커트라인이 없어 통과/재시험 판정이 붙지 않습니다. (점수 입력 탭 → 항목 설정)');
+  }
+  const noMemo = scored.filter(t => !t.clinicMemo.trim()).length;
+  if (noMemo && !clinicDefault) {
+    warns.push(`${noMemo}명은 클리닉메모가 비어 있어 클리닉 줄이 빠집니다. (점수 입력 탭 '클리닉메모' 칸에 입력하거나 위 기본 문구를 채우세요)`);
+  }
+
+  box.innerHTML = warns.length
+    ? `<div style="background:var(--orange-light);border:1px solid var(--orange);border-radius:8px;padding:10px 12px;margin:0 0 12px;font-size:12px;color:var(--navy);line-height:1.7">`
+      + warns.map(w => `⚠️ ${w}`).join('<br>') + `</div>`
+    : '';
+}
+
 // first=true면 기본 선택(성적 있고 번호 있는 학생)을 잡고,
 // 이후 양식을 고쳐 다시 그릴 때는 체크 상태를 그대로 유지한다.
 function renderScoreSmsList(first) {
@@ -3128,6 +3178,7 @@ function renderScoreSmsList(first) {
 
   const scoredCount = targets.filter(t => !t.absent).length;
   titleEl.textContent = `발송 대상 — 성적 ${scoredCount}명 / 미응시 ${targets.length - scoredCount}명`;
+  renderScoreSmsNotice(targets);
 
   if (!targets.length) {
     listEl.innerHTML = '<p style="font-size:13px;color:var(--gray)">해당 주차의 재원생이 없습니다.</p>';
