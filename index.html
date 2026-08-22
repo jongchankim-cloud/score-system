@@ -1255,53 +1255,26 @@
         </div>`
             : "";
 
-          let noticeHtml = "";
-          if (hwNull) {
-            noticeHtml = `
-        <div class="notice-card danger">
-          <div class="notice-icon">⚠️</div>
-          <div>
-            <div class="notice-title">과제 미제출 안내</div>
-            <div class="notice-body">이번 과제가 제출되지 않았습니다.<br>토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.<br>미인증 시 <strong>일요일</strong> 보충수업이 실시됩니다.</div>
-          </div>
-        </div>`;
-          } else if (hwRate === 0) {
-            noticeHtml = `
-        <div class="notice-card danger">
-          <div class="notice-icon">⚠️</div>
-          <div>
-            <div class="notice-title">과제 미제출 안내</div>
-            <div class="notice-body">이번 과제 수행이 전혀 되지 않았습니다.<br>토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.<br>미인증 시 <strong>일요일</strong> 보충수업이 실시됩니다.</div>
-          </div>
-        </div>`;
-          } else if (hwRate < 80) {
-            noticeHtml = `
-        <div class="notice-card danger">
+          // 과제 수행률별 안내 문구를 대신해 클리닉 안내를 노출한다.
+          // 조교가 점수 탭 / 클리닉 문자 탭에서 입력한 scores.clinic_memo를 그대로 전달한다.
+          if (s.clinic_memo === undefined) {
+            console.warn(
+              "[클리닉] 응답에 clinic_memo 컬럼이 없어 클리닉 안내를 표시할 수 없습니다. " +
+                "parent-login 함수의 scores select에 clinic_memo를 추가하세요.",
+            );
+          }
+          // 메모가 비어 있으면(= 그 주 클리닉 안내가 없으면) 카드를 아예 그리지 않는다
+          const clinicMemo = (s.clinic_memo ?? "").toString().trim();
+          const noticeHtml = clinicMemo
+            ? `
+        <div class="notice-card warning">
           <div class="notice-icon">📋</div>
           <div>
-            <div class="notice-title">과제 보충 안내</div>
-            <div class="notice-body">이번 과제 수행이 미흡합니다.<br>토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.<br>미인증 시 <strong>일요일</strong> 보충수업이 실시됩니다.</div>
+            <div class="notice-title">클리닉 안내</div>
+            <div class="notice-body">${escapeHtml(clinicMemo).replace(/\n/g, "<br>")}</div>
           </div>
-        </div>`;
-          } else if (hwRate < 100) {
-            noticeHtml = `
-        <div class="notice-card warning">
-          <div class="notice-icon">📝</div>
-          <div>
-            <div class="notice-title">과제 안내</div>
-            <div class="notice-body">빠진 부분은 토요일까지 완료 후 영어알림톡으로 인증해 주세요.<br>보충수업은 과제 미인증 및 개별 안내 학생을 대상으로 <strong>일요일</strong>에 실시됩니다.</div>
-          </div>
-        </div>`;
-          } else {
-            noticeHtml = `
-        <div class="notice-card" style="background:var(--green-light);border:1.5px solid #b7efd1">
-          <div class="notice-icon">✅</div>
-          <div>
-            <div class="notice-title" style="color:var(--green)">과제 완료</div>
-            <div class="notice-body">이번 주 과제를 모두 완료했습니다.<br>보충수업은 과제 미인증 및 개별 안내 학생을 대상으로 <strong>일요일</strong>에 실시됩니다.</div>
-          </div>
-        </div>`;
-          }
+        </div>`
+            : "";
 
           content.innerHTML = `
       <div class="card">
@@ -1335,9 +1308,9 @@
             <div style="text-align:right">
               <div class="homework-rate" style="color:${hwColor}">${hwDisplay}</div>
             </div>
-          </div>
-          ${noticeHtml}`
+          </div>`
           }
+          ${noticeHtml}
         </div>
       </div>`;
         } catch (e) {
