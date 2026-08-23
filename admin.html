@@ -755,6 +755,8 @@
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px">
           <p style="font-size:11px;color:var(--gray);margin:0;flex:1;min-width:240px">양식에서 <code>{재시험}</code>·<code>{클리닉}</code>처럼 내용이 없는 항목이 들어간 줄은 자동으로 사라집니다.</p>
+          <span id="score-sms-save-status" style="font-size:11px;font-weight:600;color:var(--gray)"></span>
+          <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="openScoreSmsBaseModal()">기본 양식 변경</button>
           <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="resetScoreSmsTemplate()">기본 양식으로 되돌리기</button>
         </div>
         <div id="score-sms-notice"></div>
@@ -828,6 +830,31 @@
     <div style="display:flex;gap:8px">
       <button class="btn btn-primary" style="flex:1" onclick="confirmMoveStudent()">이동 확인</button>
       <button class="btn" style="flex:1;background:var(--light-gray);color:var(--navy)" onclick="closeMoveModal()">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- 성적 문자 기본 양식 모달 -->
+<div id="score-sms-base-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:var(--white);border-radius:16px;padding:28px;width:90%;max-width:720px;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+    <h3 style="font-size:16px;font-weight:700;color:var(--navy);margin-bottom:6px">기본 양식 변경</h3>
+    <p style="font-size:13px;color:var(--gray);margin-bottom:20px">여기 저장한 문구가 <strong>기본 양식으로 되돌리기</strong>를 눌렀을 때 복구되는 기준이 됩니다. 모든 기기에 함께 저장됩니다.</p>
+    <div style="margin-bottom:16px">
+      <label style="display:block;font-size:11px;color:var(--gray);font-weight:500;margin-bottom:5px">기본 성적 문자 양식 (<code>{이름}</code> <code>{주차}</code> <code>{점수}</code> <code>{총점}</code> <code>{재시험}</code> <code>{클리닉}</code>)</label>
+      <textarea id="score-sms-base-template" rows="8" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7"></textarea>
+    </div>
+    <div style="margin-bottom:16px">
+      <label style="display:block;font-size:11px;color:var(--gray);font-weight:500;margin-bottom:5px">기본 미응시 문자 양식 (<code>{이름}</code> <code>{주차}</code>)</label>
+      <textarea id="score-sms-base-absent" rows="5" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7"></textarea>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--navy);background:var(--light-gray);border-radius:8px;padding:10px 12px;margin-bottom:16px;cursor:pointer">
+      <input type="checkbox" id="score-sms-base-apply-now" style="width:16px;height:16px;cursor:pointer">
+      지금 쓰는 양식에도 바로 적용하기 <span style="color:var(--gray);font-size:12px">(체크하지 않으면 기본값만 바뀝니다)</span>
+    </label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-primary" style="flex:1;min-width:120px" onclick="saveScoreSmsBase()">저장</button>
+      <button class="btn" style="flex:1;min-width:120px;background:var(--light-gray);color:var(--navy)" onclick="closeScoreSmsBaseModal()">취소</button>
+      <button class="btn btn-sm" style="background:var(--white);color:var(--gray);border:1.5px solid var(--border)" onclick="loadFactoryScoreSmsBase()">처음 문구 불러오기</button>
     </div>
   </div>
 </div>
@@ -913,7 +940,7 @@ const CLASS_SELECT_IDS = ['score-class','week-list-class','new-class','student-l
 async function initAdmin() {
   classes = await api('classes?order=id.asc&select=*') || [];
   refreshClassSelects();
-  loadScoreSmsSettings();
+  await loadScoreSmsSettings();
 }
 
 function switchTab(tabId) {
@@ -2958,6 +2985,20 @@ async function sendAllSms() {
 // 보낼 학생을 직접 골라 발송하고, 점수 기록이 하나도 없는 학생은 '미응시'로 분류한다.
 // 양식과 클리닉 공통 문구는 브라우저에 저장돼 매주 다시 쓰지 않아도 된다.
 const SCORE_SMS_STORE = 'scoreSms.v1';
+// 양식은 조교가 어느 PC에서 열든 같아야 하므로 DB(app_settings)에 둔다.
+// localStorage는 DB 응답을 기다리는 동안 칸을 채워둘 사본이자,
+// 네트워크가 끊겼을 때의 대비책으로 계속 함께 쓴다.
+const SCORE_SMS_SETTING_KEY = 'scoreSmsTemplate.v1';
+// 공유하는 건 문구 3종뿐. 발송처(학부모/학생)는 그 주에 누구에게 보낼지 고르는 값이라
+// 다른 조교의 선택이 넘어오면 엉뚱한 곳으로 발송된다 — 기기별로 남겨둔다.
+// baseTemplate/baseAbsentTemplate = '기본 양식 변경' 모달에서 정한 되돌리기 기준.
+// null이면 아래 DEFAULT_* (코드에 박힌 처음 문구)를 그대로 쓴다는 뜻이다.
+const SCORE_SMS_SHARED_KEYS = ['template', 'absentTemplate', 'clinicDefault',
+                               'baseTemplate', 'baseAbsentTemplate'];
+let _scoreSmsBase = { template: null, absentTemplate: null };
+let _scoreSmsTouched = false;      // 사용자가 양식을 건드렸는가 (늦게 온 DB 값이 입력을 덮지 않도록)
+let _scoreSmsSaveTimer = null;
+let _scoreSmsLastPushed = null;    // 마지막으로 DB에 올린 내용 — 같으면 다시 올리지 않는다
 // 성적 문자를 학부모께 보낼지 학생에게 보낼지. 발송처가 바뀌면 쓰는 연락처가 달라진다.
 let _scoreSmsRecipient = 'parent';   // 'parent' | 'student'
 
@@ -2985,11 +3026,43 @@ const DEFAULT_SCORE_SMS_ABSENT_TEMPLATE = `[용산대성N학원 영어과]
 {이름} 학생은 {주차} 테스트에 응시하지 않았습니다.
 확인 부탁드립니다.`;
 
-function loadScoreSmsSettings() {
-  let saved = {};
-  try { saved = JSON.parse(localStorage.getItem(SCORE_SMS_STORE)) || {}; } catch (e) {}
+function readScoreSmsLocal() {
+  try { return JSON.parse(localStorage.getItem(SCORE_SMS_STORE)) || {}; } catch (e) { return {}; }
+}
+
+function currentScoreSmsSettings() {
+  return {
+    template: document.getElementById('score-sms-template').value,
+    absentTemplate: document.getElementById('score-sms-absent-template').value,
+    clinicDefault: document.getElementById('score-sms-clinic-default').value,
+    recipient: _scoreSmsRecipient,
+    baseTemplate: _scoreSmsBase.template,
+    baseAbsentTemplate: _scoreSmsBase.absentTemplate
+  };
+}
+
+// 되돌리기가 복구할 기준. 모달에서 정한 게 없으면 코드에 박힌 처음 문구.
+function baseScoreSmsTemplate() { return _scoreSmsBase.template ?? DEFAULT_SCORE_SMS_TEMPLATE; }
+function baseScoreSmsAbsent()   { return _scoreSmsBase.absentTemplate ?? DEFAULT_SCORE_SMS_ABSENT_TEMPLATE; }
+
+// 기본 양식은 탭 화면에 떠 있지 않으므로 현재 양식과 따로 적용한다.
+// (조교가 양식을 타이핑하는 중이어도 이건 덮어써도 안전하다)
+function applyScoreSmsBase(saved) {
+  _scoreSmsBase.template = saved.baseTemplate ?? null;
+  _scoreSmsBase.absentTemplate = saved.baseAbsentTemplate ?? null;
+}
+
+// 저장된 값 중 공유 대상만 추린다. 빈 문자열도 '비워둔다'는 뜻이라 그대로 살린다.
+function sharedScoreSmsPart(saved) {
+  const out = {};
+  SCORE_SMS_SHARED_KEYS.forEach(k => {
+    if (saved[k] !== undefined && saved[k] !== null) out[k] = saved[k];
+  });
+  return out;
+}
+
+function applyScoreSmsSettings(saved) {
   const el = id => document.getElementById(id);
-  if (!el('score-sms-template')) return;
   el('score-sms-template').value = saved.template ?? DEFAULT_SCORE_SMS_TEMPLATE;
   el('score-sms-absent-template').value = saved.absentTemplate ?? DEFAULT_SCORE_SMS_ABSENT_TEMPLATE;
   el('score-sms-clinic-default').value = saved.clinicDefault ?? '';
@@ -2999,28 +3072,130 @@ function loadScoreSmsSettings() {
   });
 }
 
-function saveScoreSmsSettings() {
+// 양식이 공유 저장됐는지, 이 브라우저에만 남았는지 눈에 보이게 한다.
+// 저장에 실패한 걸 모르고 지나가면 다른 PC에서는 옛 양식으로 발송된다.
+function setScoreSmsSaveStatus(state) {
+  const box = document.getElementById('score-sms-save-status');
+  if (!box) return;
+  const map = {
+    saving: ['저장 중…', 'var(--gray)'],
+    shared: ['✅ 모든 기기에 저장됨', 'var(--green)'],
+    local:  ['⚠️ 이 브라우저에만 저장됨', 'var(--orange)']
+  };
+  const [text, color] = map[state] || map.local;
+  box.textContent = text;
+  box.style.color = color;
+}
+
+// DB 값이 정본이지만 응답을 기다리는 동안 칸이 비어 보이면 안 되므로,
+// 브라우저 사본으로 먼저 채우고 DB 값이 도착하면 덮어쓴다.
+async function loadScoreSmsSettings() {
+  if (!document.getElementById('score-sms-template')) return;
+  const local = readScoreSmsLocal();
+  applyScoreSmsBase(local);
+  applyScoreSmsSettings(local);
+
+  let shared = null, reachable = false;
   try {
-    localStorage.setItem(SCORE_SMS_STORE, JSON.stringify({
-      template: document.getElementById('score-sms-template').value,
-      absentTemplate: document.getElementById('score-sms-absent-template').value,
-      clinicDefault: document.getElementById('score-sms-clinic-default').value,
-      recipient: _scoreSmsRecipient
-    }));
+    const rows = await api(`app_settings?key=eq.${SCORE_SMS_SETTING_KEY}&select=value`);
+    // app_settings 테이블이 없으면 PostgREST가 배열 대신 오류 객체를 준다.
+    // 그 경우엔 예전처럼 브라우저 사본만으로 동작해야 한다.
+    // 반대로 빈 배열은 '아직 아무도 저장한 적 없음'일 뿐이라 정상이다 — 둘을 구분한다.
+    if (Array.isArray(rows)) {
+      reachable = true;
+      if (rows[0] && rows[0].value) shared = sharedScoreSmsPart(rows[0].value);
+    }
   } catch (e) {}
+
+  if (!reachable) { setScoreSmsSaveStatus('local'); return; }
+  if (!shared) return;   // 저장된 양식이 아직 없음 — 첫 저장 때 상태가 붙는다
+  _scoreSmsLastPushed = JSON.stringify(shared);
+  applyScoreSmsBase(shared);
+  // 응답이 오는 사이 이미 고치기 시작했다면 방금 친 글자를 지우면 안 된다
+  if (_scoreSmsTouched) { setScoreSmsSaveStatus('shared'); return; }
+  applyScoreSmsSettings({ ...readScoreSmsLocal(), ...shared });
+  saveScoreSmsSettings({ push: false });
+  setScoreSmsSaveStatus('shared');
+}
+
+function saveScoreSmsSettings(opts) {
+  try { localStorage.setItem(SCORE_SMS_STORE, JSON.stringify(currentScoreSmsSettings())); } catch (e) {}
+  if (opts && opts.push === false) return;
+  // 키 하나 누를 때마다 DB에 쓰지 않도록, 타이핑이 멈춘 뒤 한 번만 올린다
+  clearTimeout(_scoreSmsSaveTimer);
+  // 모달의 '저장'처럼 조교가 직접 누른 저장은 800ms를 기다릴 이유가 없다
+  if (opts && opts.immediate) { pushScoreSmsSettings(); return; }
+  _scoreSmsSaveTimer = setTimeout(pushScoreSmsSettings, 800);
+}
+
+async function pushScoreSmsSettings() {
+  const payload = sharedScoreSmsPart(currentScoreSmsSettings());
+  const body = JSON.stringify(payload);
+  if (body === _scoreSmsLastPushed) return;   // 발송처만 바꾼 경우 등 — 올릴 게 없다
+  setScoreSmsSaveStatus('saving');
+  try {
+    const res = await apiRaw(
+      'app_settings?on_conflict=key', 'POST',
+      { key: SCORE_SMS_SETTING_KEY, value: payload, updated_at: new Date().toISOString() },
+      'resolution=merge-duplicates,return=minimal'
+    );
+    if (res.ok) { _scoreSmsLastPushed = body; setScoreSmsSaveStatus('shared'); return; }
+  } catch (e) {}
+  setScoreSmsSaveStatus('local');
 }
 
 function onScoreSmsTemplateChange() {
+  _scoreSmsTouched = true;
   saveScoreSmsSettings();
   renderScoreSmsList();
+}
+
+// ── 기본 양식 변경 모달 ──────────────────────────────────────
+function openScoreSmsBaseModal() {
+  document.getElementById('score-sms-base-template').value = baseScoreSmsTemplate();
+  document.getElementById('score-sms-base-absent').value = baseScoreSmsAbsent();
+  document.getElementById('score-sms-base-apply-now').checked = false;
+  document.getElementById('score-sms-base-modal').style.display = 'flex';
+}
+
+function closeScoreSmsBaseModal() {
+  document.getElementById('score-sms-base-modal').style.display = 'none';
+}
+
+function loadFactoryScoreSmsBase() {
+  document.getElementById('score-sms-base-template').value = DEFAULT_SCORE_SMS_TEMPLATE;
+  document.getElementById('score-sms-base-absent').value = DEFAULT_SCORE_SMS_ABSENT_TEMPLATE;
+}
+
+function saveScoreSmsBase() {
+  const tpl = document.getElementById('score-sms-base-template').value;
+  const abs = document.getElementById('score-sms-base-absent').value;
+  // 기본 양식이 비면 되돌리기가 빈 문자를 복구하게 된다 — 막는다.
+  if (!tpl.trim() || !abs.trim()) { showToast('❌ 기본 양식은 비워둘 수 없어요.'); return; }
+
+  // 처음 문구와 똑같으면 따로 저장하지 않는다 (저장소에 군더더기를 남기지 않음)
+  _scoreSmsBase.template = tpl === DEFAULT_SCORE_SMS_TEMPLATE ? null : tpl;
+  _scoreSmsBase.absentTemplate = abs === DEFAULT_SCORE_SMS_ABSENT_TEMPLATE ? null : abs;
+
+  const applyNow = document.getElementById('score-sms-base-apply-now').checked;
+  if (applyNow) {
+    document.getElementById('score-sms-template').value = tpl;
+    document.getElementById('score-sms-absent-template').value = abs;
+    _scoreSmsTouched = true;   // 늦게 온 DB 값이 방금 적용한 양식을 되돌리지 않도록
+  }
+  saveScoreSmsSettings({ immediate: true });
+  if (applyNow) renderScoreSmsList();
+  closeScoreSmsBaseModal();
+  showToast(applyNow ? '✅ 기본 양식을 바꾸고 지금 양식에도 적용했어요!' : '✅ 기본 양식을 저장했어요!');
 }
 
 // 양식은 브라우저에 저장돼 계속 재사용된다. 한 번 {재시험}·{클리닉} 자리표시자를 지운 양식을
 // 저장하면 이후 모든 문자에서 그 줄이 영영 빠지므로, 기본 양식으로 돌아올 길을 남긴다.
 function resetScoreSmsTemplate() {
-  if (!confirm('성적/미응시 문자 양식을 기본값으로 되돌릴까요?\n지금 입력해 둔 양식은 사라집니다.')) return;
-  document.getElementById('score-sms-template').value = DEFAULT_SCORE_SMS_TEMPLATE;
-  document.getElementById('score-sms-absent-template').value = DEFAULT_SCORE_SMS_ABSENT_TEMPLATE;
+  if (!confirm('성적/미응시 문자 양식을 기본 양식으로 되돌릴까요?\n지금 입력해 둔 양식은 사라집니다.')) return;
+  document.getElementById('score-sms-template').value = baseScoreSmsTemplate();
+  document.getElementById('score-sms-absent-template').value = baseScoreSmsAbsent();
+  _scoreSmsTouched = true;   // 늦게 도착한 DB 값이 방금 되돌린 양식을 되살리지 않도록
   saveScoreSmsSettings();
   renderScoreSmsList();
   showToast('✅ 기본 양식으로 되돌렸어요!');
