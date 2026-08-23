@@ -805,10 +805,11 @@
       </div>
       <div class="section-body">
         <div class="form-group" style="margin-bottom:14px">
-          <label>문자 내용 (직접 수정 가능 · <code>{이름}</code> 자동 치환)</label>
-          <textarea id="clinic-sms-text" rows="4" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7">[용산대성N학원 영어과]
-{이름} 학생이 클리닉에 참석하지 않았습니다.
-확인 부탁드립니다.</textarea>
+          <label>문자 내용 (직접 수정 가능 · <code>{이름}</code> <code>{주차}</code> <code>{클리닉}</code> 자동 치환)</label>
+          <textarea id="clinic-sms-text" rows="5" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7">[용산대성N학원 영어과 - 등원 확인 안내]
+안녕하세요, {이름} 학생의 영어 클리닉 등원 관련 안내드립니다.
+현재 배정된 클리닉 시간에 학생의 입실이 확인되지 않고 있습니다.
+클리닉 일정: {클리닉}</textarea>
         </div>
         <div id="clinic-sms-list"></div>
       </div>
@@ -2649,9 +2650,10 @@ async function sendClinicSms() {
   const targets = window._clinicSmsTargets || [];
   const weekLabel = window._clinicSmsWeekLabel || '';
   const isParent = _clinicRecipient === 'parent';
+  // 클리닉 메모는 저장 전에도 수정한 값 그대로 나가야 하므로 targets가 아닌 화면 입력칸에서 읽는다
   const selected = Array.from(document.querySelectorAll('.clinic-sms-check:checked'))
-    .map(cb => targets[parseInt(cb.dataset.idx)])
-    .map(t => ({ t, phone: t ? (isParent ? t.phone : t.student_phone) : '' }))
+    .map(cb => ({ t: targets[parseInt(cb.dataset.idx)], memo: cb.closest('tr')?.querySelector('.clinic-memo')?.value.trim() || '' }))
+    .map(x => ({ ...x, phone: x.t ? (isParent ? x.t.phone : x.t.student_phone) : '' }))
     .filter(x => x.t && x.phone);
   if (!selected.length) { showToast('선택된 발송 대상이 없습니다.'); return; }
 
@@ -2662,9 +2664,10 @@ async function sendClinicSms() {
   if (!confirm(`${selected.length}명의 ${recipientLabel}에게 문자를 발송할까요?`)) return;
 
   showToast('발송 중...');
-  const messages = selected.map(({ t, phone }) => ({
+  // 클리닉 메모가 비면 '클리닉 일정: ' 껍데기만 남지 않도록 그 줄을 통째로 뺀다 (성적 문자 탭과 동일)
+  const messages = selected.map(({ t, phone, memo }) => ({
     to: phone,
-    text: template.replace(/\{이름\}/g, t.name).replace(/\{주차\}/g, weekLabel)
+    text: fillSmsTemplate(template, { 이름: t.name, 주차: weekLabel, 클리닉: memo })
   }));
 
   try {
