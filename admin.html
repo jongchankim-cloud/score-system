@@ -947,6 +947,16 @@ async function adminLogin() {
 
 let classes = [];
 const CLASS_SELECT_IDS = ['score-class','week-list-class','new-class','student-list-class','mock-score-class','mock-list-class','sms-class','uncert-class','student-sms-class','absent-class','clinic-sms-class','score-sms-class'];
+
+// 숫자 입력칸(type=number)은 포커스된 채 마우스 휠을 굴리면 브라우저가 값을 올리내려
+// 방금 입력한 점수가 눈치채지 못한 사이에 바뀐다. 동적으로 생성되는 칸까지 전부 막기 위해
+// 문서 전체에 위임 리스너 하나로 처리한다. (input 자체가 아닌 곳에서의 휠은 페이지 스크롤 그대로)
+document.addEventListener('wheel', e => {
+  const el = e.target;
+  if (el.tagName === 'INPUT' && el.type === 'number' && el === document.activeElement) {
+    e.preventDefault();
+  }
+}, { passive: false });
 async function initAdmin() {
   classes = await api('classes?order=id.asc&select=*') || [];
   refreshClassSelects();
