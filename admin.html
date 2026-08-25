@@ -70,7 +70,8 @@
   .badge { display:inline-block; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:600; }
   .badge-active { background:var(--green-light); color:var(--green); }
   .badge-inactive { background:var(--red-light); color:var(--red); }
-  .score-input-row { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 110px 90px 46px 46px 1fr; gap:6px; align-items:center; padding:8px 0; border-bottom:1px solid var(--light-gray); }
+  /* min-width:max-content — 항목 수가 늘어나면 칸이 찌그러지는 대신 부모(overflow-x:auto)가 가로 스크롤되게 한다 */
+  .score-input-row { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 110px 90px 46px 46px 1fr; gap:6px; align-items:center; padding:8px 0; border-bottom:1px solid var(--light-gray); min-width:max-content; }
   .score-input-row .total-cell { font-size:15px; font-weight:700; color:var(--navy); text-align:center; }
   .score-input-row:last-child { border-bottom:none; }
   .score-input-row .student-name { font-size:13px; font-weight:500; color:var(--navy); line-height:1.4; word-break:break-all; padding-right:4px; }
@@ -82,7 +83,7 @@
   .score-input-row input[type=number] { -moz-appearance:textfield; appearance:textfield; }
   .score-input-row textarea { padding:6px 8px; border:1.5px solid var(--border); border-radius:6px; font-size:12px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); outline:none; width:100%; transition:border-color 0.2s; resize:none; overflow:hidden; min-height:34px; line-height:1.5; }
   .score-input-row textarea:focus { border-color:var(--gold); background:var(--white); }
-  .score-header { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 110px 90px 46px 46px 1fr; gap:6px; padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; }
+  .score-header { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 110px 90px 46px 46px 1fr; gap:6px; padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; min-width:max-content; }
   /* 반 이동 — 주차 매칭 표 */
   .move-row { display:grid; grid-template-columns:1fr 16px 1.4fr; gap:6px; align-items:center; padding:5px 0; border-bottom:1px solid var(--border); }
   .move-row:last-child { border-bottom:none; }
@@ -131,7 +132,8 @@
   .mock-input-row input[type=number] { -moz-appearance:textfield; appearance:textfield; }
   /* 주차별 항목 설정 편집기 */
   .item-config-editor { display:flex; flex-direction:column; gap:6px; }
-  .item-config-head, .item-config-row { display:grid; grid-template-columns:52px 1fr 90px 90px; gap:8px; align-items:center; }
+  /* 마지막 34px 칸은 5번째 이상(추가) 항목의 삭제 버튼 자리. 기본 4슬롯은 빈 칸으로 둔다 */
+  .item-config-head, .item-config-row { display:grid; grid-template-columns:52px 1fr 90px 90px 34px; gap:8px; align-items:center; }
   .item-config-head { font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; padding-bottom:2px; }
   .item-config-head span { text-align:center; }
   .item-config-head span:nth-child(2) { text-align:left; }
@@ -143,6 +145,10 @@
   .item-config-row input[type=number]::-webkit-inner-spin-button,
   .item-config-row input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
   .item-config-row input[type=number] { -moz-appearance:textfield; appearance:textfield; }
+  /* 삭제 버튼은 34px 칸에 들어가야 하므로 .btn-sm의 좌우 여백을 없앤다 */
+  .item-config-row .cfg-del { padding:6px 0; width:100%; font-size:14px; line-height:1; }
+  .item-config-add { margin-top:2px; }
+  .item-config-hint { font-size:11px; color:var(--gray); margin-top:6px; line-height:1.6; }
   .item-config-total { font-size:12px; color:var(--gray); margin-top:8px; }
   .item-config-total strong { color:var(--navy); }
   /* 비교 그룹 반 선택 (체크박스) */
@@ -1144,7 +1150,9 @@ let scoreDirty = false; // 저장 안 된 변경사항 추적
 const studentCache = {};
 
 // ── 주차별 채점 항목 설정 ───────────────────────────────
-// 물리 컬럼(scores 테이블)과 1:1 매핑. 4개 항목 모두 이름·만점·커트라인을 주차별로 직접 입력.
+// 물리 컬럼(scores 테이블)과 1:1 매핑되는 기본 4슬롯. 이름·만점·커트라인은 주차별로 직접 입력.
+// 5번째 이상 항목은 물리 컬럼이 없어 scores.item_scores(jsonb)에 담긴다(itemVal 참조).
+// 즉 ITEM_KEYS는 "항목 개수 상한"이 아니라 "물리 컬럼이 있는 key 목록"이다.
 const ITEM_KEYS = ['word_score', 'reading_score', 'mc_score', 'item4_score'];
 // 항목 설정이 아직 없는(기존) 주차에 적용되는 초기값. 저장된 이름이 있으면 항상 그 값을 사용.
 const DEFAULT_ITEM_CONFIG = [
@@ -1163,7 +1171,9 @@ let currentNoHomework = false;
 let currentWeekGroupId = null;
 let currentGroupWeeks = [];  // [{id, class_id, item_config}] — 비교 그룹에 속한 주차들
 
-// 모의고사 항목: mock_scores의 물리 컬럼과 1:1 매핑. 이름·만점·커트라인은 시험별로 직접 입력.
+// 모의고사 항목: mock_scores의 물리 컬럼과 1:1 매핑되는 기본 4슬롯.
+// 주차와 마찬가지로 5번째 이상은 mock_scores.item_scores(jsonb)에 담긴다.
+// 이름·만점·커트라인은 시험별로 직접 입력.
 // item_config가 없는 기존 모의고사는 예전처럼 '점수' 1개(만점 100)로 동작하고,
 // 그 값은 mock_scores.score에 들어 있다(첫 항목 칸에 채워 보여준다).
 const MOCK_ITEM_KEYS = ['item1_score', 'item2_score', 'item3_score', 'item4_score'];
@@ -1174,22 +1184,95 @@ const DEFAULT_MOCK_ITEM_CONFIG = [
   { key: 'item4_score', label: '',     max: null, cut: null, active: false }
 ];
 
-// item_config(JSON, NULL 가능) → 항상 4개 슬롯의 정규화된 배열로 변환.
-// NULL(기존 주차/모의고사)이면 defaults 값으로 동작.
+// item_config(JSON, NULL 가능) → 정규화된 항목 배열로 변환.
+// ① defaults의 고정 슬롯(물리 컬럼과 1:1, 고정 순서)을 예전과 똑같이 먼저 만들고
+// ② 그 뒤에 defaults에 없는 key(= 5번째 이상 추가 항목)를 저장된 순서대로 이어붙인다.
+// raw가 NULL(기존 주차/모의고사)이면 ②가 비어 결과가 예전과 완전히 동일하다 — 하위 호환 무손상.
+// 예전에는 ②가 없어서 저장된 5번째 항목을 오류 없이 조용히 버렸다.
+// ★ index.html에 같은 함수가 복제돼 있다. 한쪽만 고치면 관리자/학부모 화면의 총점이 조용히 어긋난다.
 function normalizeItemConfig(raw, defaults = DEFAULT_ITEM_CONFIG) {
   const items = raw && Array.isArray(raw.items) ? raw.items : null;
-  return defaults.map((def, i) => {
-    const key = def.key;
-    const src = items ? items.find(it => it && it.key === key) : null;
-    const s = src || def;
-    return {
-      key,
-      label: (s.label ?? def.label ?? '').toString(),
-      max: (s.max === undefined || s.max === null || s.max === '') ? def.max : parseFloat(s.max),
-      cut: (s.cut === undefined || s.cut === null || s.cut === '') ? null : parseFloat(s.cut),
-      active: s.active === undefined ? def.active : !!s.active
-    };
+  // def가 있으면 고정 슬롯(기본값 폴백), 없으면 추가 항목(기본값 없음)
+  const norm = (s, def) => ({
+    key: def ? def.key : s.key,
+    label: (s.label ?? (def ? def.label : '') ?? '').toString(),
+    max: (s.max === undefined || s.max === null || s.max === '') ? (def ? def.max : null) : parseFloat(s.max),
+    cut: (s.cut === undefined || s.cut === null || s.cut === '') ? null : parseFloat(s.cut),
+    active: s.active === undefined ? (def ? def.active : true) : !!s.active
   });
+  const out = defaults.map(def => {
+    const src = items ? items.find(it => it && it.key === def.key) : null;
+    return norm(src || def, def);
+  });
+  // 추가 항목. key가 item_scores와 retest_pass의 키이므로 중복 key는 값이 덮이지 않게 버린다.
+  if (items) {
+    const seen = new Set(out.map(it => it.key));
+    items.forEach(src => {
+      if (!src || typeof src.key !== 'string' || !src.key || seen.has(src.key)) return;
+      seen.add(src.key);
+      out.push(norm(src, null));
+    });
+  }
+  return out;
+}
+
+// 기본 슬롯 key(물리 컬럼과 1:1)를 모아둔다. 응답에 그 컬럼이 통째로 빠졌는지 판정하는 데 쓴다.
+const LEGACY_ITEM_KEYS = new Set([...ITEM_KEYS, ...MOCK_ITEM_KEYS]);
+
+// 항목 점수 읽기. 1~4번 항목은 물리 컬럼, 5번째 이상은 item_scores(jsonb)에서 꺼낸다.
+// undefined(응답에 컬럼 자체가 없음)와 null(점수 미입력)의 구분이 핵심이다 —
+// 호출부들이 undefined를 보고 total_score / score 레거시 폴백으로 넘어가기 때문.
+// ★ index.html에 같은 함수가 복제돼 있다.
+function itemVal(row, key) {
+  if (!row) return undefined;
+  const bag = row.item_scores;
+  if (bag && bag[key] !== undefined) return bag[key];  // jsonb에 값이 있으면 우선
+  const v = row[key];
+  if (v !== undefined) return v;                       // 물리 컬럼
+  if (bag === undefined) return undefined;             // 응답에 jsonb 자체가 없음
+  // jsonb는 있는데 key가 없다. 기본 슬롯이면 "응답에서 컬럼이 빠진 것"(→ 레거시 폴백 살림),
+  // 추가 항목이면 "아직 점수 미입력"(→ null). 이 구분을 뭉개면 학부모 석차가 조용히 어긋난다.
+  // (parent-login의 명시 select에 item_scores만 추가하면 실제로 발생하는 경로다)
+  return LEGACY_ITEM_KEYS.has(key) ? undefined : null;
+}
+
+// 새 항목 key 규칙: item{N}_score (N ≥ 5). 현재 설정에 없는 가장 작은 정수를 쓴다.
+// scores·mock_scores의 물리 컬럼은 item4_score까지라 5부터는 충돌하지 않는다.
+// 한 번 만든 key는 절대 바꾸지 않는다 — item_scores와 retest_pass의 키이기 때문.
+function nextItemKey(cfg) {
+  const used = new Set((cfg || []).map(it => it.key));
+  let n = 5;
+  while (used.has(`item${n}_score`)) n++;
+  return `item${n}_score`;
+}
+
+// 비교 그룹 안에 5번째 이상 항목을 쓰는 주차/시험이 하나라도 있는지.
+// 명시 컬럼 목록 쿼리에 item_scores를 붙일지 판단하는 데만 쓴다 —
+// 컬럼이 아직 없는 DB에 무조건 붙이면 PostgREST가 400을 내며 그룹 평균이 통째로 깨진다.
+function groupNeedsExtraItems(rows, defaults, baseKeys) {
+  return (rows || []).some(r =>
+    normalizeItemConfig(r.item_config, defaults).some(it => !baseKeys.includes(it.key)));
+}
+
+// ── 5번째 이상 항목 추가 전 컬럼 존재 확인 ──────────────
+// weeks/mock_exams의 item_config는 기존 컬럼이라 DDL 없이도 5번째 항목 '설정'은 저장된다.
+// 그 상태가 되면 점수 저장뿐 아니라 비교 그룹 평균까지 400으로 깨지는데(refreshGroupInfo가
+// ,item_scores를 붙이므로) 조교는 이유를 알 수 없다. 그래서 추가하는 시점에 미리 막는다.
+// 읽기 전용 GET 한 건만 보낸다 — 저장·삭제·DDL은 하지 않는다.
+const _itemScoresColOk = {};  // { scores: true|false, mock_scores: ... } 세션 캐시
+
+async function ensureItemScoresColumn(table) {
+  if (_itemScoresColOk[table] !== undefined) return _itemScoresColOk[table];
+  let ok = true;
+  try {
+    const res = await apiRaw(`${table}?select=item_scores&limit=1`, 'GET');
+    // 확실히 실패했을 때만 막는다(fail open). 네트워크 오류·예외는 통과 —
+    // 프록시 동작을 100% 단정할 수 없어 정상 기능을 막는 쪽이 더 나쁘다.
+    // 401은 인증 만료라 컬럼 유무와 무관하다(handleAuthError가 이미 처리 중이므로 건드리지 않는다).
+    if (res && res.ok === false && res.status !== 401) ok = false;
+  } catch (e) { ok = true; }
+  _itemScoresColOk[table] = ok;
+  return ok;
 }
 
 function activeItems() {
@@ -1435,22 +1518,51 @@ function hasNoHomework(scoreMap) {
 }
 
 // ── 항목 설정 편집기 ────────────────────────────────────
+// 행 식별은 data-i(인덱스)가 아니라 data-key로 한다.
+// 항목을 추가·삭제하면 인덱스가 재배열돼 인덱스 바인딩은 키가 통째로 어긋난다.
+// 기본 4슬롯은 물리 컬럼과 1:1이라 삭제할 수 없고(사용 체크 해제만 가능),
+// 5번째 이상 항목만 삭제 버튼이 붙는다.
 function renderItemConfigEditor() {
   const el = document.getElementById('item-config-editor');
   if (!el) return;
   el.innerHTML =
-    `<div class="item-config-head"><span>사용</span><span>항목 이름</span><span>만점</span><span>커트라인</span></div>` +
+    `<div class="item-config-head"><span>사용</span><span>항목 이름</span><span>만점</span><span>커트라인</span><span></span></div>` +
     currentItemConfig.map((it, i) => {
-      const nameField = `<input type="text" class="cfg-label" data-i="${i}" value="${escapeAttr(it.label)}" placeholder="${i + 1}번째 항목 이름 (예: 단어)">`;
-      return `<div class="item-config-row${it.active ? '' : ' cfg-off'}" data-i="${i}">
-        <input type="checkbox" class="cfg-active" data-i="${i}" ${it.active ? 'checked' : ''} onchange="onCfgActiveToggle(${i})" title="이 주차에 사용">
-        ${nameField}
-        <input type="number" class="cfg-max" data-i="${i}" value="${it.max ?? ''}" min="0" placeholder="만점" oninput="updateItemConfigTotal()">
-        <input type="number" class="cfg-cut" data-i="${i}" value="${it.cut ?? ''}" min="0" placeholder="커트라인">
+      const removable = !ITEM_KEYS.includes(it.key);
+      return `<div class="item-config-row${it.active ? '' : ' cfg-off'}" data-key="${escapeAttr(it.key)}">
+        <input type="checkbox" class="cfg-active" ${it.active ? 'checked' : ''} onchange="onCfgActiveToggle(this)" title="이 주차에 사용">
+        <input type="text" class="cfg-label" value="${escapeAttr(it.label)}" placeholder="${i + 1}번째 항목 이름 (예: 단어)">
+        <input type="number" class="cfg-max" value="${it.max ?? ''}" min="0" placeholder="만점" oninput="updateItemConfigTotal()">
+        <input type="number" class="cfg-cut" value="${it.cut ?? ''}" min="0" placeholder="커트라인">
+        ${removable
+          ? `<button class="btn btn-danger btn-sm cfg-del" onclick="removeItemConfigRow(this)" title="이 항목 삭제">×</button>`
+          : `<span></span>`}
       </div>`;
-    }).join('');
+    }).join('') +
+    `<div class="item-config-add"><button class="btn btn-light btn-sm" onclick="addItemConfigRow()">+ 항목 추가</button></div>` +
+    `<div class="item-config-hint">항목을 삭제해도 이미 저장된 점수는 지워지지 않아요. 같은 항목을 다시 추가하면 그대로 되살아납니다.</div>`;
   updateItemConfigTotal();
   applyItemConfigBox('week');
+}
+
+// 항목 추가/삭제 전에 편집기의 현재 입력값을 먼저 읽어 반영한다.
+// 그러지 않으면 다시 렌더할 때 입력 중이던 이름·만점이 날아간다.
+// 추가되는 항목은 항상 5번째 이상(item{N}_score)이라 scores.item_scores 컬럼이 필요하다.
+async function addItemConfigRow() {
+  if (!(await ensureItemScoresColumn('scores'))) {
+    showToast('❌ DB에 item_scores 컬럼이 아직 없어요. 관리자에게 컬럼 추가를 요청해 주세요.');
+    return;
+  }
+  currentItemConfig = readItemConfigFromEditor();
+  currentItemConfig.push({ key: nextItemKey(currentItemConfig), label: '', max: null, cut: null, active: true });
+  renderItemConfigEditor();
+}
+
+function removeItemConfigRow(btn) {
+  const key = btn.closest('.item-config-row')?.dataset.key;
+  if (!key) return;
+  currentItemConfig = readItemConfigFromEditor().filter(it => it.key !== key);
+  renderItemConfigEditor();
 }
 
 // ── 비교 그룹 평균 (학부모 화면에 보이는 값과 같은 기준) ──
@@ -1472,11 +1584,15 @@ async function refreshGroupInfo() {
     if (!currentGroupWeeks.length) { el.innerHTML = ''; return; }
 
     const ids = currentGroupWeeks.map(w => w.id).join(',');
-    const rows = await api(`scores?week_id=in.(${ids})&select=week_id,${ITEM_KEYS.join(',')}`) || [];
     const items = activeItems();
+    // 이 파일에서 select=*가 아닌 몇 안 되는 조회. 5번째 이상 항목을 실제로 쓸 때만
+    // item_scores를 덧붙인다 — 컬럼 추가(DDL) 전이면 400이 나면서 그룹 평균이 통째로 깨진다.
+    const needsExtra = items.some(it => !ITEM_KEYS.includes(it.key))
+      || groupNeedsExtraItems(currentGroupWeeks, DEFAULT_ITEM_CONFIG, ITEM_KEYS);
+    const rows = await api(`scores?week_id=in.(${ids})&select=week_id,${ITEM_KEYS.join(',')}${needsExtra ? ',item_scores' : ''}`) || [];
     const totals = rows
       .map(r => {
-        const vals = items.map(it => r[it.key]).filter(v => v !== null && v !== undefined && v !== '');
+        const vals = items.map(it => itemVal(r, it.key)).filter(v => v !== null && v !== undefined && v !== '');
         return vals.length ? vals.reduce((a, b) => a + parseFloat(b), 0) : null;
       })
       .filter(v => v !== null);
@@ -1673,24 +1789,28 @@ async function saveGroupEdit(kind) {
   } catch (e) { showToast('❌ 오류 발생: ' + e.message); }
 }
 
-function onCfgActiveToggle(i) {
-  const row = document.querySelector(`#item-config-editor .item-config-row[data-i="${i}"]`);
-  const on = document.querySelector(`#item-config-editor .cfg-active[data-i="${i}"]`).checked;
-  if (row) row.classList.toggle('cfg-off', !on);
+function onCfgActiveToggle(chk) {
+  const row = chk.closest('.item-config-row');
+  if (row) row.classList.toggle('cfg-off', !chk.checked);
   updateItemConfigTotal();
 }
 
-// 편집기의 현재 입력값을 읽어 정규화된 config 배열로 반환
+// 편집기의 현재 입력값을 읽어 정규화된 config 배열로 반환.
+// 화면에 있는 행을 그대로 순회하고 key는 각 행의 data-key에서 읽는다
+// (ITEM_KEYS 인덱스 역참조를 쓰면 항목이 4개를 넘는 순간 어긋난다).
 function readItemConfigFromEditor() {
   const editor = document.getElementById('item-config-editor');
-  const items = ITEM_KEYS.map((key, i) => {
-    const active = editor.querySelector(`.cfg-active[data-i="${i}"]`).checked;
-    const maxV = editor.querySelector(`.cfg-max[data-i="${i}"]`).value;
-    const cutV = editor.querySelector(`.cfg-cut[data-i="${i}"]`).value;
-    const label = (editor.querySelector(`.cfg-label[data-i="${i}"]`)?.value || '').trim();
-    return { key, label, max: maxV === '' ? null : parseFloat(maxV), cut: cutV === '' ? null : parseFloat(cutV), active };
+  return Array.from(editor.querySelectorAll('.item-config-row')).map(row => {
+    const maxV = row.querySelector('.cfg-max').value;
+    const cutV = row.querySelector('.cfg-cut').value;
+    return {
+      key: row.dataset.key,
+      label: (row.querySelector('.cfg-label')?.value || '').trim(),
+      max: maxV === '' ? null : parseFloat(maxV),
+      cut: cutV === '' ? null : parseFloat(cutV),
+      active: row.querySelector('.cfg-active').checked
+    };
   });
-  return items;
 }
 
 function updateItemConfigTotal() {
@@ -1826,10 +1946,11 @@ function renderScoreInputs(classId, weekId, scoreMap) {
   renderScoreHeader();
   container.innerHTML = students.map(st => {
     const sc = scoreMap[st.id] || {};
-    const total = sumScores(items.map(it => sc[it.key]));
+    // 5번째 이상 항목은 물리 컬럼이 없어 item_scores에 있으므로 itemVal로 읽는다
+    const total = sumScores(items.map(it => itemVal(sc, it.key)));
     const retest = sc.retest_pass || {};
     const itemInputs = items.map(it => {
-      const val = sc[it.key];
+      const val = itemVal(sc, it.key);
       const below = isBelowCut(val, it.cut);
       const over = scoreRangeIssue(val, it.max) ? ' over-max' : '';
       const maxAttr = it.max != null ? ` max="${it.max}"` : '';
@@ -1878,6 +1999,8 @@ async function saveAllScores() {
   if (!rows.length) return;
   if (!confirmRangeIssues(collectRangeIssues('#score-inputs-container .score-input-row', '.inp-item', activeItems()))) return;
   // 활성 항목의 점수 컬럼만 저장 대상에 포함. 비활성 항목은 PATCH에서 제외 → 기존 값 보존.
+  // 5번째 이상 항목은 물리 컬럼이 없으므로 _extra에 모았다가 item_scores(jsonb)로 보낸다.
+  // _extra는 요청 body에 들어가면 안 되는 내부 필드라 아래에서 반드시 분리한다.
   const upserts = Array.from(rows).map(row => {
     const u = {
       student_id: parseInt(row.dataset.studentId),
@@ -1891,22 +2014,34 @@ async function saveAllScores() {
       clinic_attend: row.querySelector('.inp-clinic-attend').checked,
       clinic_memo: row.querySelector('.inp-clinic-memo').value.trim()
     };
+    const extra = {};
     row.querySelectorAll('.inp-item').forEach(inp => {
-      u[inp.dataset.key] = inp.value !== '' ? parseFloat(inp.value) : null;
+      const key = inp.dataset.key;
+      const v = inp.value !== '' ? parseFloat(inp.value) : null;
+      if (ITEM_KEYS.includes(key)) u[key] = v; else extra[key] = v;
     });
+    if (Object.keys(extra).length) u._extra = extra;
     u.retest_pass = collectRetestPass(row);
     return u;
   });
   try {
-    const existing = await api(`scores?week_id=eq.${weekId}&select=id,student_id`);
+    // 5번째 이상 항목이 하나도 없으면 item_scores를 조회에도 요청에도 싣지 않는다.
+    // (컬럼 추가 전 배포에서 기존 동작이 1비트도 달라지지 않게 하는 안전장치)
+    const hasExtra = upserts.some(u => u._extra);
+    const existing = await api(`scores?week_id=eq.${weekId}&select=id,student_id${hasExtra ? ',item_scores' : ''}`);
     const existMap = {};
-    (existing || []).forEach(e => { existMap[e.student_id] = e.id; });
+    const extraMap = {};
+    (existing || []).forEach(e => { existMap[e.student_id] = e.id; extraMap[e.student_id] = e.item_scores; });
     const results = await Promise.all(upserts.map(async u => {
+      const { _extra, ...body } = u;
+      // jsonb는 컬럼과 달리 통째로 덮어써진다. 기존 값 위에 병합하지 않으면
+      // 비활성 항목(= 이번에 화면에 없던 항목)의 점수가 날아간다.
+      if (_extra) body.item_scores = { ...(extraMap[u.student_id] || {}), ..._extra };
       if (existMap[u.student_id]) {
-        const { student_id, week_id, ...patchBody } = u;
+        const { student_id, week_id, ...patchBody } = body;
         return apiRaw(`scores?id=eq.${existMap[u.student_id]}`, 'PATCH', patchBody);
       } else {
-        return apiRaw('scores', 'POST', u);
+        return apiRaw('scores', 'POST', body);
       }
     }));
     const failed = results.filter(r => !r.ok);
@@ -2362,7 +2497,7 @@ async function loadAbsentTargets() {
     targets = (students || []).filter(st => {
       const sc = scoreMap[st.id];
       if (!sc) return true;
-      return activeKeys.some(k => empty(sc[k]));
+      return activeKeys.some(k => empty(itemVal(sc, k)));
     });
   }
   targets = targets.map(st => ({
@@ -3265,7 +3400,7 @@ async function loadScoreSmsTargets() {
   window._scoreSmsTargets = (students || []).map(st => {
     const sc = scoreMap[st.id];
     const scored = items.map(it => {
-      const raw = sc ? sc[it.key] : null;
+      const raw = sc ? itemVal(sc, it.key) : null;
       const val = (raw === null || raw === undefined || raw === '') ? null : parseFloat(raw);
       return { ...it, value: val };
     }).filter(x => x.value !== null && !isNaN(x.value));
@@ -3555,36 +3690,69 @@ function mockActiveItems() {
   return currentMockItemConfig.filter(it => it.active);
 }
 
+// 주차 편집기(renderItemConfigEditor)와 같은 규약 — 행 식별은 data-key,
+// 기본 4슬롯은 삭제 불가(물리 컬럼과 1:1), 5번째 이상만 삭제 버튼.
 function renderMockItemConfigEditor() {
   const el = document.getElementById('mock-item-config-editor');
   if (!el) return;
   el.innerHTML =
-    `<div class="item-config-head"><span>사용</span><span>항목 이름</span><span>만점</span><span>커트라인</span></div>` +
-    currentMockItemConfig.map((it, i) => `<div class="item-config-row${it.active ? '' : ' cfg-off'}" data-i="${i}">
-        <input type="checkbox" class="cfg-active" data-i="${i}" ${it.active ? 'checked' : ''} onchange="onMockCfgActiveToggle(${i})" title="이 시험에 사용">
-        <input type="text" class="cfg-label" data-i="${i}" value="${escapeAttr(it.label)}" placeholder="${i + 1}번째 항목 이름 (예: 듣기)">
-        <input type="number" class="cfg-max" data-i="${i}" value="${it.max ?? ''}" min="0" placeholder="만점" oninput="updateMockItemConfigTotal()">
-        <input type="number" class="cfg-cut" data-i="${i}" value="${it.cut ?? ''}" min="0" placeholder="커트라인">
-      </div>`).join('');
+    `<div class="item-config-head"><span>사용</span><span>항목 이름</span><span>만점</span><span>커트라인</span><span></span></div>` +
+    currentMockItemConfig.map((it, i) => {
+      const removable = !MOCK_ITEM_KEYS.includes(it.key);
+      return `<div class="item-config-row${it.active ? '' : ' cfg-off'}" data-key="${escapeAttr(it.key)}">
+        <input type="checkbox" class="cfg-active" ${it.active ? 'checked' : ''} onchange="onMockCfgActiveToggle(this)" title="이 시험에 사용">
+        <input type="text" class="cfg-label" value="${escapeAttr(it.label)}" placeholder="${i + 1}번째 항목 이름 (예: 듣기)">
+        <input type="number" class="cfg-max" value="${it.max ?? ''}" min="0" placeholder="만점" oninput="updateMockItemConfigTotal()">
+        <input type="number" class="cfg-cut" value="${it.cut ?? ''}" min="0" placeholder="커트라인">
+        ${removable
+          ? `<button class="btn btn-danger btn-sm cfg-del" onclick="removeMockItemConfigRow(this)" title="이 항목 삭제">×</button>`
+          : `<span></span>`}
+      </div>`;
+    }).join('') +
+    `<div class="item-config-add"><button class="btn btn-light btn-sm" onclick="addMockItemConfigRow()">+ 항목 추가</button></div>` +
+    `<div class="item-config-hint">항목을 삭제해도 이미 저장된 점수는 지워지지 않아요. 같은 항목을 다시 추가하면 그대로 되살아납니다.</div>`;
   updateMockItemConfigTotal();
   applyItemConfigBox('mock');
 }
 
-function onMockCfgActiveToggle(i) {
-  const row = document.querySelector(`#mock-item-config-editor .item-config-row[data-i="${i}"]`);
-  const on = document.querySelector(`#mock-item-config-editor .cfg-active[data-i="${i}"]`).checked;
-  if (row) row.classList.toggle('cfg-off', !on);
+// 입력 중이던 값을 먼저 읽어 반영한 뒤 행을 추가·삭제한다 (주차 편집기와 동일).
+// 컬럼 확인도 같은 이유로 필요하다 — 대상 테이블만 mock_scores로 다르다.
+async function addMockItemConfigRow() {
+  if (!(await ensureItemScoresColumn('mock_scores'))) {
+    showToast('❌ DB에 item_scores 컬럼이 아직 없어요. 관리자에게 컬럼 추가를 요청해 주세요.');
+    return;
+  }
+  currentMockItemConfig = readMockItemConfigFromEditor();
+  currentMockItemConfig.push({ key: nextItemKey(currentMockItemConfig), label: '', max: null, cut: null, active: true });
+  renderMockItemConfigEditor();
+}
+
+function removeMockItemConfigRow(btn) {
+  const key = btn.closest('.item-config-row')?.dataset.key;
+  if (!key) return;
+  currentMockItemConfig = readMockItemConfigFromEditor().filter(it => it.key !== key);
+  renderMockItemConfigEditor();
+}
+
+function onMockCfgActiveToggle(chk) {
+  const row = chk.closest('.item-config-row');
+  if (row) row.classList.toggle('cfg-off', !chk.checked);
   updateMockItemConfigTotal();
 }
 
+// key는 MOCK_ITEM_KEYS 인덱스가 아니라 각 행의 data-key에서 읽는다 (항목 추가/삭제로 인덱스가 밀린다)
 function readMockItemConfigFromEditor() {
   const editor = document.getElementById('mock-item-config-editor');
-  return MOCK_ITEM_KEYS.map((key, i) => {
-    const active = editor.querySelector(`.cfg-active[data-i="${i}"]`).checked;
-    const maxV = editor.querySelector(`.cfg-max[data-i="${i}"]`).value;
-    const cutV = editor.querySelector(`.cfg-cut[data-i="${i}"]`).value;
-    const label = (editor.querySelector(`.cfg-label[data-i="${i}"]`)?.value || '').trim();
-    return { key, label, max: maxV === '' ? null : parseFloat(maxV), cut: cutV === '' ? null : parseFloat(cutV), active };
+  return Array.from(editor.querySelectorAll('.item-config-row')).map(row => {
+    const maxV = row.querySelector('.cfg-max').value;
+    const cutV = row.querySelector('.cfg-cut').value;
+    return {
+      key: row.dataset.key,
+      label: (row.querySelector('.cfg-label')?.value || '').trim(),
+      max: maxV === '' ? null : parseFloat(maxV),
+      cut: cutV === '' ? null : parseFloat(cutV),
+      active: row.querySelector('.cfg-active').checked
+    };
   });
 }
 
@@ -3658,8 +3826,11 @@ async function refreshMockGroupInfo() {
     if (!currentMockGroupExams.length) { el.innerHTML = ''; return; }
 
     const ids = currentMockGroupExams.map(e => e.id).join(',');
-    const rows = await api(`mock_scores?exam_id=in.(${ids})&select=exam_id,score,${MOCK_ITEM_KEYS.join(',')}`) || [];
     const items = mockActiveItems();
+    // 주차 쪽(refreshGroupInfo)과 같은 이유로 5번째 이상 항목을 쓸 때만 item_scores를 덧붙인다
+    const needsExtra = items.some(it => !MOCK_ITEM_KEYS.includes(it.key))
+      || groupNeedsExtraItems(currentMockGroupExams, DEFAULT_MOCK_ITEM_CONFIG, MOCK_ITEM_KEYS);
+    const rows = await api(`mock_scores?exam_id=in.(${ids})&select=exam_id,score,${MOCK_ITEM_KEYS.join(',')}${needsExtra ? ',item_scores' : ''}`) || [];
     const totals = rows.map(r => mockRowTotal(r, items)).filter(v => v !== null);
 
     const classNames = currentMockGroupExams
@@ -3691,7 +3862,7 @@ async function refreshMockGroupInfo() {
 
 // 항목 점수가 하나라도 입력돼 있으면 항목 합계, 아니면 기존 score 폴백(옛 데이터).
 function mockRowTotal(row, items) {
-  const vals = items.map(it => row[it.key]).filter(v => v !== null && v !== undefined && v !== '');
+  const vals = items.map(it => itemVal(row, it.key)).filter(v => v !== null && v !== undefined && v !== '');
   if (vals.length) return vals.reduce((a, b) => a + parseFloat(b), 0);
   return (row.score === null || row.score === undefined) ? null : parseFloat(row.score);
 }
@@ -3720,11 +3891,14 @@ function renderMockInputs(classId, examId, scoreMap) {
     const sc = scoreMap[st.id] || {};
     // 옛 데이터(항목 컬럼 없이 score만 있는 행)는 첫 항목 칸에 채워 보여준다.
     // 그대로 저장하면 항목 컬럼으로 옮겨진다.
-    const noItemVals = MOCK_ITEM_KEYS.every(k => sc[k] === null || sc[k] === undefined);
+    // 판정 범위는 물리 컬럼 4개 + 이 시험의 설정 항목 전부.
+    // 5번째 이상 항목에만 점수가 있는 행을 '옛 데이터'로 잘못 보면 첫 칸에 옛 총점이 되살아난다.
+    const legacyCheckKeys = MOCK_ITEM_KEYS.concat(items.map(it => it.key).filter(k => !MOCK_ITEM_KEYS.includes(k)));
+    const noItemVals = legacyCheckKeys.every(k => { const v = itemVal(sc, k); return v === null || v === undefined; });
     const legacyScore = (noItemVals && sc.score !== null && sc.score !== undefined) ? sc.score : null;
     const retest = sc.retest_pass || {};
     const itemInputs = items.map((it, idx) => {
-      const val = sc[it.key] ?? (idx === 0 ? legacyScore : null);
+      const val = itemVal(sc, it.key) ?? (idx === 0 ? legacyScore : null);
       const below = isBelowCut(val, it.cut);
       const over = scoreRangeIssue(val, it.max) ? ' over-max' : '';
       const maxAttr = it.max != null ? ` max="${it.max}"` : '';
@@ -3733,7 +3907,7 @@ function renderMockInputs(classId, examId, scoreMap) {
         + retestCheckbox(it.key, below, retest[it.key] === true)
         + `</div>`;
     }).join('');
-    const total = sumScores(items.map((it, idx) => sc[it.key] ?? (idx === 0 ? legacyScore : null)));
+    const total = sumScores(items.map((it, idx) => itemVal(sc, it.key) ?? (idx === 0 ? legacyScore : null)));
     const absent = !!sc.absent;
     return `<div class="mock-input-row${absent ? ' absent-on' : ''}" data-student-id="${st.id}" data-student-name="${escapeAttr(st.name)}">
       <span class="student-name">${escapeHtml(st.name)}</span>
@@ -3830,11 +4004,10 @@ async function saveMockScores() {
   const rows = document.querySelectorAll('#mock-score-inputs .mock-input-row');
   if (!rows.length) return;
   if (!confirmRangeIssues(collectRangeIssues('#mock-score-inputs .mock-input-row', '.inp-mock-item', mockActiveItems()))) return;
-  const existing = await api(`mock_scores?exam_id=eq.${examId}&select=id,student_id`) || [];
-  const existMap = {};
-  existing.forEach(e => { existMap[e.student_id] = e.id; });
   // 활성 항목 컬럼 + 기존 score(항목 합계)를 함께 저장한다.
   // score를 계속 채워두면 학부모 화면이 항목 컬럼 없이도 총점·평균을 그대로 계산할 수 있다.
+  // 5번째 이상 항목은 물리 컬럼이 없어 _extra → item_scores(jsonb)로 가지만,
+  // 레거시 score 합계에는 항목 구분 없이 전부 포함된다(vals는 DOM 순회라 키와 무관).
   const upserts = Array.from(rows).map(row => {
     const absent = row.querySelector('.inp-mock-absent').checked;
     const u = {
@@ -3842,23 +4015,35 @@ async function saveMockScores() {
       memo: row.querySelector('.mock-memo').value.trim(), absent
     };
     const vals = [];
+    const extra = {};
     row.querySelectorAll('.inp-mock-item').forEach(inp => {
       // 미응시는 점수 없음으로 통일 (점수와 미응시가 동시에 남지 않게)
       const v = (!absent && inp.value !== '') ? parseFloat(inp.value) : null;
-      u[inp.dataset.key] = v;
+      const key = inp.dataset.key;
+      if (MOCK_ITEM_KEYS.includes(key)) u[key] = v; else extra[key] = v;
       if (v !== null) vals.push(v);
     });
+    if (Object.keys(extra).length) u._extra = extra;
     u.score = vals.length ? vals.reduce((a, b) => a + b, 0) : null;
     u.retest_pass = absent ? null : collectRetestPass(row);
     return u;
   });
+  // 5번째 이상 항목이 없으면 item_scores를 조회에도 요청에도 싣지 않는다 (주차 저장과 같은 안전장치)
+  const hasExtra = upserts.some(u => u._extra);
+  const existing = await api(`mock_scores?exam_id=eq.${examId}&select=id,student_id${hasExtra ? ',item_scores' : ''}`) || [];
+  const existMap = {};
+  const extraMap = {};
+  existing.forEach(e => { existMap[e.student_id] = e.id; extraMap[e.student_id] = e.item_scores; });
   try {
     const results = await Promise.all(upserts.map(async u => {
+      const { _extra, ...body } = u;
+      // jsonb는 통째로 덮어써지므로 기존 값 위에 병합한다 (비활성 항목 점수 보존)
+      if (_extra) body.item_scores = { ...(extraMap[u.student_id] || {}), ..._extra };
       if (existMap[u.student_id]) {
-        const { student_id, exam_id, ...patchBody } = u;
+        const { student_id, exam_id, ...patchBody } = body;
         return apiRaw(`mock_scores?id=eq.${existMap[u.student_id]}`, 'PATCH', patchBody);
       } else {
-        return apiRaw('mock_scores', 'POST', u);
+        return apiRaw('mock_scores', 'POST', body);
       }
     }));
     const failed = results.filter(r => !r.ok);

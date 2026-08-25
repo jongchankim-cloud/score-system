@@ -334,7 +334,8 @@
         gap: 10px;
         margin-bottom: 10px;
       }
-      /* 항목 수(1~4개)가 주차마다 달라지므로 총점은 항상 한 줄 전체를 차지 */
+      /* 항목 수가 주차마다 다르고 개수 상한이 없으므로(2열 그리드가 알아서 줄바꿈)
+         총점은 항상 한 줄 전체를 차지하게 둔다 */
       .score-grid .score-item.total {
         grid-column: 1 / -1;
       }
@@ -604,6 +605,10 @@
       let weekConfigMap = {}; // { weekId: 정규화된 항목 설정 배열 }
 
       // ── 주차별 채점 항목 설정 (admin.html과 동일 규약) ──────────
+      // 물리 컬럼이 있는 기본 4슬롯의 key 목록. 5번째 이상 항목은 scores.item_scores(jsonb)에
+      // 들어 있어 itemVal()로 읽는다 — 즉 이 배열은 항목 개수 상한이 아니다.
+      // ※ 오랫동안 이 파일에서 참조가 없는 죽은 코드였으나, 지금은 아래 LEGACY_ITEM_KEYS가
+      //   이 배열을 실제로 사용한다(응답에서 물리 컬럼이 빠졌는지 판정). 지우지 말 것.
       const ITEM_KEYS = [
         "word_score",
         "reading_score",
@@ -614,7 +619,13 @@
       // 저장된 이름이 있으면 항상 그 값을 사용한다 (모든 항목명은 관리자가 직접 입력).
       const DEFAULT_ITEM_CONFIG = [
         { key: "word_score", label: "단어", max: 25, cut: null, active: true },
-        { key: "reading_score", label: "해석", max: 30, cut: null, active: true },
+        {
+          key: "reading_score",
+          label: "해석",
+          max: 30,
+          cut: null,
+          active: true,
+        },
         { key: "mc_score", label: "객관식", max: 45, cut: null, active: true },
         { key: "item4_score", label: "", max: 20, cut: null, active: false },
       ];
@@ -628,34 +639,87 @@
         "item4_score",
       ];
       const DEFAULT_MOCK_ITEM_CONFIG = [
-        { key: "item1_score", label: "점수", max: 100, cut: null, active: true },
+        {
+          key: "item1_score",
+          label: "점수",
+          max: 100,
+          cut: null,
+          active: true,
+        },
         { key: "item2_score", label: "", max: null, cut: null, active: false },
         { key: "item3_score", label: "", max: null, cut: null, active: false },
         { key: "item4_score", label: "", max: null, cut: null, active: false },
       ];
 
-      // item_config(JSON, NULL 가능) → 4개 슬롯의 정규화 배열.
-      // NULL(기존 주차)이면 기본값(단어25/해석30/객관식45)으로 동작.
+      // item_config(JSON, NULL 가능) → 정규화된 항목 배열.
+      // ① defaults의 고정 슬롯(물리 컬럼과 1:1, 고정 순서)을 예전과 똑같이 먼저 만들고
+      // ② 그 뒤에 defaults에 없는 key(= 5번째 이상 추가 항목)를 저장된 순서대로 이어붙인다.
+      // NULL(기존 주차)이면 ②가 비어 예전과 완전히 동일하다 (단어25/해석30/객관식45).
+      // ★ admin.html에 같은 함수가 복제돼 있다 — 한쪽만 고치면 관리자/학부모 총점이 조용히 어긋난다.
       function normalizeItemConfig(raw, defaults = DEFAULT_ITEM_CONFIG) {
         const items = raw && Array.isArray(raw.items) ? raw.items : null;
-        return defaults.map((def, i) => {
-          const key = def.key;
-          const src = items ? items.find((it) => it && it.key === key) : null;
-          const s = src || def;
-          return {
-            key,
-            label: (s.label ?? def.label ?? "").toString(),
-            max:
-              s.max === undefined || s.max === null || s.max === ""
+        // def가 있으면 고정 슬롯(기본값 폴백), 없으면 추가 항목(기본값 없음)
+        const norm = (s, def) => ({
+          key: def ? def.key : s.key,
+          label: (s.label ?? (def ? def.label : "") ?? "").toString(),
+          max:
+            s.max === undefined || s.max === null || s.max === ""
+              ? def
                 ? def.max
-                : parseFloat(s.max),
-            cut:
-              s.cut === undefined || s.cut === null || s.cut === ""
-                ? null
-                : parseFloat(s.cut),
-            active: s.active === undefined ? def.active : !!s.active,
-          };
+                : null
+              : parseFloat(s.max),
+          cut:
+            s.cut === undefined || s.cut === null || s.cut === ""
+              ? null
+              : parseFloat(s.cut),
+          active:
+            s.active === undefined ? (def ? def.active : true) : !!s.active,
         });
+        const out = defaults.map((def) => {
+          const src = items
+            ? items.find((it) => it && it.key === def.key)
+            : null;
+          return norm(src || def, def);
+        });
+        // 추가 항목. key가 item_scores와 retest_pass의 키이므로 중복 key는 버린다.
+        if (items) {
+          const seen = new Set(out.map((it) => it.key));
+          items.forEach((src) => {
+            if (
+              !src ||
+              typeof src.key !== "string" ||
+              !src.key ||
+              seen.has(src.key)
+            )
+              return;
+            seen.add(src.key);
+            out.push(norm(src, null));
+          });
+        }
+        return out;
+      }
+
+      // 기본 슬롯 key(물리 컬럼과 1:1)를 모아둔다. 응답에 그 컬럼이 통째로 빠졌는지 판정하는 데 쓴다.
+      const LEGACY_ITEM_KEYS = new Set([...ITEM_KEYS, ...MOCK_ITEM_KEYS]);
+
+      // 항목 점수 읽기. 1~4번 항목은 물리 컬럼, 5번째 이상은 item_scores(jsonb)에서 꺼낸다.
+      // undefined(응답에 컬럼 자체가 없음)와 null(점수 미입력)의 구분이 핵심 —
+      // parent-login이 아직 item_scores를 안 내려주면 undefined가 나오고,
+      // 호출부의 기존 total_score / score 레거시 폴백이 그대로 작동해 화면이 깨지지 않는다.
+      // ★ admin.html에 같은 함수가 복제돼 있다.
+      function itemVal(row, key) {
+        if (!row) return undefined;
+        const bag = row.item_scores;
+        if (bag && bag[key] !== undefined) return bag[key]; // jsonb에 값이 있으면 우선
+        const v = row[key];
+        if (v !== undefined) return v; // 물리 컬럼
+        if (bag === undefined) return undefined; // 응답에 jsonb 자체가 없음
+        // jsonb는 있는데 key가 없다. 기본 슬롯이면 "응답에서 컬럼이 빠진 것"(→ 레거시 폴백 살림),
+        // 추가 항목이면 "아직 점수 미입력"(→ null).
+        // parent-login의 명시 select에 item_scores만 추가하고 word_score 등을 빠뜨리면
+        // 바로 이 경로를 탄다. 여기서 null을 돌려주면 computeTotal의 total_score 폴백이 죽고
+        // canItemBased가 true로 뒤집혀, 콘솔 경고도 없이 총점이 비고 석차 모집단에서 빠진다.
+        return LEGACY_ITEM_KEYS.has(key) ? undefined : null;
       }
 
       // 관리자가 직접 입력한 항목명을 그대로 출력하므로 HTML 이스케이프
@@ -686,11 +750,11 @@
         if (!row) return null;
         const items = itemsForWeek(weekId ?? row.week_id);
         const hasMissingColumn = items.some(
-          (it) => row[it.key] === undefined,
+          (it) => itemVal(row, it.key) === undefined,
         );
         if (hasMissingColumn) return row.total_score ?? null;
         const entered = items
-          .map((it) => row[it.key])
+          .map((it) => itemVal(row, it.key))
           .filter((v) => v !== null);
         // 컬럼은 모두 있는데 값이 전부 비어있음 → 미응시(null)
         if (!entered.length) return null;
@@ -796,8 +860,7 @@
           return m ? { m: parseInt(m[1]), d: parseInt(m[2]) } : null;
         });
         const months = parsed.filter(Boolean).map((x) => x.m);
-        const wraps =
-          months.some((m) => m >= 11) && months.some((m) => m <= 2);
+        const wraps = months.some((m) => m >= 11) && months.some((m) => m <= 2);
         return parsed.map((x) =>
           x === null
             ? -Infinity // 날짜를 못 읽으면 맨 뒤로
@@ -846,13 +909,17 @@
           </div>`;
       }
 
-      // 점수(항목 점수 또는 총점)가 하나라도 입력돼 있는지
+      // 점수(항목 점수 또는 총점)가 하나라도 입력돼 있는지.
+      // 5번째 이상 항목은 물리 컬럼이 없어 item_scores(jsonb)에 있으므로 그 키까지 함께 본다
+      // (여기서는 시험별 항목 설정을 모르므로 응답에 실려온 키를 그대로 쓴다).
       function hasMockScore(row) {
         if (!row) return false;
         if (row.score !== null && row.score !== undefined) return true;
-        return MOCK_ITEM_KEYS.some(
-          (k) => row[k] !== null && row[k] !== undefined,
-        );
+        const keys = MOCK_ITEM_KEYS.concat(Object.keys(row.item_scores || {}));
+        return keys.some((k) => {
+          const v = itemVal(row, k);
+          return v !== null && v !== undefined;
+        });
       }
 
       // 학부모에게 이 모의고사를 보여줄지: 점수가 있거나, 선생님이 미응시로 표시한 경우만
@@ -946,7 +1013,9 @@
         }
 
         // 기본 선택: 가장 최근 주차(없으면 가장 최근 모의고사)
-        sel.value = weekList.length ? "w" + weekList[0].id : "m" + examList[0].id;
+        sel.value = weekList.length
+          ? "w" + weekList[0].id
+          : "m" + examList[0].id;
         onPeriodChange(sel.value);
       }
 
@@ -976,7 +1045,10 @@
         if (!hasMockScore(s)) {
           const examRow = (loginData.exams || []).find((e) => e.id === examId);
           const examName =
-            examRow && examRow.label && examRow.exam_date && examRow.label !== examRow.exam_date
+            examRow &&
+            examRow.label &&
+            examRow.exam_date &&
+            examRow.label !== examRow.exam_date
               ? `${examRow.label} (${examRow.exam_date})`
               : examRow?.label || examRow?.exam_date || "";
           section.innerHTML = s?.absent
@@ -1025,7 +1097,7 @@
         // 0점도 응시로 인정한다(빈 값=미응시만 제외).
         const rowTotal = (row) => {
           const vals = mockItems
-            .map((it) => row[it.key])
+            .map((it) => itemVal(row, it.key))
             .filter((v) => v !== null && v !== undefined);
           if (vals.length) return vals.reduce((a, b) => a + parseFloat(b), 0);
           return row.score === null || row.score === undefined
@@ -1053,16 +1125,17 @@
         // 항목이 2개 이상이면 항목별 점수도 함께 보여준다.
         // 항목이 1개여도 재시험 상태(통과/대상)가 있으면 보여줘야 하므로 함께 판단한다.
         const hasItemValues = mockItems.some(
-          (it) => s[it.key] !== null && s[it.key] !== undefined,
+          (it) =>
+            itemVal(s, it.key) !== null && itemVal(s, it.key) !== undefined,
         );
         const hasRetestInfo = mockItems.some((it) =>
-          isBelowCut(s[it.key], it.cut),
+          isBelowCut(itemVal(s, it.key), it.cut),
         );
         const itemsHtml =
           hasItemValues && (mockItems.length > 1 || hasRetestInfo)
             ? `<div class="score-grid items-${mockItems.length}" style="margin-bottom:10px">
             ${mockItems
-              .map((it) => itemCellHtml(it, s[it.key], s.retest_pass))
+              .map((it) => itemCellHtml(it, itemVal(s, it.key), s.retest_pass))
               .join("")}
           </div>`
             : "";
@@ -1197,7 +1270,9 @@
           // 항목 구성은 현재 주차 설정을 전원에게 동일 적용한다.
           // (다른 반 week_id는 weekConfigMap에 없어 기본값으로 떨어지므로)
           const canItemBased = [s, ...scoresForRank].every((r) =>
-            itemsForWeek(weekId).every((it) => r[it.key] !== undefined),
+            itemsForWeek(weekId).every(
+              (it) => itemVal(r, it.key) !== undefined,
+            ),
           );
           if (!canItemBased) {
             console.warn(
@@ -1206,7 +1281,7 @@
             );
           }
           const basisOf = (r) =>
-            canItemBased ? computeTotal(r, weekId) : r.total_score ?? null;
+            canItemBased ? computeTotal(r, weekId) : (r.total_score ?? null);
 
           const myBasis = basisOf(s);
           const sorted = scoresForRank
@@ -1283,7 +1358,7 @@
           ${absentHtml}
           <div class="score-grid items-${itemsForWeek(weekId).length}">
             ${itemsForWeek(weekId)
-              .map((it) => itemCellHtml(it, s[it.key], s.retest_pass))
+              .map((it) => itemCellHtml(it, itemVal(s, it.key), s.retest_pass))
               .join("")}
             <div class="score-item total">
               <div class="score-label">총점</div>
