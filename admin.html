@@ -214,6 +214,7 @@
     <button class="tab-btn" onclick="switchTab('tab-sms')">학부모 문자 발송</button>
     <button class="tab-btn" onclick="switchTab('tab-uncert')">미인증 관리</button>
     <button class="tab-btn" onclick="switchTab('tab-clinic-sms')">클리닉 미참석 문자 발송</button>
+    <button class="tab-btn" onclick="switchTab('tab-clinic-schedule')">클리닉 배정표</button>
     <button class="tab-btn" onclick="switchTab('tab-mock')">모의고사</button>
     <button class="tab-btn" onclick="switchTab('tab-week')">주차 관리</button>
     <button class="tab-btn" onclick="switchTab('tab-student')">학생 관리</button>
@@ -822,6 +823,20 @@
     </div>
   </div>
 
+  <!-- 탭12: 클리닉 배정표 -->
+  <div id="tab-clinic-schedule" class="tab-content">
+    <div class="section-card">
+      <div class="section-head">
+        <h3>클리닉 요일·시간 배정표</h3>
+        <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="loadClinicSchedule()">새로고침</button>
+      </div>
+      <div class="section-body">
+        <p style="font-size:12px;color:var(--gray);margin:0 0 14px;line-height:1.7">각 반의 <strong>최신 주차</strong>에서 클리닉 대상 학생의 '클리닉 메모'를 읽어 요일·시간별로 배치합니다.<br>메모에서 요일을 찾지 못한 학생은 각 학년 표 아래 <strong>요일·시간 미기재</strong> 명단에 나옵니다. 메모를 고치려면 점수 입력 탭이나 클리닉 미참석 문자 발송 탭에서 수정 후 새로고침을 누르세요.</p>
+        <div id="clinic-schedule-body"><p style="font-size:13px;color:var(--gray)">탭을 열면 자동으로 불러옵니다.</p></div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- 반 이동 모달 -->
@@ -982,6 +997,7 @@ function switchTab(tabId) {
   event.target.classList.add('active');
   if (tabId === 'tab-class') loadClassList();
   if (tabId === 'tab-memo') loadMemos();
+  if (tabId === 'tab-clinic-schedule') loadClinicSchedule();
 }
 
 // ── 주차 관리
@@ -2873,6 +2889,137 @@ async function saveClinicGrid() {
   } catch(e) {
     showToast('❌ 오류: ' + e.message);
   }
+}
+
+// ── 클리닉 배정표 ──────────────────────────────
+// 클리닉 메모는 자유 입력이라 형식이 제각각이다("일요일 11시", "일 5시", "수요일 하교 후",
+// "월요일 3시, 서술형 제외"...). 요일·시간을 읽을 수 있는 만큼만 격자에 배치하고,
+// 요일을 못 읽은 메모는 명단으로 내려 보낸다. 잘못된 칸에 넣느니 명단이 안전하다.
+const _CLINIC_DAY_ORDER = ['월','화','수','목','금','토','일'];
+
+// 메모 → [{ day, min(분, 시간 못 읽으면 null), label, note }] 배열.
+// min: 1~8시는 오후로 본다(클리닉이 오전 9시 전에 열리지 않는다는 운영 전제).
+function parseClinicMemo(memo) {
+  const entries = [];
+  (memo || '').split(/[\n\/·]+/).forEach(seg => {
+    seg = seg.trim();
+    if (!seg) return;
+    const days = [];
+    // "일요일" 같은 완전형, 또는 "일 5시"·"토,일"처럼 구분자에 둘러싸인 한 글자 요일만 인정.
+    // ("내일"·"일찍"의 '일'을 요일로 오인하지 않도록 앞뒤 글자를 본다)
+    const dayRe = /(월|화|수|목|금|토|일)요일|(^|[\s,().])(월|화|수|목|금|토|일)(?=$|[\s,().0-9])/g;
+    let m;
+    while ((m = dayRe.exec(seg)) !== null) {
+      const d = m[1] || m[3];
+      if (!days.includes(d)) days.push(d);
+    }
+    if (!days.length) return;
+    const t = seg.match(/(\d{1,2})\s*:\s*(\d{2})/) || seg.match(/(\d{1,2})\s*시\s*(반)?/);
+    let min = null, note = '';
+    if (t) {
+      const h = parseInt(t[1]);
+      const halfMin = t[2] === '반' ? 30 : (t[2] ? parseInt(t[2]) : 0);
+      min = (h >= 1 && h <= 8 ? h + 12 : h) * 60 + (halfMin === 30 ? 30 : 0);
+      const q = seg.match(/(이후|이전|전까지|까지|일찍|전후)/);
+      if (q) note = q[1];
+    } else if (/하교/.test(seg)) {
+      min = 'after_school';
+    } else {
+      // 요일은 있는데 시간이 없다 — "시간 미정" 칸에 남은 문구를 그대로 보여준다
+      note = seg.replace(/(월|화|수|목|금|토|일)요일|(^|[\s,().])(월|화|수|목|금|토|일)(?=$|[\s,().0-9])/g, '$2')
+        .replace(/^[\s,.·()]+/, '').trim(); // 요일을 지운 자리에 남는 쉼표·공백 정리
+    }
+    days.forEach(day => entries.push({ day, min, note }));
+  });
+  return entries;
+}
+
+function clinicColLabel(min) {
+  if (min === 'after_school') return '하교 후';
+  if (min === null) return '시간 미정';
+  const h = Math.floor(min / 60), mm = min % 60;
+  return (h > 12 ? h - 12 : h) + '시' + (mm === 30 ? ' 반' : '');
+}
+
+async function loadClinicSchedule() {
+  const box = document.getElementById('clinic-schedule-body');
+  box.innerHTML = '<p style="font-size:13px;color:var(--gray)">불러오는 중...</p>';
+  if (!classes.length) classes = await api('classes?order=id.asc&select=*') || [];
+  const classIds = classes.map(c => c.id);
+  if (!classIds.length) { box.innerHTML = '<p style="font-size:13px;color:var(--gray)">등록된 반이 없습니다.</p>'; return; }
+
+  const [weeks, students] = await Promise.all([
+    api(`weeks?class_id=in.(${classIds.join(',')})&order=id.desc&select=id,class_id,label,test_date`),
+    api(`students?class_id=in.(${classIds.join(',')})&is_active=eq.true&select=id,name,class_id`)
+  ]);
+  // id 내림차순이므로 반마다 처음 만나는 주차가 최신 (클리닉 문자 탭의 기본 선택과 동일 기준)
+  const latestWeek = {};
+  (weeks || []).forEach(w => { if (!latestWeek[w.class_id]) latestWeek[w.class_id] = w; });
+  const weekIds = Object.values(latestWeek).map(w => w.id);
+  const scores = weekIds.length
+    ? await api(`scores?week_id=in.(${weekIds.join(',')})&clinic_target=eq.true&select=student_id,week_id,clinic_memo`) || []
+    : [];
+
+  const studentMap = {}, classMap = {};
+  (students || []).forEach(st => { studentMap[st.id] = st; });
+  classes.forEach(c => { classMap[c.id] = c; });
+
+  // 학년 → { 배치된 항목, 미기재 명단, 근거 주차 }
+  const gradeData = {};
+  scores.forEach(sc => {
+    const st = studentMap[sc.student_id];
+    if (!st) return; // 퇴원 처리된 학생의 잔여 점수 행
+    const cls = classMap[st.class_id];
+    const grade = (cls && cls.grade) || '학년 미지정';
+    if (!gradeData[grade]) gradeData[grade] = { entries: [], unassigned: [], weekOf: {} };
+    const g = gradeData[grade];
+    if (cls && latestWeek[cls.id]) g.weekOf[cls.name] = latestWeek[cls.id].label || latestWeek[cls.id].test_date;
+    const memo = (sc.clinic_memo || '').trim();
+    const parsed = parseClinicMemo(memo);
+    if (parsed.length) parsed.forEach(e => g.entries.push({ ...e, name: st.name }));
+    else g.unassigned.push({ name: st.name, memo });
+  });
+
+  const grades = Object.keys(gradeData).sort();
+  if (!grades.length) {
+    box.innerHTML = '<p style="font-size:13px;color:var(--gray)">최신 주차에 클리닉 대상 학생이 없습니다.</p>';
+    return;
+  }
+
+  box.innerHTML = grades.map(grade => {
+    const g = gradeData[grade];
+    // 열: 등장한 시간만, 이른 시간부터. '하교 후' → '시간 미정'은 맨 뒤
+    const colKeys = [...new Set(g.entries.map(e => e.min))]
+      .sort((a, b) => {
+        const rank = v => v === null ? 1e9 : v === 'after_school' ? 1e8 : v;
+        return rank(a) - rank(b);
+      });
+    const days = _CLINIC_DAY_ORDER.filter(d => g.entries.some(e => e.day === d));
+    const cell = (day, key) => g.entries
+      .filter(e => e.day === day && e.min === key)
+      .map(e => escapeHtml(e.name) + (e.note ? ` <span style="color:var(--gray);font-size:11px">(${escapeHtml(e.note)})</span>` : ''))
+      .join(', ');
+    const weekInfo = Object.entries(g.weekOf).map(([c, w]) => `${escapeHtml(c)}: ${escapeHtml(w)}`).join(' · ');
+    const total = new Set(g.entries.map(e => e.name)).size + g.unassigned.length;
+
+    let html = `<div style="margin-bottom:28px">
+      <h4 style="font-size:14px;font-weight:700;color:var(--navy);margin:0 0 4px">■ ${escapeHtml(grade)} <span style="font-weight:500;color:var(--gray);font-size:12px">(클리닉 대상 ${total}명)</span></h4>
+      <p style="font-size:11px;color:var(--gray);margin:0 0 8px">기준 주차 — ${weekInfo || '-'}</p>`;
+    if (days.length) {
+      html += `<div style="overflow-x:auto"><table class="data-table">
+        <thead><tr><th style="white-space:nowrap">요일</th>${colKeys.map(k => `<th style="white-space:nowrap">${escapeHtml(clinicColLabel(k))}</th>`).join('')}</tr></thead>
+        <tbody>${days.map(d => `<tr><td style="white-space:nowrap"><strong>${d}요일</strong></td>${colKeys.map(k => `<td>${cell(d, k)}</td>`).join('')}</tr>`).join('')}</tbody>
+      </table></div>`;
+    } else {
+      html += `<p style="font-size:13px;color:var(--gray)">요일을 읽을 수 있는 클리닉 메모가 없습니다.</p>`;
+    }
+    if (g.unassigned.length) {
+      html += `<p style="font-size:12px;color:var(--navy);margin:10px 0 0;line-height:1.8"><strong>요일·시간 미기재 (${g.unassigned.length}명):</strong> `
+        + g.unassigned.map(u => escapeHtml(u.name) + (u.memo ? ` <span style="color:var(--gray);font-size:11px">(${escapeHtml(u.memo.length > 20 ? u.memo.slice(0, 20) + '…' : u.memo)})</span>` : ''))
+          .join(', ') + `</p>`;
+    }
+    return html + '</div>';
+  }).join('');
 }
 
 // ── 반 관리
