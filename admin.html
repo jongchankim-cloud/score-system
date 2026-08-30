@@ -831,7 +831,7 @@
         <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="loadClinicSchedule()">새로고침</button>
       </div>
       <div class="section-body">
-        <p style="font-size:12px;color:var(--gray);margin:0 0 14px;line-height:1.7">반마다 <strong>클리닉 메모나 클리닉 대상 체크가 있는 가장 최근 주차</strong>를 기준으로, 메모를 읽어 요일·시간별로 배치합니다. 대상 체크가 없어도 메모에 요일이 적혀 있으면 표에 올라갑니다. 전 항목 커트라인을 통과해 재시험 표기가 없는 학생과 '통과' 메모, 보성여고 반은 제외되고, 학년 최신 주차보다 한 주 이상 뒤처진 반은 사유와 함께 제외 표시됩니다.<br>메모에서 요일을 찾지 못한 학생은 각 학년 표 아래 <strong>요일·시간 미기재</strong> 명단에 나옵니다. 메모를 고치려면 점수 입력 탭이나 클리닉 미참석 문자 발송 탭에서 수정 후 새로고침을 누르세요.</p>
+        <p style="font-size:12px;color:var(--gray);margin:0 0 14px;line-height:1.7">반마다 <strong>클리닉 메모나 클리닉 대상 체크가 있는 가장 최근 주차</strong>를 기준으로, 메모를 읽어 요일·시간별로 배치합니다. 대상 체크가 없어도 메모에 요일이 적혀 있으면 표에 올라가고, 이름 뒤 괄호는 그 주차 과제 수행률입니다. 전 항목 커트라인을 통과해 재시험 표기가 없는 학생과 '통과' 메모, 보성여고 반은 제외되고, 학년 최신 주차보다 한 주 이상 뒤처진 반은 사유와 함께 제외 표시됩니다.<br>메모에서 요일을 찾지 못한 학생은 각 학년 표 아래 <strong>요일·시간 미기재</strong> 명단에 나옵니다. 메모를 고치려면 점수 입력 탭이나 클리닉 미참석 문자 발송 탭에서 수정 후 새로고침을 누르세요.</p>
         <div id="clinic-schedule-body"><p style="font-size:13px;color:var(--gray)">탭을 열면 자동으로 불러옵니다.</p></div>
       </div>
     </div>
@@ -2963,7 +2963,7 @@ async function loadClinicSchedule() {
   (weeks || []).forEach(w => { weekById[w.id] = w; });
   const allWeekIds = (weeks || []).map(w => w.id);
   const allRows = allWeekIds.length
-    ? await api(`scores?week_id=in.(${allWeekIds.join(',')})&select=student_id,week_id,clinic_memo,clinic_target,retest_pass,item_scores,${ITEM_KEYS.join(',')}`) || []
+    ? await api(`scores?week_id=in.(${allWeekIds.join(',')})&select=student_id,week_id,clinic_memo,clinic_target,retest_pass,item_scores,homework_rate,${ITEM_KEYS.join(',')}`) || []
     : [];
   const hasClinic = sc => sc.clinic_target === true || (sc.clinic_memo || '').trim() !== '';
   const latestWeek = {}; // class_id → 클리닉 흔적이 있는 최신 주차
@@ -3029,14 +3029,16 @@ async function loadClinicSchedule() {
     if (cls && latestWeek[cls.id]) g.weekOf[cls.name] = latestWeek[cls.id].label || latestWeek[cls.id].test_date;
     const memo = (sc.clinic_memo || '').trim();
     const parsed = parseClinicMemo(memo);
+    // 과제 수행률은 이름 뒤 괄호로 표기. NULL(미기재·과제 없음)이면 붙이지 않는다.
+    const hw = (sc.homework_rate === null || sc.homework_rate === undefined) ? null : sc.homework_rate;
     if (parsed.length) {
-      parsed.forEach(e => g.entries.push({ ...e, name: st.name }));
+      parsed.forEach(e => g.entries.push({ ...e, name: st.name, hw }));
     } else if (sc.clinic_target === true) {
-      g.unassigned.push({ name: st.name, memo });
+      g.unassigned.push({ name: st.name, memo, hw });
     } else if (!/통과/.test(memo)) {
       // 대상 체크는 없지만 메모가 있는 학생: "올/전체 통과"는 클리닉과 무관하므로 제외하고,
       // "결석회차 영상보고 과제해주세요" 같은 나머지는 미기재 명단에 올린다
-      g.unassigned.push({ name: st.name, memo });
+      g.unassigned.push({ name: st.name, memo, hw });
     }
   });
 
@@ -3058,9 +3060,10 @@ async function loadClinicSchedule() {
         return rank(a) - rank(b);
       });
     const days = _CLINIC_DAY_ORDER.filter(d => g.entries.some(e => e.day === d));
+    const hwTag = e => (e.hw === null || e.hw === undefined) ? '' : `(${e.hw}%)`;
     const cell = (day, key) => g.entries
       .filter(e => e.day === day && e.min === key)
-      .map(e => escapeHtml(e.name) + (e.note ? ` <span style="color:var(--gray);font-size:11px">(${escapeHtml(e.note)})</span>` : ''))
+      .map(e => escapeHtml(e.name) + hwTag(e) + (e.note ? ` <span style="color:var(--gray);font-size:11px">(${escapeHtml(e.note)})</span>` : ''))
       .join(', ');
     const weekInfo = Object.entries(g.weekOf).map(([c, w]) => `${escapeHtml(c)}: ${escapeHtml(w)}`).join(' · ');
     const total = new Set(g.entries.map(e => e.name)).size + g.unassigned.length;
@@ -3081,7 +3084,7 @@ async function loadClinicSchedule() {
     }
     if (g.unassigned.length) {
       html += `<p style="font-size:12px;color:var(--navy);margin:10px 0 0;line-height:1.8"><strong>요일·시간 미기재 (${g.unassigned.length}명):</strong> `
-        + g.unassigned.map(u => escapeHtml(u.name) + (u.memo ? ` <span style="color:var(--gray);font-size:11px">(${escapeHtml(u.memo.length > 20 ? u.memo.slice(0, 20) + '…' : u.memo)})</span>` : ''))
+        + g.unassigned.map(u => escapeHtml(u.name) + hwTag(u) + (u.memo ? ` <span style="color:var(--gray);font-size:11px">(${escapeHtml(u.memo.length > 20 ? u.memo.slice(0, 20) + '…' : u.memo)})</span>` : ''))
           .join(', ') + `</p>`;
     }
     return html + '</div>';
