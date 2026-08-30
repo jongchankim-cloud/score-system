@@ -831,7 +831,7 @@
         <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="loadClinicSchedule()">새로고침</button>
       </div>
       <div class="section-body">
-        <p style="font-size:12px;color:var(--gray);margin:0 0 14px;line-height:1.7">반마다 <strong>클리닉 대상이 있는 가장 최근 주차</strong>에서 학생의 '클리닉 메모'를 읽어 요일·시간별로 배치합니다. (보성여고 반은 제외)<br>메모에서 요일을 찾지 못한 학생은 각 학년 표 아래 <strong>요일·시간 미기재</strong> 명단에 나옵니다. 메모를 고치려면 점수 입력 탭이나 클리닉 미참석 문자 발송 탭에서 수정 후 새로고침을 누르세요.</p>
+        <p style="font-size:12px;color:var(--gray);margin:0 0 14px;line-height:1.7">반마다 <strong>클리닉 메모나 클리닉 대상 체크가 있는 가장 최근 주차</strong>를 기준으로, 메모를 읽어 요일·시간별로 배치합니다. 대상 체크가 없어도 메모에 요일이 적혀 있으면 표에 올라갑니다. (보성여고 반·'통과' 메모 제외)<br>메모에서 요일을 찾지 못한 학생은 각 학년 표 아래 <strong>요일·시간 미기재</strong> 명단에 나옵니다. 메모를 고치려면 점수 입력 탭이나 클리닉 미참석 문자 발송 탭에서 수정 후 새로고침을 누르세요.</p>
         <div id="clinic-schedule-body"><p style="font-size:13px;color:var(--gray)">탭을 열면 자동으로 불러옵니다.</p></div>
       </div>
     </div>
@@ -2956,24 +2956,26 @@ async function loadClinicSchedule() {
     api(`weeks?class_id=in.(${classIds.join(',')})&order=id.desc&select=id,class_id,label,test_date`),
     api(`students?class_id=in.(${classIds.join(',')})&is_active=eq.true&select=id,name,class_id`)
   ]);
-  // 무조건 최신 주차를 쓰면 안 된다: 최신 주차 점수는 입력됐어도 클리닉 배정은
-  // 아직 안 된 반이 실제로 있다(수요일 하반 8.26 사례). 그래서 반마다
-  // "클리닉 대상이 1명이라도 있는 가장 최근 주차"를 기준으로 삼는다.
+  // 반마다 "클리닉 흔적(메모 또는 대상 체크)이 1건이라도 있는 가장 최근 주차"를 쓴다.
+  // 대상 체크만 보면 안 된다: 조교가 메모만 적고 체크는 안 한 주차가 실제로 있어서(하반 8.26,
+  // 토요일 8.29 사례) 반 전체가 옛 주차로 밀리거나 표에서 빠진다. 필터는 클라이언트에서 건다.
   const weekById = {};
   (weeks || []).forEach(w => { weekById[w.id] = w; });
   const allWeekIds = (weeks || []).map(w => w.id);
-  const allTargets = allWeekIds.length
-    ? await api(`scores?week_id=in.(${allWeekIds.join(',')})&clinic_target=eq.true&select=student_id,week_id,clinic_memo`) || []
+  const allRows = allWeekIds.length
+    ? await api(`scores?week_id=in.(${allWeekIds.join(',')})&select=student_id,week_id,clinic_memo,clinic_target`) || []
     : [];
-  const latestWeek = {}; // class_id → 클리닉 대상이 있는 최신 주차
-  allTargets.forEach(sc => {
+  const hasClinic = sc => sc.clinic_target === true || (sc.clinic_memo || '').trim() !== '';
+  const latestWeek = {}; // class_id → 클리닉 흔적이 있는 최신 주차
+  allRows.forEach(sc => {
+    if (!hasClinic(sc)) return;
     const w = weekById[sc.week_id];
     if (!w) return;
     if (!latestWeek[w.class_id] || w.id > latestWeek[w.class_id].id) latestWeek[w.class_id] = w;
   });
-  const scores = allTargets.filter(sc => {
+  const scores = allRows.filter(sc => {
     const w = weekById[sc.week_id];
-    return w && latestWeek[w.class_id] && latestWeek[w.class_id].id === sc.week_id;
+    return hasClinic(sc) && w && latestWeek[w.class_id] && latestWeek[w.class_id].id === sc.week_id;
   });
 
   const studentMap = {}, classMap = {};
@@ -2992,8 +2994,15 @@ async function loadClinicSchedule() {
     if (cls && latestWeek[cls.id]) g.weekOf[cls.name] = latestWeek[cls.id].label || latestWeek[cls.id].test_date;
     const memo = (sc.clinic_memo || '').trim();
     const parsed = parseClinicMemo(memo);
-    if (parsed.length) parsed.forEach(e => g.entries.push({ ...e, name: st.name }));
-    else g.unassigned.push({ name: st.name, memo });
+    if (parsed.length) {
+      parsed.forEach(e => g.entries.push({ ...e, name: st.name }));
+    } else if (sc.clinic_target === true) {
+      g.unassigned.push({ name: st.name, memo });
+    } else if (!/통과/.test(memo)) {
+      // 대상 체크는 없지만 메모가 있는 학생: "올/전체 통과"는 클리닉과 무관하므로 제외하고,
+      // "결석회차 영상보고 과제해주세요" 같은 나머지는 미기재 명단에 올린다
+      g.unassigned.push({ name: st.name, memo });
+    }
   });
 
   const grades = Object.keys(gradeData).sort();
