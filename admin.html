@@ -835,6 +835,14 @@
         <div id="clinic-schedule-body"><p style="font-size:13px;color:var(--gray)">탭을 열면 자동으로 불러옵니다.</p></div>
       </div>
     </div>
+
+    <div class="section-card">
+      <div class="section-head"><h3>과제 인증 기한 (재시험 없음)</h3></div>
+      <div class="section-body">
+        <p style="font-size:12px;color:var(--gray);margin:0 0 14px;line-height:1.7">재시험 대상은 아니지만 클리닉 메모에 과제 인증 기한("~까지")이 적힌 학생입니다. 기한은 메모에 적힌 그대로 표기됩니다.</p>
+        <div id="clinic-hwdue-body"><p style="font-size:13px;color:var(--gray)">탭을 열면 자동으로 불러옵니다.</p></div>
+      </div>
+    </div>
   </div>
 
 </div>
@@ -2956,12 +2964,14 @@ function clinicColLabel(min) {
 
 async function loadClinicSchedule() {
   const box = document.getElementById('clinic-schedule-body');
+  const hwBox = document.getElementById('clinic-hwdue-body');
   box.innerHTML = '<p style="font-size:13px;color:var(--gray)">불러오는 중...</p>';
+  hwBox.innerHTML = '<p style="font-size:13px;color:var(--gray)">불러오는 중...</p>';
   if (!classes.length) classes = await api('classes?order=id.asc&select=*') || [];
   // 보성여고 반은 배정표에서 제외 (2026-08 운영 요청)
   const schedClasses = classes.filter(c => !(c.name || '').includes('보성여고'));
   const classIds = schedClasses.map(c => c.id);
-  if (!classIds.length) { box.innerHTML = '<p style="font-size:13px;color:var(--gray)">등록된 반이 없습니다.</p>'; return; }
+  if (!classIds.length) { box.innerHTML = '<p style="font-size:13px;color:var(--gray)">등록된 반이 없습니다.</p>'; hwBox.innerHTML = ''; return; }
 
   const [weeks, students] = await Promise.all([
     api(`weeks?class_id=in.(${classIds.join(',')})&order=id.desc&select=id,class_id,label,test_date,item_config`),
@@ -3070,8 +3080,22 @@ async function loadClinicSchedule() {
   const grades = Object.keys(gradeData).sort();
   if (!grades.length) {
     box.innerHTML = '<p style="font-size:13px;color:var(--gray)">최신 주차에 클리닉 대상 학생이 없습니다.</p>';
+    hwBox.innerHTML = '<p style="font-size:13px;color:var(--gray)">과제 인증 기한이 적힌 학생이 없습니다.</p>';
     return;
   }
+
+  // 아래 '과제 인증 기한' 카드: 학년별 소제목 + 이름(수행률)·기한 2열 표
+  const hwTag = e => (e.hw === null || e.hw === undefined) ? '' : `(${e.hw}%)`;
+  const hwGrades = grades.filter(g => gradeData[g].hwDue.length);
+  hwBox.innerHTML = hwGrades.length
+    ? hwGrades.map(grade => `<div style="margin-bottom:20px">
+        <h4 style="font-size:14px;font-weight:700;color:var(--navy);margin:0 0 8px">■ ${escapeHtml(grade)} <span style="font-weight:500;color:var(--gray);font-size:12px">(${gradeData[grade].hwDue.length}명)</span></h4>
+        <div style="overflow-x:auto"><table class="data-table">
+          <thead><tr><th style="white-space:nowrap">이름</th><th>인증 기한 (메모 기재대로)</th></tr></thead>
+          <tbody>${gradeData[grade].hwDue.map(u => `<tr><td style="white-space:nowrap"><strong>${escapeHtml(u.name)}</strong>${hwTag(u)}</td><td>${escapeHtml(u.due)}</td></tr>`).join('')}</tbody>
+        </table></div>
+      </div>`).join('')
+    : '<p style="font-size:13px;color:var(--gray)">과제 인증 기한이 적힌 학생이 없습니다.</p>';
 
   box.innerHTML = grades.map(grade => {
     const g = gradeData[grade];
@@ -3108,11 +3132,6 @@ async function loadClinicSchedule() {
     if (g.unassigned.length) {
       html += `<p style="font-size:12px;color:var(--navy);margin:10px 0 0;line-height:1.8"><strong>요일·시간 미기재 (${g.unassigned.length}명):</strong> `
         + g.unassigned.map(u => escapeHtml(u.name) + hwTag(u) + (u.memo ? ` <span style="color:var(--gray);font-size:11px">(${escapeHtml(u.memo.length > 20 ? u.memo.slice(0, 20) + '…' : u.memo)})</span>` : ''))
-          .join(', ') + `</p>`;
-    }
-    if (g.hwDue.length) {
-      html += `<p style="font-size:12px;color:var(--navy);margin:10px 0 0;line-height:1.8"><strong>재시험 없음 · 과제 인증 기한 (${g.hwDue.length}명):</strong> `
-        + g.hwDue.map(u => escapeHtml(u.name) + hwTag(u) + ` <span style="color:var(--gray);font-size:11px">${escapeHtml(u.due)}</span>`)
           .join(', ') + `</p>`;
     }
     return html + '</div>';
