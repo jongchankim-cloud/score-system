@@ -2936,6 +2936,17 @@ function parseClinicMemo(memo) {
   return entries;
 }
 
+// 재시험은 없지만 과제 인증 기한이 메모에 적힌 학생용: "~까지" 구절을 메모에 적힌 대로 뽑는다.
+// "못한 과제는 토요일 저녁까지 사진으로 인증해주세요" → "토요일 저녁까지"
+function clinicHwDeadline(memo) {
+  const m = (memo || '').trim();
+  if (!m || !/과제|인증/.test(m) || !/까지/.test(m)) return null;
+  const withDay = m.match(/((?:월|화|수|목|금|토|일)(?:요일)?[^.,\n()]*까지)/);
+  if (withDay) return withDay[1].trim();
+  const any = m.match(/([^\s.,\n()]+\s*까지)/); // 요일 없이 "저녁까지"만 적힌 경우
+  return any ? any[1].trim() : null;
+}
+
 function clinicColLabel(min) {
   if (min === 'after_school') return '하교 후';
   if (min === null) return '시간 미정';
@@ -3014,7 +3025,15 @@ async function loadClinicSchedule() {
     if (!st) return; // 퇴원 처리된 학생의 잔여 점수 행
     const cls = classMap[st.class_id];
     const grade = (cls && cls.grade) || '학년 미지정';
+    if (!gradeData[grade]) gradeData[grade] = { entries: [], unassigned: [], hwDue: [], weekOf: {} };
+    const g = gradeData[grade];
+    if (cls && latestWeek[cls.id]) g.weekOf[cls.name] = latestWeek[cls.id].label || latestWeek[cls.id].test_date;
+    const memo = (sc.clinic_memo || '').trim();
+    // 과제 수행률은 이름 뒤 괄호로 표기. NULL(미기재·과제 없음)이면 붙이지 않는다.
+    const hw = (sc.homework_rate === null || sc.homework_rate === undefined) ? null : sc.homework_rate;
+
     // 재시험 표기가 하나도 없는 학생(전 항목 커트라인 통과)은 배정표 대상이 아니다.
+    // 다만 메모에 과제 인증 기한("~까지")이 적혀 있으면 표 아래 별도 명단으로 보여준다.
     // 점수가 아예 없는 학생(미응시)이나 커트라인이 설정되지 않은 주차는 이 판정을 건너뛴다.
     const cfgItems = normalizeItemConfig(weekById[sc.week_id].item_config).filter(it => it.active);
     const scored = cfgItems.map(it => {
@@ -3023,14 +3042,13 @@ async function loadClinicSchedule() {
       return { ...it, value: val };
     }).filter(x => x.value !== null && !isNaN(x.value));
     const hasCut = cfgItems.some(it => it.cut !== null && it.cut !== undefined);
-    if (hasCut && scored.length && !scored.some(x => isBelowCut(x.value, x.cut))) return;
-    if (!gradeData[grade]) gradeData[grade] = { entries: [], unassigned: [], weekOf: {} };
-    const g = gradeData[grade];
-    if (cls && latestWeek[cls.id]) g.weekOf[cls.name] = latestWeek[cls.id].label || latestWeek[cls.id].test_date;
-    const memo = (sc.clinic_memo || '').trim();
+    if (hasCut && scored.length && !scored.some(x => isBelowCut(x.value, x.cut))) {
+      const due = clinicHwDeadline(memo);
+      if (due) g.hwDue.push({ name: st.name, hw, due });
+      return;
+    }
+
     const parsed = parseClinicMemo(memo);
-    // 과제 수행률은 이름 뒤 괄호로 표기. NULL(미기재·과제 없음)이면 붙이지 않는다.
-    const hw = (sc.homework_rate === null || sc.homework_rate === undefined) ? null : sc.homework_rate;
     if (parsed.length) {
       parsed.forEach(e => g.entries.push({ ...e, name: st.name, hw }));
     } else if (sc.clinic_target === true) {
@@ -3039,11 +3057,15 @@ async function loadClinicSchedule() {
       // 대상 체크는 없지만 메모가 있는 학생: "올/전체 통과"는 클리닉과 무관하므로 제외하고,
       // "결석회차 영상보고 과제해주세요" 같은 나머지는 미기재 명단에 올린다
       g.unassigned.push({ name: st.name, memo, hw });
+    } else {
+      // '통과' 메모라도 과제 인증 기한이 적혀 있으면 기한 명단에는 올린다
+      const due = clinicHwDeadline(memo);
+      if (due) g.hwDue.push({ name: st.name, hw, due });
     }
   });
 
   Object.keys(staleByGrade).forEach(g => {
-    if (!gradeData[g]) gradeData[g] = { entries: [], unassigned: [], weekOf: {} };
+    if (!gradeData[g]) gradeData[g] = { entries: [], unassigned: [], hwDue: [], weekOf: {} };
   });
   const grades = Object.keys(gradeData).sort();
   if (!grades.length) {
@@ -3067,6 +3089,7 @@ async function loadClinicSchedule() {
       .join(', ');
     const weekInfo = Object.entries(g.weekOf).map(([c, w]) => `${escapeHtml(c)}: ${escapeHtml(w)}`).join(' · ');
     const total = new Set(g.entries.map(e => e.name)).size + g.unassigned.length;
+    // (과제 기한 명단은 재시험 대상이 아니므로 인원 수에 넣지 않는다)
 
     let html = `<div style="margin-bottom:28px">
       <h4 style="font-size:14px;font-weight:700;color:var(--navy);margin:0 0 4px">■ ${escapeHtml(grade)} <span style="font-weight:500;color:var(--gray);font-size:12px">(클리닉 대상 ${total}명)</span></h4>
@@ -3085,6 +3108,11 @@ async function loadClinicSchedule() {
     if (g.unassigned.length) {
       html += `<p style="font-size:12px;color:var(--navy);margin:10px 0 0;line-height:1.8"><strong>요일·시간 미기재 (${g.unassigned.length}명):</strong> `
         + g.unassigned.map(u => escapeHtml(u.name) + hwTag(u) + (u.memo ? ` <span style="color:var(--gray);font-size:11px">(${escapeHtml(u.memo.length > 20 ? u.memo.slice(0, 20) + '…' : u.memo)})</span>` : ''))
+          .join(', ') + `</p>`;
+    }
+    if (g.hwDue.length) {
+      html += `<p style="font-size:12px;color:var(--navy);margin:10px 0 0;line-height:1.8"><strong>재시험 없음 · 과제 인증 기한 (${g.hwDue.length}명):</strong> `
+        + g.hwDue.map(u => escapeHtml(u.name) + hwTag(u) + ` <span style="color:var(--gray);font-size:11px">${escapeHtml(u.due)}</span>`)
           .join(', ') + `</p>`;
     }
     return html + '</div>';
