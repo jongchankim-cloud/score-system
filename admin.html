@@ -831,7 +831,7 @@
         <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="loadClinicSchedule()">새로고침</button>
       </div>
       <div class="section-body">
-        <p style="font-size:12px;color:var(--gray);margin:0 0 14px;line-height:1.7">반마다 <strong>클리닉 메모나 클리닉 대상 체크가 있는 가장 최근 주차</strong>를 기준으로, 메모를 읽어 요일·시간별로 배치합니다. 대상 체크가 없어도 메모에 요일이 적혀 있으면 표에 올라갑니다. (보성여고 반·'통과' 메모 제외)<br>메모에서 요일을 찾지 못한 학생은 각 학년 표 아래 <strong>요일·시간 미기재</strong> 명단에 나옵니다. 메모를 고치려면 점수 입력 탭이나 클리닉 미참석 문자 발송 탭에서 수정 후 새로고침을 누르세요.</p>
+        <p style="font-size:12px;color:var(--gray);margin:0 0 14px;line-height:1.7">반마다 <strong>클리닉 메모나 클리닉 대상 체크가 있는 가장 최근 주차</strong>를 기준으로, 메모를 읽어 요일·시간별로 배치합니다. 대상 체크가 없어도 메모에 요일이 적혀 있으면 표에 올라갑니다. 전 항목 커트라인을 통과해 재시험 표기가 없는 학생과 '통과' 메모, 보성여고 반은 제외되고, 학년 최신 주차보다 한 주 이상 뒤처진 반은 사유와 함께 제외 표시됩니다.<br>메모에서 요일을 찾지 못한 학생은 각 학년 표 아래 <strong>요일·시간 미기재</strong> 명단에 나옵니다. 메모를 고치려면 점수 입력 탭이나 클리닉 미참석 문자 발송 탭에서 수정 후 새로고침을 누르세요.</p>
         <div id="clinic-schedule-body"><p style="font-size:13px;color:var(--gray)">탭을 열면 자동으로 불러옵니다.</p></div>
       </div>
     </div>
@@ -2953,7 +2953,7 @@ async function loadClinicSchedule() {
   if (!classIds.length) { box.innerHTML = '<p style="font-size:13px;color:var(--gray)">등록된 반이 없습니다.</p>'; return; }
 
   const [weeks, students] = await Promise.all([
-    api(`weeks?class_id=in.(${classIds.join(',')})&order=id.desc&select=id,class_id,label,test_date`),
+    api(`weeks?class_id=in.(${classIds.join(',')})&order=id.desc&select=id,class_id,label,test_date,item_config`),
     api(`students?class_id=in.(${classIds.join(',')})&is_active=eq.true&select=id,name,class_id`)
   ]);
   // 반마다 "클리닉 흔적(메모 또는 대상 체크)이 1건이라도 있는 가장 최근 주차"를 쓴다.
@@ -2963,7 +2963,7 @@ async function loadClinicSchedule() {
   (weeks || []).forEach(w => { weekById[w.id] = w; });
   const allWeekIds = (weeks || []).map(w => w.id);
   const allRows = allWeekIds.length
-    ? await api(`scores?week_id=in.(${allWeekIds.join(',')})&select=student_id,week_id,clinic_memo,clinic_target`) || []
+    ? await api(`scores?week_id=in.(${allWeekIds.join(',')})&select=student_id,week_id,clinic_memo,clinic_target,retest_pass,item_scores,${ITEM_KEYS.join(',')}`) || []
     : [];
   const hasClinic = sc => sc.clinic_target === true || (sc.clinic_memo || '').trim() !== '';
   const latestWeek = {}; // class_id → 클리닉 흔적이 있는 최신 주차
@@ -2973,14 +2973,39 @@ async function loadClinicSchedule() {
     if (!w) return;
     if (!latestWeek[w.class_id] || w.id > latestWeek[w.class_id].id) latestWeek[w.class_id] = w;
   });
-  const scores = allRows.filter(sc => {
-    const w = weekById[sc.week_id];
-    return hasClinic(sc) && w && latestWeek[w.class_id] && latestWeek[w.class_id].id === sc.week_id;
-  });
-
   const studentMap = {}, classMap = {};
   (students || []).forEach(st => { studentMap[st.id] = st; });
   schedClasses.forEach(c => { classMap[c.id] = c; });
+
+  // 학년의 최신 주차 세트보다 한 주 이상(5일 초과) 뒤처진 반은 옛 배정을 보여주느니
+  // 표에서 빼고 사유를 적는다 (고2 금요일 8.28 주차 미생성 사례 — 8.21 배정은 이미 지난 것).
+  // 한 세트는 길어야 월~토 5일 범위이므로 5일 초과 차이는 다른 주차다.
+  const weekTime = w => { const d = resolveBaseDate(w.test_date || w.label); return d ? d.getTime() : null; };
+  const gradeMaxTime = {};
+  Object.keys(latestWeek).forEach(cid => {
+    const c = classMap[cid]; const t = weekTime(latestWeek[cid]);
+    if (!c || t === null) return;
+    const g = c.grade || '학년 미지정';
+    if (!(g in gradeMaxTime) || t > gradeMaxTime[g]) gradeMaxTime[g] = t;
+  });
+  const staleClassIds = new Set();
+  const staleByGrade = {}; // grade → [{ name, label }]
+  Object.keys(latestWeek).forEach(cid => {
+    const c = classMap[cid]; const t = weekTime(latestWeek[cid]);
+    if (!c || t === null) return;
+    const g = c.grade || '학년 미지정';
+    if (gradeMaxTime[g] !== undefined && gradeMaxTime[g] - t > 5 * 86400000) {
+      staleClassIds.add(c.id);
+      (staleByGrade[g] = staleByGrade[g] || []).push({ name: c.name, label: latestWeek[cid].label || latestWeek[cid].test_date });
+    }
+  });
+
+  const scores = allRows.filter(sc => {
+    const w = weekById[sc.week_id];
+    return hasClinic(sc) && w && !staleClassIds.has(w.class_id)
+      && latestWeek[w.class_id] && latestWeek[w.class_id].id === sc.week_id;
+  });
+
 
   // 학년 → { 배치된 항목, 미기재 명단, 근거 주차 }
   const gradeData = {};
@@ -2989,6 +3014,16 @@ async function loadClinicSchedule() {
     if (!st) return; // 퇴원 처리된 학생의 잔여 점수 행
     const cls = classMap[st.class_id];
     const grade = (cls && cls.grade) || '학년 미지정';
+    // 재시험 표기가 하나도 없는 학생(전 항목 커트라인 통과)은 배정표 대상이 아니다.
+    // 점수가 아예 없는 학생(미응시)이나 커트라인이 설정되지 않은 주차는 이 판정을 건너뛴다.
+    const cfgItems = normalizeItemConfig(weekById[sc.week_id].item_config).filter(it => it.active);
+    const scored = cfgItems.map(it => {
+      const raw = itemVal(sc, it.key);
+      const val = (raw === null || raw === undefined || raw === '') ? null : parseFloat(raw);
+      return { ...it, value: val };
+    }).filter(x => x.value !== null && !isNaN(x.value));
+    const hasCut = cfgItems.some(it => it.cut !== null && it.cut !== undefined);
+    if (hasCut && scored.length && !scored.some(x => isBelowCut(x.value, x.cut))) return;
     if (!gradeData[grade]) gradeData[grade] = { entries: [], unassigned: [], weekOf: {} };
     const g = gradeData[grade];
     if (cls && latestWeek[cls.id]) g.weekOf[cls.name] = latestWeek[cls.id].label || latestWeek[cls.id].test_date;
@@ -3005,6 +3040,9 @@ async function loadClinicSchedule() {
     }
   });
 
+  Object.keys(staleByGrade).forEach(g => {
+    if (!gradeData[g]) gradeData[g] = { entries: [], unassigned: [], weekOf: {} };
+  });
   const grades = Object.keys(gradeData).sort();
   if (!grades.length) {
     box.innerHTML = '<p style="font-size:13px;color:var(--gray)">최신 주차에 클리닉 대상 학생이 없습니다.</p>';
@@ -3030,6 +3068,9 @@ async function loadClinicSchedule() {
     let html = `<div style="margin-bottom:28px">
       <h4 style="font-size:14px;font-weight:700;color:var(--navy);margin:0 0 4px">■ ${escapeHtml(grade)} <span style="font-weight:500;color:var(--gray);font-size:12px">(클리닉 대상 ${total}명)</span></h4>
       <p style="font-size:11px;color:var(--gray);margin:0 0 8px">기준 주차 — ${weekInfo || '-'}</p>`;
+    (staleByGrade[grade] || []).forEach(sc => {
+      html += `<p style="font-size:12px;color:var(--orange);margin:0 0 8px">⚠️ ${escapeHtml(sc.name)}은 이번 주차가 아직 없어 포함하지 않았습니다. (마지막 클리닉 기록: ${escapeHtml(sc.label)})</p>`;
+    });
     if (days.length) {
       html += `<div style="overflow-x:auto"><table class="data-table">
         <thead><tr><th style="white-space:nowrap">요일</th>${colKeys.map(k => `<th style="white-space:nowrap">${escapeHtml(clinicColLabel(k))}</th>`).join('')}</tr></thead>
