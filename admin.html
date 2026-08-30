@@ -831,7 +831,7 @@
         <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="loadClinicSchedule()">새로고침</button>
       </div>
       <div class="section-body">
-        <p style="font-size:12px;color:var(--gray);margin:0 0 14px;line-height:1.7">각 반의 <strong>최신 주차</strong>에서 클리닉 대상 학생의 '클리닉 메모'를 읽어 요일·시간별로 배치합니다.<br>메모에서 요일을 찾지 못한 학생은 각 학년 표 아래 <strong>요일·시간 미기재</strong> 명단에 나옵니다. 메모를 고치려면 점수 입력 탭이나 클리닉 미참석 문자 발송 탭에서 수정 후 새로고침을 누르세요.</p>
+        <p style="font-size:12px;color:var(--gray);margin:0 0 14px;line-height:1.7">반마다 <strong>클리닉 대상이 있는 가장 최근 주차</strong>에서 학생의 '클리닉 메모'를 읽어 요일·시간별로 배치합니다. (보성여고 반은 제외)<br>메모에서 요일을 찾지 못한 학생은 각 학년 표 아래 <strong>요일·시간 미기재</strong> 명단에 나옵니다. 메모를 고치려면 점수 입력 탭이나 클리닉 미참석 문자 발송 탭에서 수정 후 새로고침을 누르세요.</p>
         <div id="clinic-schedule-body"><p style="font-size:13px;color:var(--gray)">탭을 열면 자동으로 불러옵니다.</p></div>
       </div>
     </div>
@@ -2901,7 +2901,7 @@ const _CLINIC_DAY_ORDER = ['월','화','수','목','금','토','일'];
 // min: 1~8시는 오후로 본다(클리닉이 오전 9시 전에 열리지 않는다는 운영 전제).
 function parseClinicMemo(memo) {
   const entries = [];
-  (memo || '').split(/[\n\/·]+/).forEach(seg => {
+  (memo || '').split(/[\n\/·.]+/).forEach(seg => {
     seg = seg.trim();
     if (!seg) return;
     const days = [];
@@ -2922,8 +2922,10 @@ function parseClinicMemo(memo) {
       min = (h >= 1 && h <= 8 ? h + 12 : h) * 60 + (halfMin === 30 ? 30 : 0);
       const q = seg.match(/(이후|이전|전까지|까지|일찍|전후)/);
       if (q) note = q[1];
-    } else if (/하교/.test(seg)) {
+    } else if (/하교|학교 ?끝/.test(seg)) {
       min = 'after_school';
+    } else if (/과제|인증/.test(seg)) {
+      return; // 과제 마감 안내 속 요일("과제는 토요일까지 인증")을 클리닉 일정으로 오인하지 않는다
     } else {
       // 요일은 있는데 시간이 없다 — "시간 미정" 칸에 남은 문구를 그대로 보여준다
       note = seg.replace(/(월|화|수|목|금|토|일)요일|(^|[\s,().])(월|화|수|목|금|토|일)(?=$|[\s,().0-9])/g, '$2')
@@ -2945,24 +2947,38 @@ async function loadClinicSchedule() {
   const box = document.getElementById('clinic-schedule-body');
   box.innerHTML = '<p style="font-size:13px;color:var(--gray)">불러오는 중...</p>';
   if (!classes.length) classes = await api('classes?order=id.asc&select=*') || [];
-  const classIds = classes.map(c => c.id);
+  // 보성여고 반은 배정표에서 제외 (2026-08 운영 요청)
+  const schedClasses = classes.filter(c => !(c.name || '').includes('보성여고'));
+  const classIds = schedClasses.map(c => c.id);
   if (!classIds.length) { box.innerHTML = '<p style="font-size:13px;color:var(--gray)">등록된 반이 없습니다.</p>'; return; }
 
   const [weeks, students] = await Promise.all([
     api(`weeks?class_id=in.(${classIds.join(',')})&order=id.desc&select=id,class_id,label,test_date`),
     api(`students?class_id=in.(${classIds.join(',')})&is_active=eq.true&select=id,name,class_id`)
   ]);
-  // id 내림차순이므로 반마다 처음 만나는 주차가 최신 (클리닉 문자 탭의 기본 선택과 동일 기준)
-  const latestWeek = {};
-  (weeks || []).forEach(w => { if (!latestWeek[w.class_id]) latestWeek[w.class_id] = w; });
-  const weekIds = Object.values(latestWeek).map(w => w.id);
-  const scores = weekIds.length
-    ? await api(`scores?week_id=in.(${weekIds.join(',')})&clinic_target=eq.true&select=student_id,week_id,clinic_memo`) || []
+  // 무조건 최신 주차를 쓰면 안 된다: 최신 주차 점수는 입력됐어도 클리닉 배정은
+  // 아직 안 된 반이 실제로 있다(수요일 하반 8.26 사례). 그래서 반마다
+  // "클리닉 대상이 1명이라도 있는 가장 최근 주차"를 기준으로 삼는다.
+  const weekById = {};
+  (weeks || []).forEach(w => { weekById[w.id] = w; });
+  const allWeekIds = (weeks || []).map(w => w.id);
+  const allTargets = allWeekIds.length
+    ? await api(`scores?week_id=in.(${allWeekIds.join(',')})&clinic_target=eq.true&select=student_id,week_id,clinic_memo`) || []
     : [];
+  const latestWeek = {}; // class_id → 클리닉 대상이 있는 최신 주차
+  allTargets.forEach(sc => {
+    const w = weekById[sc.week_id];
+    if (!w) return;
+    if (!latestWeek[w.class_id] || w.id > latestWeek[w.class_id].id) latestWeek[w.class_id] = w;
+  });
+  const scores = allTargets.filter(sc => {
+    const w = weekById[sc.week_id];
+    return w && latestWeek[w.class_id] && latestWeek[w.class_id].id === sc.week_id;
+  });
 
   const studentMap = {}, classMap = {};
   (students || []).forEach(st => { studentMap[st.id] = st; });
-  classes.forEach(c => { classMap[c.id] = c; });
+  schedClasses.forEach(c => { classMap[c.id] = c; });
 
   // 학년 → { 배치된 항목, 미기재 명단, 근거 주차 }
   const gradeData = {};
