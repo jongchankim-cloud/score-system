@@ -49,7 +49,9 @@
   .tab-btn.active { color:var(--navy); border-bottom-color:var(--gold); font-weight:700; }
   .tab-content { display:none; padding:16px; max-width:900px; margin:0 auto; }
   #tab-student { max-width:1200px; }
-  #tab-score { max-width:1150px; }
+  /* 채점 항목이 늘어나면 맨 오른쪽 클리닉메모 칸부터 찌그러진다.
+     가로 표를 쓰는 두 탭만 폭 상한을 풀고 좌우 여백을 줄여 입력칸 공간을 확보한다. */
+  #tab-score, #tab-mock { max-width:none; padding:16px 8px; }
   .tab-content.active { display:block; }
   .section-card { background:var(--white); border-radius:14px; box-shadow:var(--shadow); margin-bottom:16px; overflow:hidden; }
   .section-head { padding:14px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
@@ -71,7 +73,7 @@
   .badge-active { background:var(--green-light); color:var(--green); }
   .badge-inactive { background:var(--red-light); color:var(--red); }
   /* min-width:max-content — 항목 수가 늘어나면 칸이 찌그러지는 대신 부모(overflow-x:auto)가 가로 스크롤되게 한다 */
-  .score-input-row { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 110px 90px 46px 46px 1fr; gap:6px; align-items:center; padding:8px 0; border-bottom:1px solid var(--light-gray); min-width:max-content; }
+  .score-input-row { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 110px 90px 46px 46px minmax(150px,1fr); gap:6px; align-items:center; padding:8px 0; border-bottom:1px solid var(--light-gray); min-width:max-content; }
   .score-input-row .total-cell { font-size:15px; font-weight:700; color:var(--navy); text-align:center; }
   .score-input-row:last-child { border-bottom:none; }
   .score-input-row .student-name { font-size:13px; font-weight:500; color:var(--navy); line-height:1.4; word-break:break-all; padding-right:4px; }
@@ -83,7 +85,7 @@
   .score-input-row input[type=number] { -moz-appearance:textfield; appearance:textfield; }
   .score-input-row textarea { padding:6px 8px; border:1.5px solid var(--border); border-radius:6px; font-size:12px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); outline:none; width:100%; transition:border-color 0.2s; resize:none; overflow:hidden; min-height:34px; line-height:1.5; }
   .score-input-row textarea:focus { border-color:var(--gold); background:var(--white); }
-  .score-header { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 110px 90px 46px 46px 1fr; gap:6px; padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; min-width:max-content; }
+  .score-header { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 110px 90px 46px 46px minmax(150px,1fr); gap:6px; padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; min-width:max-content; }
   /* 반 이동 — 주차 매칭 표 */
   .move-row { display:grid; grid-template-columns:1fr 16px 1.4fr; gap:6px; align-items:center; padding:5px 0; border-bottom:1px solid var(--border); }
   .move-row:last-child { border-bottom:none; }
