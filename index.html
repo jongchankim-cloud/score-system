@@ -493,7 +493,6 @@
         background: var(--white);
         border: 1px solid var(--border);
         border-radius: 12px;
-        overflow: hidden;
         margin-bottom: 14px;
       }
       .tab-btn {
@@ -808,7 +807,6 @@
       async function login() {
         const name = document.getElementById("input-name").value.trim();
         const pin = document.getElementById("input-pin").value.trim();
-        _loginPin = pin; // 단어공부 탭으로 넘기기 위해 보관 (logout에서 비움)
         const err = document.getElementById("error-msg");
         const load = document.getElementById("login-loading");
         err.classList.remove("show");
@@ -839,6 +837,9 @@
           }
           loginData = await res.json();
           currentStudent = loginData.student;
+          // 단어공부 탭으로 넘기기 위해 보관 (logout에서 비움).
+          // 검증을 통과한 뒤에만 담는다 — 실패한 로그인의 PIN을 들고 있지 않기 위해.
+          _loginPin = pin;
           await showResult();
         } catch (e) {
           err.textContent = "오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
