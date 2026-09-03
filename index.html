@@ -513,6 +513,87 @@
         color: var(--gray);
         letter-spacing: 0.5px;
       }
+      /* 구 주소(github.io) 접속자에게만 뜨는 이전 안내 팝업 */
+      .migrate-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        background: rgba(15, 31, 61, 0.55);
+        padding: 20px;
+        align-items: center;
+        justify-content: center;
+      }
+      .migrate-overlay.show {
+        display: flex;
+      }
+      .migrate-card {
+        background: var(--white);
+        border-radius: 16px;
+        box-shadow: var(--shadow-lg);
+        max-width: 360px;
+        width: 100%;
+        overflow: hidden;
+      }
+      .migrate-head {
+        background: var(--navy);
+        padding: 18px 20px;
+        text-align: center;
+      }
+      .migrate-head h2 {
+        font-size: 16px;
+        color: var(--white);
+        font-weight: 700;
+      }
+      .migrate-head p {
+        font-size: 11px;
+        color: var(--gold);
+        letter-spacing: 1px;
+        margin-top: 4px;
+      }
+      .migrate-body {
+        padding: 20px;
+      }
+      .migrate-body > p {
+        font-size: 13px;
+        color: var(--navy);
+        line-height: 1.7;
+        text-align: center;
+      }
+      .migrate-url {
+        display: block;
+        margin: 14px 0;
+        padding: 12px;
+        background: var(--cream);
+        border: 1px dashed var(--gold);
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--navy);
+        text-align: center;
+        word-break: break-all;
+        text-decoration: none;
+      }
+      .migrate-hint {
+        font-size: 12px;
+        color: var(--gray);
+        line-height: 1.6;
+        text-align: center;
+        margin-bottom: 16px;
+      }
+      .migrate-later {
+        display: block;
+        width: 100%;
+        margin-top: 10px;
+        padding: 8px;
+        border: none;
+        background: none;
+        font-family: "Noto Sans KR", sans-serif;
+        font-size: 12px;
+        color: var(--gray);
+        text-decoration: underline;
+        cursor: pointer;
+      }
     </style>
   </head>
   <body>
@@ -618,6 +699,33 @@
         <button class="btn btn-secondary" onclick="logout()">
           ← 다른 학생 조회
         </button>
+      </div>
+    </div>
+
+    <!-- 구 주소(github.io) 접속자에게만 표시된다. 제어는 initMigrationNotice() -->
+    <div class="migrate-overlay" id="migration-notice">
+      <div class="migrate-card">
+        <div class="migrate-head">
+          <h2>새 주소로 옮겨졌어요</h2>
+          <p>NOTICE</p>
+        </div>
+        <div class="migrate-body">
+          <p>
+            지금 접속하신 주소는 <strong>예전 주소</strong>예요.<br />
+            앞으로는 아래 새 주소로 접속해 주세요.
+          </p>
+          <a class="migrate-url" id="migrate-url" href="#">score-system.vercel.app</a>
+          <p class="migrate-hint">
+            즐겨찾기나 홈 화면 바로가기에 저장된 주소도<br />
+            새 주소로 바꿔 주세요.
+          </p>
+          <button class="btn btn-primary" onclick="goToNewSite()">
+            새 주소로 이동하기
+          </button>
+          <button class="migrate-later" onclick="closeMigrationNotice()">
+            이 주소에서 계속 볼게요
+          </button>
+        </div>
       </div>
     </div>
 
@@ -1475,8 +1583,37 @@
       document.getElementById("input-name").addEventListener("keydown", (e) => {
         if (e.key === "Enter") document.getElementById("input-pin").focus();
       });
+      // === 구 주소 이전 안내 ===
+      // github.io로 배포된 예전 주소에서만 팝업을 띄운다.
+      // Vercel(*.vercel.app)이나 로컬에서는 hostname이 달라 절대 뜨지 않는다.
+      const NEW_SITE_URL = "https://score-system.vercel.app";
+
+      function isLegacyHost() {
+        return location.hostname.endsWith(".github.io");
+      }
+
+      // 표시했는지를 반환한다 — load 핸들러가 팝업 뒤 입력창에
+      // 포커스를 줘서 모바일 키보드가 올라오는 걸 막기 위해 필요하다.
+      function initMigrationNotice() {
+        if (!isLegacyHost()) return false;
+        document.getElementById("migrate-url").href = NEW_SITE_URL;
+        document.getElementById("migration-notice").classList.add("show");
+        return true;
+      }
+
+      function goToNewSite() {
+        window.location.href = NEW_SITE_URL;
+      }
+
+      // 매 방문마다 다시 뜨게 둔다(저장하지 않음) — 즐겨찾기를 바꾸기 전까지 계속 안내해야 한다.
+      function closeMigrationNotice() {
+        document.getElementById("migration-notice").classList.remove("show");
+      }
+
       window.addEventListener("load", () => {
-        document.getElementById("input-name").focus();
+        if (!initMigrationNotice()) {
+          document.getElementById("input-name").focus();
+        }
       });
     </script>
   </body>
