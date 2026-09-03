@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>능률VOCA · 학습 관리</title>
+<style>
+  :root{
+    --ink:#1c2733;--ink-soft:#5a6b7b;--paper:#f6f4ee;--card:#ffffff;--line:#dfe4ea;
+    --accent:#2f6f5e;--accent-soft:#e3efe9;--gold:#c08a2d;--wrong:#c0492f;--wrong-soft:#f7e6e1;
+    --shadow:0 6px 24px rgba(28,39,51,.08);--r:16px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+    background:var(--paper);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:920px;margin:0 auto;padding:24px 18px 80px}
+  button{font-family:inherit;cursor:pointer;border:none;background:none}
+  .hidden{display:none !important}
+
+  header.top{display:flex;align-items:center;gap:12px;margin-bottom:24px;flex-wrap:wrap}
+  .brand{font-size:13px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  .tools{margin-left:auto;display:flex;gap:10px;align-items:center}
+  .tools button{font-size:13px;color:var(--ink-soft);text-decoration:underline;text-underline-offset:3px}
+  .tools button:hover{color:var(--accent)}
+
+  h1.title{font-size:28px;font-weight:800;letter-spacing:-.02em;margin-bottom:6px}
+  .subtitle{color:var(--ink-soft);font-size:15px;margin-bottom:22px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:22px}
+
+  /* gate */
+  .gate-wrap{max-width:380px;margin:40px auto 0}
+  .fld{display:flex;flex-direction:column;gap:7px;margin-bottom:16px}
+  .fld span{font-size:13px;font-weight:700;color:var(--ink-soft)}
+  .fld input{border:1px solid var(--line);border-radius:12px;padding:14px 16px;font-size:18px;
+    background:var(--paper);transition:.15s;width:100%;text-align:center;letter-spacing:.3em}
+  .fld input:focus{outline:none;border-color:var(--accent);background:#fff;box-shadow:0 0 0 3px var(--accent-soft)}
+  .go{width:100%;background:var(--accent);color:#fff;border-radius:12px;padding:15px;font-weight:800;font-size:16px}
+  .go:hover{background:#27604f}
+  .gate-msg{font-size:13px;text-align:center;color:var(--wrong);font-weight:600;min-height:18px;margin-top:10px}
+
+  /* stats row */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+  @media(max-width:560px){.stats{grid-template-columns:1fr}}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow)}
+  .stat .n{font-size:28px;font-weight:800;color:var(--accent)}
+  .stat .l{font-size:13px;color:var(--ink-soft)}
+
+  .bar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+  .search{flex:1;min-width:180px;border:1px solid var(--line);border-radius:10px;padding:11px 14px;font-size:14px;background:var(--paper)}
+  .search:focus{outline:none;border-color:var(--accent);background:#fff}
+  .refresh{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:11px 16px;font-weight:700;font-size:14px}
+  .refresh:hover{border-color:var(--accent);background:var(--accent-soft)}
+
+  /* student list */
+  .srow{display:flex;align-items:center;gap:14px;padding:15px 10px;border-bottom:1px solid var(--line);width:100%;text-align:left;transition:.12s}
+  .srow:last-child{border-bottom:none}
+  .srow:hover{background:var(--accent-soft)}
+  .srow .nm{font-size:17px;font-weight:700;min-width:110px}
+  .srow .kk{font-size:12px;color:var(--ink-soft);font-family:ui-monospace,monospace}
+  .srow .pills{margin-left:auto;display:flex;gap:8px;flex:none}
+  .pill{font-size:12px;font-weight:700;border-radius:99px;padding:4px 11px}
+  .pill.fav{background:#f6edd8;color:var(--gold)}
+  .pill.wrong{background:var(--wrong-soft);color:var(--wrong)}
+  .pill.zero{background:var(--paper);color:var(--ink-soft);font-weight:400}
+  .chev{color:var(--line);font-size:18px;flex:none}
+
+  /* detail */
+  .back{font-size:14px;color:var(--accent);text-decoration:underline;cursor:pointer;font-weight:600;margin-bottom:14px;display:inline-block}
+  .detail-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px;flex-wrap:wrap}
+  .detail-head .dn{font-size:24px;font-weight:800}
+  .detail-head .dk{font-size:13px;color:var(--ink-soft);font-family:ui-monospace,monospace}
+  .seg{display:flex;gap:8px;margin:18px 0 14px}
+  .seg button{border:1px solid var(--line);background:var(--card);border-radius:99px;padding:9px 18px;font-weight:700;font-size:14px;color:var(--ink-soft)}
+  .seg button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .vrow{display:flex;align-items:center;gap:12px;padding:12px 6px;border-bottom:1px solid var(--line)}
+  .vrow:last-child{border-bottom:none}
+  .vrow .vw{font-size:16px;font-weight:700;min-width:110px}
+  .vrow .vg{font-size:11px;color:var(--ink-soft);border:1px solid var(--line);border-radius:99px;padding:2px 9px;flex:none}
+  .vrow .vm{color:var(--ink-soft);flex:1;font-size:14px}
+  /* 학생 명단 관리 */
+  .form-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .form-group{display:flex;flex-direction:column;gap:6px;flex:1;min-width:130px}
+  .form-group label{font-size:12px;font-weight:700;color:var(--ink-soft)}
+  .form-group input,.form-group select{
+    border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:14px;
+    font-family:inherit;background:var(--paper);width:100%
+  }
+  .form-group input:focus,.form-group select:focus{outline:none;border-color:var(--accent);background:#fff}
+  .btn-go{background:var(--accent);color:#fff;border-radius:10px;padding:11px 20px;font-weight:700;font-size:14px}
+  .btn-go:hover{background:#27604f}
+  .btn-go:disabled{opacity:.5;cursor:default}
+
+  .stbl{width:100%;border-collapse:collapse;min-width:860px;font-size:13px}
+  .stbl th{text-align:left;padding:9px 8px;border-bottom:2px solid var(--line);font-size:12px;color:var(--ink-soft);white-space:nowrap}
+  .stbl td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+  .stbl input{border:1px solid var(--line);border-radius:7px;padding:7px 9px;font-size:13px;font-family:inherit;background:#fff;width:100%}
+  .stbl input:focus{outline:none;border-color:var(--accent)}
+  .stbl .w-nm{width:90px}.stbl .w-pin{width:66px;text-align:center;font-family:ui-monospace,monospace}
+  .stbl .w-ph{width:126px}.stbl .w-note{width:150px}
+  .badge{font-size:11px;font-weight:700;border-radius:99px;padding:3px 9px;white-space:nowrap}
+  .badge.on{background:var(--accent-soft);color:var(--accent)}
+  .badge.off{background:var(--wrong-soft);color:var(--wrong)}
+  .tbtn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;white-space:nowrap}
+  .tbtn:hover{border-color:var(--accent);color:var(--accent)}
+  .cls{font-size:12px;color:var(--gold);font-weight:700;white-space:nowrap}
+  .scroll-x{overflow-x:auto}
+  .lockbox{max-width:420px;margin:10px auto 0;text-align:center}
+
+  /* 주관식 인정 답안 */
+  .arow{display:flex;align-items:center;gap:10px;padding:13px 6px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .arow:last-child{border-bottom:none}
+  .arow .aw{font-size:15px;font-weight:800;min-width:96px}
+  .arow .aa{flex:1;min-width:140px;font-size:15px;color:var(--ink)}
+  .arow .aa small{color:var(--ink-soft);font-size:12px}
+  .tag{font-size:11px;font-weight:700;border-radius:99px;padding:3px 10px;flex:none}
+  .tag.self{background:var(--accent-soft);color:var(--accent)}
+  .tag.req{background:#f6edd8;color:var(--gold)}
+  .tag.glob{background:#e6f0ff;color:#2b5fa8}
+  .abtn{border:1px solid var(--line);background:var(--card);border-radius:9px;padding:8px 12px;font-size:12.5px;font-weight:700;flex:none}
+  .abtn:hover{border-color:var(--accent);color:var(--accent)}
+  .abtn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .abtn:disabled{opacity:.5;cursor:default}
+  .note{font-size:12.5px;color:var(--ink-soft);line-height:1.6;margin-bottom:12px}
+  .empty-state{text-align:center;padding:44px 20px;color:var(--ink-soft)}
+  .empty-state .e-ic{font-size:38px;margin-bottom:10px}
+  footer{margin-top:30px;text-align:center;font-size:12px;color:var(--ink-soft)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <span class="brand">능률VOCA · 학습 관리</span>
+    <div class="tools" id="tools"></div>
+  </header>
+
+  <!-- GATE -->
+  <section id="screen-gate">
+    <div class="gate-wrap">
+      <h1 class="title" style="text-align:center">관리자 확인</h1>
+      <p class="subtitle" style="text-align:center">관리자 번호를 입력하세요.</p>
+      <div class="panel">
+        <div class="fld">
+          <span style="text-align:center">관리자 번호</span>
+          <input id="pin" type="password" inputmode="numeric" maxlength="8" placeholder="••••" autocomplete="off">
+        </div>
+        <button class="go" id="gateBtn">들어가기</button>
+        <p class="gate-msg" id="gateMsg"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIST -->
+  <section id="screen-list" class="hidden">
+    <h1 class="title">학생 명단</h1>
+    <p class="subtitle">이름을 누르면 그 학생의 즐겨찾기·틀린 단어를 볼 수 있어요.</p>
+    <div class="stats" id="stats"></div>
+    <div class="panel">
+      <div class="bar">
+        <input class="search" id="search" placeholder="이름으로 검색">
+        <button class="refresh" id="refresh">↻ 새로고침</button>
+      </div>
+      <div id="studentList"></div>
+    </div>
+
+    <div class="panel" id="testPanel" style="margin-top:16px">
+      <div class="list-head" style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <h2 style="font-size:18px;font-weight:800">🧪 채점 테스트</h2>
+        <button class="refresh" id="testSuiteBtn" style="margin-left:auto;padding:8px 14px">검증 세트 실행 (8건)</button>
+      </div>
+      <p class="note">원하는 단어와 답을 넣어 AI 판정을 바로 확인합니다. 퀴즈에 그 단어가 나오길 기다릴 필요가 없습니다.<br>
+        (교재 뜻과 글자가 똑같은 답, 조사만 붙인 답 등은 학생 화면에서 AI 없이 먼저 걸러집니다 — 여기는 AI 판정만 봅니다)</p>
+      <div class="bar" style="flex-wrap:wrap">
+        <input class="search" id="tWord" placeholder="단어 (예: orbit, address(v))" style="max-width:190px">
+        <input class="search" id="tMean" placeholder="교재 뜻 (예: 궤도를 돌다)" style="max-width:220px">
+        <input class="search" id="tAns" placeholder="학생 답 (예: 궤도)" style="max-width:170px">
+        <button class="refresh" id="tGo" style="background:var(--accent);color:#fff;border-color:var(--accent)">판정</button>
+      </div>
+      <div id="tResult"></div>
+    </div>
+
+    <div class="panel" id="aiPanel" style="margin-top:16px">
+      <div class="list-head" style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <h2 style="font-size:18px;font-weight:800">🤖 AI가 인정한 답안</h2>
+        <span class="count" id="aiCount" style="font-size:13px;color:var(--ink-soft);border:1px solid var(--line);border-radius:99px;padding:3px 12px"></span>
+        <button class="refresh" id="aiCheck" style="margin-left:auto;padding:8px 14px">🔌 연결 확인</button>
+        <button class="refresh" id="aiPurge" style="padding:8px 14px;color:var(--wrong);border-color:var(--wrong)">전체 비우기</button>
+        <button class="refresh" id="aiToggle" style="padding:8px 14px">펼치기</button>
+      </div>
+      <div id="aiStatus" class="hidden" style="border-radius:10px;padding:12px 14px;margin-bottom:10px;font-size:14px;line-height:1.6"></div>
+      <p class="note">AI가 "같은 뜻"이라고 판정해 <b>모든 학생</b>에게 적용된 답안입니다. 잘못된 것이 있으면 지워 주세요.</p>
+      <div id="aiBody" class="hidden"></div>
+    </div>
+  </section>
+
+  <!-- DETAIL -->
+  <section id="screen-detail" class="hidden">
+    <span class="back" id="backBtn">← 명단으로</span>
+    <div class="panel">
+      <div class="detail-head">
+        <span class="dn" id="dName"></span>
+        <span class="dk" id="dKey"></span>
+      </div>
+      <div class="seg">
+        <button data-tab="fav" class="active" id="tabFav">⭐ 즐겨찾기 <span id="favN"></span></button>
+        <button data-tab="wrong" id="tabWrong">🔁 틀린 단어 <span id="wrongN"></span></button>
+        <button data-tab="alias" id="tabAlias">✍️ 주관식 인정 답안 <span id="aliasN"></span></button>
+      </div>
+      <div id="detailBody"></div>
+    </div>
+  </section>
+
+  <!-- ROSTER -->
+  <section id="screen-roster" class="hidden">
+    <span class="back" id="rosterBack">← 명단으로</span>
+    <h1 class="title">학생 명단 관리</h1>
+    <p class="subtitle">성적 사이트(score-system)의 학생 명단을 그대로 고칩니다.<br>
+      여기서 바꾸면 성적 사이트에도 똑같이 반영됩니다.</p>
+
+    <!-- 비밀번호 -->
+    <div class="panel" id="ssLock">
+      <div class="lockbox">
+        <p class="note" style="margin-bottom:14px">성적 사이트 <b>관리자 번호</b>를 입력하면 학생 명단을 불러옵니다.<br>
+          입력한 번호는 <b>저장하지 않고</b> 이 화면을 벗어나면 지워집니다.</p>
+        <div class="fld" style="margin-bottom:12px">
+          <input id="ssPin" type="password" placeholder="성적 사이트 관리자 번호" autocomplete="off">
+        </div>
+        <button class="go" id="ssGo">명단 불러오기</button>
+        <p class="gate-msg" id="ssMsg"></p>
+      </div>
+    </div>
+
+    <!-- 명단 -->
+    <div id="ssBody" class="hidden">
+      <div class="panel" style="margin-bottom:16px">
+        <div class="list-head" style="margin-bottom:12px"><h2 style="font-size:18px;font-weight:800">학생 추가</h2></div>
+        <div class="form-row">
+          <div class="form-group"><label>이름</label><input type="text" id="nsName" placeholder="학생 이름"></div>
+          <div class="form-group"><label>PIN (연락처 뒷 4자리)</label><input type="text" id="nsPin" placeholder="4자리 숫자" maxlength="4" inputmode="numeric"></div>
+          <div class="form-group"><label>학부모 연락처</label><input type="text" id="nsPhone" placeholder="01012345678" inputmode="numeric"></div>
+          <div class="form-group"><label>학생 연락처</label><input type="text" id="nsSPhone" placeholder="01012345678" inputmode="numeric"></div>
+          <div class="form-group"><label>반</label><select id="nsClass"></select></div>
+        </div>
+        <button class="btn-go" id="nsAdd">학생 추가</button>
+        <p class="note" id="nsMsg" style="margin:10px 0 0"></p>
+      </div>
+
+      <div class="panel" style="margin-bottom:16px">
+        <div class="list-head" style="margin-bottom:12px">
+          <h2 style="font-size:18px;font-weight:800">학생 목록 · 검색</h2>
+          <span class="count" id="ssCount" style="font-size:13px;color:var(--ink-soft);border:1px solid var(--line);border-radius:99px;padding:3px 12px"></span>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>반 선택</label><select id="ssClassSel"></select></div>
+          <div class="form-group"><label>이름 검색 (전체 반)</label><input type="text" id="ssSearch" placeholder="학생 이름 입력"></div>
+        </div>
+        <p class="note" style="margin:0 0 10px">칸을 고치고 다른 곳을 누르면 바로 저장됩니다. 지우기는 성적 사이트에서 해 주세요.</p>
+        <div class="scroll-x" id="ssList"><p class="note">반을 고르거나 이름으로 검색하세요.</p></div>
+      </div>
+
+      <div class="panel">
+        <div class="list-head" style="margin-bottom:10px">
+          <h2 style="font-size:18px;font-weight:800">따로 허용한 학생</h2>
+          <span class="count" id="rCount" style="font-size:13px;color:var(--ink-soft);border:1px solid var(--line);border-radius:99px;padding:3px 12px"></span>
+        </div>
+        <p class="note">성적 사이트 명단에 <b>없는</b> 학생만 여기에 넣습니다. 단어 사이트에서만 입장이 허용됩니다.</p>
+        <div id="excWarn" class="hidden" style="border:1px solid var(--wrong);background:var(--wrong-soft);border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:13.5px;line-height:1.65"></div>
+        <div class="bar">
+          <input class="search" id="rName" placeholder="이름" style="max-width:180px">
+          <input class="search" id="rPhone" placeholder="PIN 4자리" inputmode="numeric" maxlength="4" style="max-width:120px">
+          <button class="refresh" id="rAdd" style="background:var(--accent);color:#fff;border-color:var(--accent)">+ 예외 추가</button>
+        </div>
+        <p class="note" id="rMsg" style="margin:0 0 10px"></p>
+        <div id="rosterBody"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>능률VOCA 학습 관리 · 학원 내부용</footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ===== Supabase ===== */
+const SUPABASE_URL = "https://uxzsleryzpjaoqciyqvs.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV4enNsZXJ5enBqYW9xY2l5cXZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MDc4MDIsImV4cCI6MjA5NzA4MzgwMn0.mt91HfP2DV4Q9gZ_0Ts-B2P6fB3PmQlLJK2XcJeKzL4";
+const ADMIN_PIN = "1357";
+let sb=null;
+try{ sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON); }catch(e){ console.warn(e); }
+
+const $=id=>document.getElementById(id);
+const screens=["gate","list","detail","roster"];
+function show(n){
+  screens.forEach(s=>$("screen-"+s).classList.toggle("hidden",s!==n));
+  window.scrollTo(0,0);
+  if(n==="gate") $("tools").innerHTML="";   // 잠금 화면에서만 상단 버튼을 감춘다
+}
+
+let ALL=[];            // all rows
+let STUDENTS=[];       // [{key,name,fav:[],wrong:[],alias:[]}]
+let current=null;
+const AI_JUDGE_URL="https://uxzsleryzpjaoqciyqvs.supabase.co/functions/v1/judge-meaning";
+const ALIAS_OWNER="__ALIAS__";      // 선생님이 승인한 공통 인정 답안 가상 계정
+const ALIAS_AI_OWNER="__ALIAS_AI__"; // AI가 인정해 공유된 답안 가상 계정
+const GLOBAL=new Set();            // 전체 인정된 word_id
+let AI_ROWS=[];                    // AI가 인정한 공유 답안 목록
+
+/* ---- gate ---- */
+function tryGate(){
+  const v=$("pin").value.trim();
+  if(v===ADMIN_PIN){ $("gateMsg").textContent=""; enter(); }
+  else{ $("gateMsg").textContent="번호가 올바르지 않습니다."; $("pin").select(); }
+}
+$("gateBtn").onclick=tryGate;
+$("pin").addEventListener("keydown",e=>{if(e.key==="Enter")tryGate();});
+
+async function enter(){
+  $("tools").innerHTML='<button id="rosterBtn">👥 명단 관리</button><button id="logout">잠그기</button>';
+  $("rosterBtn").onclick=openRoster;
+  $("logout").onclick=()=>{ $("pin").value=""; show("gate"); $("pin").focus(); };
+  await loadAll();
+  show("list");
+}
+
+/* ---- load ---- */
+async function loadAll(){
+  if(!sb){ alert("Supabase 연결에 실패했어요."); return; }
+  try{
+    const {data,error}=await sb.from("progress")
+      .select("student_key,student_name,kind,word_id,word,grp,day,updated_at")
+      .order("updated_at",{ascending:false});
+    if(error)throw error;
+    ALL=data||[];
+    groupStudents();
+    renderStats();
+    renderList();
+    renderAiPanel();
+  }catch(e){
+    console.warn(e);
+    $("studentList").innerHTML=`<div class="empty-state"><div class="e-ic">⚠️</div>데이터를 불러오지 못했어요.<br>잠시 후 새로고침해 주세요.</div>`;
+  }
+}
+function groupStudents(){
+  const map={};
+  GLOBAL.clear();
+  AI_ROWS=[];
+  ALL.forEach(r=>{
+    if(r.student_key===ALIAS_OWNER||r.student_key===ALIAS_AI_OWNER){
+      if(r.kind==="alias"){
+        GLOBAL.add(r.word_id);
+        if(r.student_key===ALIAS_AI_OWNER){
+          const seg=String(r.word_id||"").split("|");
+          AI_ROWS.push({word_id:r.word_id, answer:r.word||"", eng:seg[2]||"",
+                        grp:r.grp||seg[0]||"", day:r.day||seg[1]||"", at:r.updated_at});
+        }
+      }
+      return;                       // 가상 계정은 학생 명단에 넣지 않음
+    }
+    const k=r.student_key;
+    if(!map[k]) map[k]={key:k, name:r.student_name||k, fav:[], wrong:[], alias:[]};
+    if(r.kind==="fav") map[k].fav.push({word:r.word, grp:r.grp, day:r.day});
+    else if(r.kind==="wrong") map[k].wrong.push({word:r.word, grp:r.grp, day:r.day});
+    else if(r.kind==="alias"||r.kind==="alias_req"||r.kind==="alias_ai"){
+      const seg=String(r.word_id||"").split("|");   // 그룹|DAY|단어|정규화답
+      map[k].alias.push({
+        word_id:r.word_id, kind:r.kind, answer:r.word||"",
+        eng:seg[2]||"", grp:r.grp||seg[0]||"", day:r.day||seg[1]||""
+      });
+    }
+  });
+  STUDENTS=Object.values(map).sort((a,b)=>a.name.localeCompare(b.name,"ko"));
+}
+
+/* ---- stats ---- */
+function renderStats(){
+  const favTot=ALL.filter(r=>r.kind==="fav").length;
+  const wrongTot=ALL.filter(r=>r.kind==="wrong").length;
+  const aliasTot=ALL.filter(r=>["alias","alias_req","alias_ai"].includes(r.kind)
+    && r.student_key!==ALIAS_OWNER && r.student_key!==ALIAS_AI_OWNER).length;
+  $("stats").innerHTML=`
+    <div class="stat"><div class="n">${STUDENTS.length}</div><div class="l">학생 수</div></div>
+    <div class="stat"><div class="n">${favTot}</div><div class="l">즐겨찾기 단어 (전체)</div></div>
+    <div class="stat"><div class="n">${wrongTot}</div><div class="l">틀린 단어 (전체)</div></div>
+    <div class="stat"><div class="n">${aliasTot}</div><div class="l">주관식 인정 답안</div></div>`;
+}
+
+/* ---- list ---- */
+function renderList(){
+  const q=($("search").value||"").trim().toLowerCase();
+  const box=$("studentList"); box.innerHTML="";
+  const rows=STUDENTS.filter(s=>s.name.toLowerCase().includes(q));
+  if(rows.length===0){
+    box.innerHTML=`<div class="empty-state"><div class="e-ic">📭</div>${ALL.length===0?"아직 학습 기록이 없어요.<br>학생이 로그인해 별표하거나 퀴즈를 풀면 여기에 표시됩니다.":"검색 결과가 없습니다."}</div>`;
+    return;
+  }
+  rows.forEach(s=>{
+    const b=document.createElement("button"); b.className="srow";
+    const favP = s.fav.length ? `<span class="pill fav">⭐ ${s.fav.length}</span>` : `<span class="pill zero">⭐ 0</span>`;
+    const wrP  = s.wrong.length ? `<span class="pill wrong">🔁 ${s.wrong.length}</span>` : `<span class="pill zero">🔁 0</span>`;
+    const alP = s.alias.length ? `<span class="pill" style="background:#e6f0ff;color:#2b5fa8">✍️ ${s.alias.length}</span>` : "";
+    b.innerHTML=`<span class="nm">${esc(s.name)}</span><span class="kk">${esc(s.key)}</span>
+      <span class="pills">${favP}${wrP}${alP}</span><span class="chev">›</span>`;
+    b.onclick=()=>openDetail(s);
+    box.appendChild(b);
+  });
+}
+$("search").addEventListener("input",renderList);
+$("refresh").onclick=loadAll;
+
+/* ---- AI 인정 답안 패널 ---- */
+let aiOpen=false;
+function renderAiPanel(){
+  $("aiCount").textContent=`${AI_ROWS.length}개`;
+  const body=$("aiBody");
+  body.classList.toggle("hidden",!aiOpen);
+  $("aiToggle").textContent=aiOpen?"접기":"펼치기";
+  if(!aiOpen)return;
+  body.innerHTML="";
+  if(AI_ROWS.length===0){
+    body.innerHTML=`<div class="empty-state"><div class="e-ic">🤖</div>AI가 인정한 답안이 아직 없어요.</div>`;
+    return;
+  }
+  AI_ROWS.slice().sort((a,b)=>(a.grp||"").localeCompare(b.grp||"","ko")||(+a.day||0)-(+b.day||0))
+   .forEach(e=>{
+    const r=document.createElement("div"); r.className="arow";
+    const where=e.grp?`${esc(e.grp)}${e.day?" · DAY "+esc(e.day):""}`:"";
+    r.innerHTML=`<span class="aw">${esc(e.eng)}</span>
+      <span class="aa">${esc(e.answer)} ${where?`<small>${where}</small>`:""}</span>
+      <span class="tag glob">AI 인정</span>`;
+    const del=document.createElement("button"); del.className="abtn"; del.textContent="지우기";
+    del.onclick=async()=>{
+      del.disabled=true;
+      const ok=await deleteAiAlias(e.word_id);
+      if(ok){ AI_ROWS=AI_ROWS.filter(x=>x.word_id!==e.word_id); GLOBAL.delete(e.word_id); renderAiPanel(); }
+      else { alert("지우지 못했어요. 잠시 후 다시 시도해 주세요."); del.disabled=false; }
+    };
+    r.appendChild(del); body.appendChild(r);
+  });
+}
+$("aiToggle").onclick=()=>{ aiOpen=!aiOpen; renderAiPanel(); };
+$("aiPurge").onclick=async()=>{
+  if(!confirm(`AI가 인정한 답안을 전부 지울까요? (${AI_ROWS.length}건 + 학생 개인 기록)\n\n채점 규칙을 바꾼 뒤에 누르면, 예전 규칙으로 잘못 인정된 답이 모두 사라지고\n다음 입력부터 새 규칙으로 다시 판정합니다.\n학생의 즐겨찾기·틀린 단어에는 영향이 없습니다.`))return;
+  const btn=$("aiPurge"); btn.disabled=true; btn.textContent="비우는 중…";
+  const ok=await purgeAiAliases();
+  if(ok){ AI_ROWS.forEach(e=>GLOBAL.delete(e.word_id)); AI_ROWS=[]; renderAiPanel(); alert("전부 지웠어요."); }
+  else alert("지우지 못했어요. 잠시 후 다시 시도해 주세요.");
+  btn.disabled=false; btn.textContent="전체 비우기";
+};
+
+/* ---- AI 채점 연결 확인 ---- */
+function aiStatus(kind,html){
+  const box=$("aiStatus");
+  box.classList.remove("hidden");
+  const c = kind==="ok" ? ["var(--accent)","var(--accent-soft)"]
+          : kind==="no" ? ["var(--wrong)","var(--wrong-soft)"]
+          : ["var(--gold)","#fbf4e4"];
+  box.style.border="1px solid "+c[0];
+  box.style.background=c[1];
+  box.innerHTML=html;
+}
+$("aiCheck").onclick=async()=>{
+  const btn=$("aiCheck"); btn.disabled=true; const label=btn.textContent; btn.textContent="확인 중…";
+  aiStatus("wait","함수를 부르는 중입니다…");
+  try{
+    const r=await fetch(AI_JUDGE_URL+"?selftest=1",{
+      headers:{ "Authorization":"Bearer "+SUPABASE_ANON, "apikey":SUPABASE_ANON }
+    });
+    const d=await r.json().catch(()=>({}));
+    if(d.ok){
+      aiStatus("ok",`<b>✓ AI 채점이 정상 동작합니다.</b><br>
+        키 종류: ${esc(d.keyType||"-")} · 모델: ${esc(d.model||"-")} · 인증: ${esc(d.auth||"-")}<br>
+        시험 채점: "subsequently" 에 <b>"추후에"</b> → <b>${esc(d.sample?.verdict||"-")}</b>
+        ${d.sample?.reason?`(${esc(d.sample.reason)})`:""}`);
+    }else if(r.status===404){
+      aiStatus("no","<b>✗ 함수를 찾을 수 없습니다.</b><br>Supabase 대시보드 → Edge Functions 에서 <b>judge-meaning</b> 함수를 배포했는지 확인해 주세요.");
+    }else{
+      const detail=String(d.detail||d.error||("HTTP "+r.status));
+      const hint = /ACCESS_TOKEN_TYPE_UNSUPPORTED|401|403/.test(detail)
+        ? "<br>→ 이 키로는 Gemini API 를 쓸 수 없습니다. AI Studio 에서 키를 다시 발급해 보세요."
+        : /GEMINI_API_KEY/.test(detail)
+        ? "<br>→ Edge Functions → Secrets 에 <b>GEMINI_API_KEY</b> 를 등록해 주세요."
+        : "";
+      aiStatus("no",`<b>✗ 호출에 실패했습니다.</b><br><span style="font-family:ui-monospace,monospace;font-size:12px">${esc(detail).slice(0,300)}</span>${hint}`);
+    }
+  }catch(e){
+    aiStatus("no","<b>✗ 함수에 연결하지 못했습니다.</b><br>주소가 맞는지, 함수가 배포되었는지 확인해 주세요.");
+  }
+  btn.disabled=false; btn.textContent=label;
+};
+/* AI 인정 답안을 완전히 지운다 — 공유본과 모든 학생의 개인 기록(alias_ai)까지.
+   공유본만 지우면 처음 그 답을 쓴 학생에게는 계속 정답 처리된다. */
+async function deleteAiAlias(wordId){
+  if(!sb)return false;
+  try{
+    let r=await sb.from("progress").delete()
+      .eq("student_key",ALIAS_AI_OWNER).eq("kind","alias").eq("word_id",wordId);
+    if(r.error)throw r.error;
+    r=await sb.from("progress").delete()
+      .eq("kind","alias_ai").eq("word_id",wordId);        // 모든 학생
+    if(r.error)throw r.error;
+    return true;
+  }catch(err){ console.warn(err); return false; }
+}
+/* 채점 규칙을 바꾼 뒤에는 예전 규칙으로 인정된 답이 남아 오답이 정답 처리될 수 있다.
+   전부 비우면 다음 입력부터 새 규칙으로 다시 판정한다. */
+async function purgeAiAliases(){
+  if(!sb)return false;
+  try{
+    let r=await sb.from("progress").delete()
+      .eq("student_key",ALIAS_AI_OWNER).eq("kind","alias");
+    if(r.error)throw r.error;
+    r=await sb.from("progress").delete().eq("kind","alias_ai");
+    if(r.error)throw r.error;
+    return true;
+  }catch(err){ console.warn(err); return false; }
+}
+
+async function deleteShared(owner,wordId){
+  if(!sb)return false;
+  try{
+    const {error}=await sb.from("progress").delete()
+      .eq("student_key",owner).eq("kind","alias").eq("word_id",wordId);
+    if(error)throw error;
+    return true;
+  }catch(err){ console.warn(err); return false; }
+}
+
+/* ---- detail ---- */
+let activeTab="fav";
+function openDetail(s){
+  current=s; activeTab="fav";
+  $("dName").textContent=s.name;
+  $("dKey").textContent=s.key;
+  $("favN").textContent=`(${s.fav.length})`;
+  $("wrongN").textContent=`(${s.wrong.length})`;
+  $("aliasN").textContent=`(${s.alias.length})`;
+  setTab("fav");
+  show("detail");
+}
+function setTab(t){
+  activeTab=t;
+  $("tabFav").classList.toggle("active",t==="fav");
+  $("tabWrong").classList.toggle("active",t==="wrong");
+  $("tabAlias").classList.toggle("active",t==="alias");
+  if(t==="alias"){ renderAlias(); return; }
+  const arr = t==="fav" ? current.fav : current.wrong;
+  const body=$("detailBody"); body.innerHTML="";
+  if(arr.length===0){
+    body.innerHTML=`<div class="empty-state"><div class="e-ic">${t==="fav"?"⭐":"🔁"}</div>${t==="fav"?"즐겨찾기한 단어가 없어요.":"틀린 단어가 없어요."}</div>`;
+    return;
+  }
+  // sort by group then day
+  arr.slice().sort((a,b)=>(a.grp||"").localeCompare(b.grp||"","ko")|| (+a.day||0)-(+b.day||0))
+    .forEach(e=>{
+      const r=document.createElement("div"); r.className="vrow";
+      const tag = e.grp ? `${e.grp}${e.day?" · DAY "+e.day:""}` : "";
+      r.innerHTML=`<span class="vw">${esc(e.word||"")}</span>${tag?`<span class="vg">${esc(tag)}</span>`:""}<span class="vm"></span>`;
+      body.appendChild(r);
+    });
+}
+/* ---- 주관식 인정 답안 ---- */
+function renderAlias(){
+  const body=$("detailBody"); body.innerHTML="";
+  const arr=current.alias;
+  if(arr.length===0){
+    body.innerHTML=`<div class="empty-state"><div class="e-ic">✍️</div>주관식 퀴즈에서 인정하거나 요청한 답안이 없어요.</div>`;
+    return;
+  }
+  const note=document.createElement("p"); note.className="note";
+  note.innerHTML=`<b>스스로 인정</b>은 학생이 "비슷한 뜻"이라고 판단해 정답 처리한 답, <b>AI 인정</b>은 AI가 같은 뜻이라고 판정한 답,
+    <b>인정 요청</b>은 오답 처리된 뒤 인정해 달라고 보낸 답입니다.<br>
+    <b>[전체 인정]</b>을 누르면 그 답이 <b>모든 학생</b>에게 정답으로 인정됩니다.`;
+  body.appendChild(note);
+
+  arr.slice().sort((a,b)=>(a.grp||"").localeCompare(b.grp||"","ko")||(+a.day||0)-(+b.day||0))
+    .forEach(e=>{
+      const r=document.createElement("div"); r.className="arow";
+      const tag = e.kind==="alias" ? `<span class="tag self">스스로 인정</span>`
+                : e.kind==="alias_ai" ? `<span class="tag glob">AI 인정</span>`
+                : `<span class="tag req">인정 요청</span>`;
+      const where = e.grp ? `${esc(e.grp)}${e.day?" · DAY "+esc(e.day):""}` : "";
+      r.innerHTML=`<span class="aw">${esc(e.eng)}</span>
+        <span class="aa">${esc(e.answer)} ${where?`<small>${where}</small>`:""}</span>${tag}`;
+      const btn=document.createElement("button");
+      btn.className="abtn";
+      const paint=()=>{
+        const on=GLOBAL.has(e.word_id);
+        btn.classList.toggle("on",on);
+        btn.textContent = on ? "✓ 전체 인정됨 (취소)" : "전체 인정";
+      };
+      paint();
+      btn.onclick=async()=>{
+        btn.disabled=true;
+        const on=GLOBAL.has(e.word_id);
+        const ok = on ? await revokeGlobal(e) : await approveGlobal(e);
+        if(ok){ if(on) GLOBAL.delete(e.word_id); else GLOBAL.add(e.word_id); }
+        else alert("저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
+        btn.disabled=false; paint();
+      };
+      r.appendChild(btn);
+      body.appendChild(r);
+    });
+}
+async function approveGlobal(e){
+  if(!sb)return false;
+  try{
+    const {error}=await sb.from("progress").upsert({
+      student_key:ALIAS_OWNER, student_name:"(공통 인정 답안)",
+      kind:"alias", word_id:e.word_id, word:e.answer,
+      grp:e.grp, day:e.day, updated_at:new Date().toISOString()
+    },{onConflict:"student_key,kind,word_id"});
+    if(error)throw error;
+    return true;
+  }catch(err){ console.warn(err); return false; }
+}
+async function revokeGlobal(e){ return deleteShared(ALIAS_OWNER,e.word_id); }
+
+document.querySelectorAll(".seg button").forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+$("backBtn").onclick=()=>{ renderList(); show("list"); };
+
+/* ---- 채점 테스트 — AI 판정을 직접 호출해 본다 ---- */
+function tParseWord(w){
+  const raw=String(w||"").trim();
+  const out={base:raw,no:[],pos:"",lock:false};
+  const m=raw.match(/^(.*?)\s*[（(]([^)）]*)[)）]\s*$/);
+  if(!m) return out;
+  const PM={v:"동",verb:"동","동":"동",n:"명",noun:"명","명":"명",a:"형",adj:"형","형":"형",ad:"부",adv:"부","부":"부"};
+  const no=[]; let pos="";
+  m[2].split(/[,，·/]/).map(x=>x.trim()).filter(Boolean).forEach(part=>{
+    const hit=part.match(/^(.*?)\s*[xX✗×]$/);
+    if(hit&&hit[1].trim()){no.push(hit[1].trim());return;}
+    const pm=PM[part.toLowerCase()]; if(pm)pos=pm;
+  });
+  if(no.length||pos) return {base:(m[1].trim()||raw),no,pos,lock:!!pos};
+  return out;
+}
+async function tJudge(word,meaning,answer){
+  const pw=tParseWord(word);
+  const r=await fetch(AI_JUDGE_URL,{
+    method:"POST",
+    headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON,"apikey":SUPABASE_ANON},
+    body:JSON.stringify({word:pw.base,pos:pw.pos,pos_locked:pw.lock,meaning,alt:"",
+      exclude:pw.no.join(", "),answer:String(answer).trim(),form_mismatch:false})
+  });
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(d.detail||d.error||("HTTP "+r.status));
+  return d;
+}
+const V_ICON={correct:"⭕ 정답",close:"🤔 애매",wrong:"❌ 오답",pos:"❌ 품사"};
+function tRow(word,meaning,answer,d,expect){
+  const got=d.verdict;
+  const okMark = expect ? (expect.includes(got) ? "✅" : "🚨 기대와 다름") : "";
+  return `<div class="arow"><span class="aw">${esc(word)}</span>
+    <span class="aa">${esc(meaning)} ← <b>${esc(answer)}</b><br>
+      <small>${esc(d.reason||"")}${d.model?` · ${esc(d.model)}`:""}</small></span>
+    <span class="tag ${got==="correct"?"self":"req"}">${V_ICON[got]||esc(got)}</span>
+    ${okMark?`<span style="font-size:12px;font-weight:700">${okMark}</span>`:""}</div>`;
+}
+$("tGo").onclick=async()=>{
+  const w=$("tWord").value.trim(), m=$("tMean").value.trim(), a=$("tAns").value.trim();
+  const box=$("tResult");
+  if(!w||!m||!a){ box.innerHTML=`<p class="note" style="color:var(--wrong)">단어·뜻·답을 모두 입력해 주세요.</p>`; return; }
+  $("tGo").disabled=true; box.innerHTML=`<p class="note">판정 중…</p>`;
+  try{ box.innerHTML=tRow(w,m,a,await tJudge(w,m,a)); }
+  catch(e){ box.innerHTML=`<p class="note" style="color:var(--wrong)">호출 실패: ${esc(e.message)}</p>`; }
+  $("tGo").disabled=false;
+};
+["tWord","tMean","tAns"].forEach(id=>$(id).addEventListener("keydown",e=>{if(e.key==="Enter")$("tGo").click();}));
+
+/* 배포 확인용 고정 세트 — 새 프롬프트가 반영됐는지 한 번에 본다 */
+const T_SUITE=[
+  {w:"orbit",       m:"궤도를 돌다",  a:"궤도",       expect:["correct"]},
+  {w:"demand",      m:"요구",        a:"요구하다",    expect:["correct"]},
+  {w:"offer",       m:"제의[제안]하다",a:"할인",       expect:["correct"]},
+  {w:"less than",   m:"~ 미만의",    a:"~보다 작다",  expect:["pos","wrong"]},
+  {w:"momentary",   m:"순간적인",    a:"순간적으로",  expect:["pos","wrong"]},
+  {w:"in addition to",  m:"~에 더하여",  a:"더하다",     expect:["pos","wrong"]},
+  {w:"combined with",   m:"~와 결합되어", a:"결합되다",   expect:["pos","wrong"]},
+  {w:"through the night",m:"밤새도록",   a:"밤새다",     expect:["pos","wrong"]},
+];
+$("testSuiteBtn").onclick=async()=>{
+  const btn=$("testSuiteBtn"); btn.disabled=true;
+  const box=$("tResult"); box.innerHTML=`<p class="note">${T_SUITE.length}건 판정 중… (몇 초 걸립니다)</p>`;
+  let html="", pass=0;
+  for(const t of T_SUITE){
+    try{
+      const d=await tJudge(t.w,t.m,t.a);
+      if(t.expect.includes(d.verdict)) pass++;
+      html+=tRow(t.w,t.m,t.a,d,t.expect);
+    }catch(e){ html+=`<div class="arow"><span class="aw">${esc(t.w)}</span><span class="aa" style="color:var(--wrong)">호출 실패: ${esc(e.message)}</span></div>`; }
+    box.innerHTML=html+`<p class="note">진행 중…</p>`;
+  }
+  box.innerHTML=`<p class="note" style="font-weight:700;color:${pass===T_SUITE.length?"var(--accent)":"var(--wrong)"}">
+    ${pass} / ${T_SUITE.length} 통과 ${pass===T_SUITE.length?"— 새 프롬프트가 정상 반영됐습니다":"— 🚨 표시된 건을 알려 주세요"}</p>`+html;
+  btn.disabled=false;
+};
+
+/* ---- 학생 명단 관리 — 성적 사이트(score-system) 명단을 직접 고친다 ----
+   score-system 은 students 표를 anon 에 열어두지 않고 admin-api Edge Function
+   으로만 다룬다. 그래서 그 함수를 그대로 쓴다.
+   관리자 번호는 메모리에만 두고 어디에도 저장하지 않는다. */
+const SS_API  = "https://rcpzinsdocmpnfxkfbil.supabase.co/functions/v1/admin-api";
+const SS_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjcHppbnNkb2NtcG5meGtmYmlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwMzM2NzksImV4cCI6MjA5NTYwOTY3OX0.f_HsTsM4_z2qKeMtIXZ0G8vRuXFmHkXomIdQzFFXHb0";
+let ssPw="";            // 화면을 벗어나면 지운다
+let CLASSES=[], ROSTER=[];
+
+async function ssApi(path, method="GET", body=null, prefer=null){
+  const res=await fetch(SS_API,{
+    method:"POST",
+    headers:{"Content-Type":"application/json","Authorization":"Bearer "+SS_ANON},
+    body:JSON.stringify({password:ssPw, path, method, body, prefer})
+  });
+  if(res.status===401){ ssPw=""; showLock("관리자 번호가 올바르지 않습니다."); throw new Error("unauthorized"); }
+  if(!res.ok) throw new Error("HTTP "+res.status);
+  const t=await res.text();
+  return t && t!=="null" ? JSON.parse(t) : null;
+}
+
+function showLock(msg){
+  $("ssLock").classList.remove("hidden");
+  $("ssBody").classList.add("hidden");
+  $("ssMsg").textContent=msg||"";
+  $("ssPin").value=""; $("ssPin").focus();
+}
+async function openRoster(){ show("roster"); ssPw ? await loadAllRoster() : showLock(""); }
+$("rosterBack").onclick=()=>{ ssPw=""; show("list"); };   // 나가면 번호를 지운다
+
+$("ssGo").onclick=async()=>{
+  const v=$("ssPin").value.trim();
+  if(!v){ $("ssMsg").textContent="관리자 번호를 입력해 주세요."; return; }
+  ssPw=v; $("ssGo").disabled=true; $("ssMsg").textContent="불러오는 중…";
+  try{
+    await loadAllRoster();
+    $("ssLock").classList.add("hidden"); $("ssBody").classList.remove("hidden"); $("ssMsg").textContent="";
+  }catch(e){ if(e.message!=="unauthorized") $("ssMsg").textContent="불러오지 못했어요."; }
+  $("ssGo").disabled=false;
+};
+$("ssPin").addEventListener("keydown",e=>{ if(e.key==="Enter")$("ssGo").click(); });
+
+async function loadAllRoster(){
+  CLASSES = await ssApi("classes?order=name.asc&select=*") || [];
+  const opts = CLASSES.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("");
+  $("nsClass").innerHTML = `<option value="">반 선택</option>`+opts;
+  $("ssClassSel").innerHTML = `<option value="">반을 선택하세요</option>`+opts;
+  await checkLoginFn();
+  await loadExceptions();
+}
+
+/* ---- 목록 · 검색 ---- */
+function renderStudents(list, showClass){
+  const cmap={}; CLASSES.forEach(c=>cmap[c.id]=c.name);
+  $("ssCount").textContent=`${list.length}명`;
+  if(!list.length) return `<p class="note">해당하는 학생이 없습니다.</p>`;
+  return `<table class="stbl"><thead><tr>${showClass?"<th>반</th>":""}
+    <th>이름</th><th>PIN</th><th>학부모 연락처</th><th>학생 연락처</th><th>상태</th><th>특이사항</th><th></th></tr></thead>
+    <tbody>${list.map(st=>`<tr data-id="${st.id}">
+      ${showClass?`<td><span class="cls">${esc(cmap[st.class_id]||"-")}</span></td>`:""}
+      <td><input class="w-nm" value="${esc(st.name||"")}" data-f="name"></td>
+      <td><input class="w-pin" value="${esc(st.pin||"")}" maxlength="4" data-f="pin"></td>
+      <td><input class="w-ph" value="${esc(st.phone||"")}" placeholder="01012345678" data-f="phone"></td>
+      <td><input class="w-ph" value="${esc(st.student_phone||"")}" placeholder="01012345678" data-f="student_phone"></td>
+      <td><span class="badge ${st.is_active?"on":"off"}">${st.is_active?"재원":"퇴원"}</span></td>
+      <td><input class="w-note" value="${esc(st.note||"")}" placeholder="특이사항" data-f="note"></td>
+      <td><div style="display:flex;gap:6px">
+        <button class="tbtn" data-act="toggle" data-on="${st.is_active?1:0}">${st.is_active?"퇴원":"복귀"}</button>
+        <button class="tbtn" data-act="move" data-cls="${st.class_id||""}">반 이동</button>
+      </div></td></tr>`).join("")}</tbody></table>`;
+}
+function bindStudentRows(){
+  $("ssList").querySelectorAll("input[data-f]").forEach(inp=>{
+    inp.dataset.was=inp.value;
+    inp.onblur=async()=>{
+      const v=inp.value.trim(), f=inp.dataset.f, id=inp.closest("tr").dataset.id;
+      if(v===inp.dataset.was) return;
+      if((f==="name"||f==="pin") && !v){ inp.value=inp.dataset.was; alert("이름과 PIN 은 비울 수 없어요."); return; }
+      if(f==="pin" && !/^\d{4}$/.test(v)){ inp.value=inp.dataset.was; alert("PIN 은 숫자 4자리여야 해요."); return; }
+      try{
+        await ssApi(`students?id=eq.${id}`,"PATCH",{[f]: v||null},"return=minimal");
+        inp.dataset.was=v; flash(inp);
+      }catch(e){ inp.value=inp.dataset.was; if(e.message!=="unauthorized") alert("저장하지 못했어요."); }
+    };
+  });
+  $("ssList").querySelectorAll("button[data-act]").forEach(btn=>{
+    const tr=btn.closest("tr"), id=tr.dataset.id;
+    const nm=tr.querySelector('input[data-f="name"]').value;
+    if(btn.dataset.act==="toggle") btn.onclick=async()=>{
+      const on=btn.dataset.on==="1";
+      if(!confirm(`${nm} 학생을 ${on?"퇴원":"복귀"} 처리할까요?`))return;
+      btn.disabled=true;
+      try{ await ssApi(`students?id=eq.${id}`,"PATCH",{is_active:!on},"return=minimal"); await refreshStudents(); }
+      catch(e){ if(e.message!=="unauthorized") alert("바꾸지 못했어요."); btn.disabled=false; }
+    };
+    if(btn.dataset.act==="move") btn.onclick=async()=>{
+      const cur=btn.dataset.cls;
+      const list=CLASSES.map((c,i)=>`${i+1}. ${c.name}`).join("\n");
+      const pick=prompt(`${nm} 학생을 어느 반으로 옮길까요?\n번호를 입력하세요.\n\n${list}`);
+      if(!pick)return;
+      const c=CLASSES[parseInt(pick,10)-1];
+      if(!c){ alert("번호가 올바르지 않아요."); return; }
+      if(String(c.id)===String(cur)){ return; }
+      try{ await ssApi(`students?id=eq.${id}`,"PATCH",{class_id:c.id},"return=minimal"); await refreshStudents(); }
+      catch(e){ if(e.message!=="unauthorized") alert("옮기지 못했어요."); }
+    };
+  });
+}
+function flash(el){ el.style.borderColor="var(--accent)"; setTimeout(()=>el.style.borderColor="",700); }
+
+async function refreshStudents(){
+  const q=$("ssSearch").value.trim();
+  const cid=$("ssClassSel").value;
+  const box=$("ssList");
+  if(!q && !cid){ box.innerHTML=`<p class="note">반을 고르거나 이름으로 검색하세요.</p>`; $("ssCount").textContent=""; return; }
+  box.innerHTML=`<p class="note">불러오는 중…</p>`;
+  try{
+    const path = q
+      ? `students?name=ilike.*${encodeURIComponent(q)}*&order=name.asc&select=*`
+      : `students?class_id=eq.${cid}&order=name.asc&select=*`;
+    const list=await ssApi(path) || [];
+    box.innerHTML=renderStudents(list, !!q);
+    bindStudentRows();
+  }catch(e){ if(e.message!=="unauthorized") box.innerHTML=`<p class="note">불러오지 못했어요.</p>`; }
+}
+$("ssClassSel").addEventListener("change",()=>{ $("ssSearch").value=""; refreshStudents(); });
+let _t; $("ssSearch").addEventListener("input",()=>{ clearTimeout(_t); _t=setTimeout(refreshStudents,300); });
+
+/* ---- 학생 추가 ---- */
+$("nsAdd").onclick=async()=>{
+  const name=$("nsName").value.trim(), pin=$("nsPin").value.trim(), cid=$("nsClass").value;
+  const msg=$("nsMsg"); msg.style.color="var(--wrong)";
+  if(!name || !pin || !cid){ msg.textContent="이름, PIN, 반을 모두 입력해 주세요."; return; }
+  if(!/^\d{4}$/.test(pin)){ msg.textContent="PIN 은 숫자 4자리여야 해요."; return; }
+  $("nsAdd").disabled=true;
+  try{
+    await ssApi("students","POST",{
+      name, pin, phone:$("nsPhone").value.trim()||null,
+      student_phone:$("nsSPhone").value.trim()||null,
+      class_id:parseInt(cid,10), is_active:true
+    },"return=minimal");
+    msg.style.color="var(--accent)"; msg.textContent=`${name} 학생을 추가했어요.`;
+    ["nsName","nsPin","nsPhone","nsSPhone"].forEach(id=>$(id).value="");
+    if($("ssClassSel").value===cid) await refreshStudents();
+  }catch(e){ if(e.message!=="unauthorized") msg.textContent="추가하지 못했어요."; }
+  $("nsAdd").disabled=false;
+};
+
+/* ---- 입장 확인 함수가 예전 것인지 확인 ----
+   예전 student_login 은 "예외 명단이 비어 있으면 전원 통과, 하나라도 있으면
+   명단에 있는 사람만" 이었다. 이 상태에서 예외를 한 명 넣으면 나머지 학생이
+   모두 잠긴다. 그래서 SQL 을 적용하기 전에는 예외 추가를 막는다.
+   판별: 예전 함수만 reason 으로 'open' 을 돌려준다. */
+let loginFnOld=false;
+async function checkLoginFn(){
+  if(!sb) return;
+  try{
+    const {data,error}=await sb.rpc("student_login",{p_name:"__확인용__",p_phone:"0000"});
+    if(error)throw error;
+    const r=Array.isArray(data)?data[0]:data;
+    loginFnOld = r && r.reason==="open";
+  }catch(e){ console.warn("입장 함수 확인 실패",e); loginFnOld=false; }
+  const w=$("excWarn");
+  if(loginFnOld){
+    w.classList.remove("hidden");
+    w.innerHTML=`<b>⚠ 지금은 예외를 추가하면 안 됩니다.</b><br>
+      입장 확인 함수가 아직 예전 것이라, 여기에 학생을 <b>한 명이라도 넣으면
+      나머지 학생 전원이 로그인할 수 없게 됩니다.</b><br>
+      Supabase → SQL Editor 에서
+      <code style="background:#fff;padding:1px 5px;border-radius:4px">20260823_login_via_score_system.sql</code>
+      을 실행한 뒤에 쓰세요.`;
+  }else{
+    w.classList.add("hidden");
+  }
+  $("rAdd").disabled=loginFnOld;
+  $("rName").disabled=loginFnOld;
+  $("rPhone").disabled=loginFnOld;
+}
+
+/* ---- 단어 사이트 전용 예외 명단 ---- */
+async function loadExceptions(){
+  if(!sb)return;
+  try{
+    const {data,error}=await sb.rpc("roster_list");
+    if(error)throw error;
+    ROSTER=data||[];
+  }catch(e){ console.warn(e); ROSTER=[]; }
+  renderExceptions();
+}
+function renderExceptions(){
+  $("rCount").textContent=`${ROSTER.length}명`;
+  const body=$("rosterBody"); body.innerHTML="";
+  if(!ROSTER.length){
+    body.innerHTML=`<div class="empty-state"><div class="e-ic">👥</div>따로 허용한 학생이 없어요.</div>`;
+    return;
+  }
+  ROSTER.forEach(st=>{
+    const r=document.createElement("div"); r.className="arow";
+    r.innerHTML=`<span class="aw">${esc(st.name)}</span><span class="aa">PIN <b>${esc(st.phone4)}</b>
+      ${st.note?`<small>${esc(st.note)}</small>`:""}</span>`;
+    const del=document.createElement("button"); del.className="abtn"; del.textContent="삭제";
+    del.onclick=async()=>{
+      if(!confirm(`${st.name} 학생의 예외 허용을 지울까요?\n(학습 기록은 남습니다)`))return;
+      del.disabled=true;
+      try{ const {error}=await sb.rpc("roster_remove",{p_key:st.student_key}); if(error)throw error; await loadExceptions(); }
+      catch(e){ alert("삭제하지 못했어요."); del.disabled=false; }
+    };
+    r.appendChild(del); body.appendChild(r);
+  });
+}
+$("rAdd").onclick=async()=>{
+  if(loginFnOld){ alert("입장 확인 SQL 을 먼저 적용해 주세요.\n지금 추가하면 다른 학생들이 로그인할 수 없게 됩니다."); return; }
+  const name=$("rName").value.trim(), phone=$("rPhone").value.trim();
+  const msg=$("rMsg"); msg.style.color="var(--wrong)";
+  if(!name){ msg.textContent="이름을 입력해 주세요."; return; }
+  if(!/^\d{4}$/.test(phone)){ msg.textContent="PIN 4자리를 숫자로 입력해 주세요."; return; }
+  $("rAdd").disabled=true;
+  try{
+    const {error}=await sb.rpc("roster_add",{p_name:name,p_phone:phone,p_note:null});
+    if(error)throw error;
+    $("rName").value=""; $("rPhone").value="";
+    msg.style.color="var(--accent)"; msg.textContent=`${name} 학생을 예외로 추가했어요.`;
+    await loadExceptions();
+  }catch(e){ msg.textContent="추가하지 못했어요."; }
+  $("rAdd").disabled=false;
+};
+$("rPhone").addEventListener("keydown",e=>{ if(e.key==="Enter")$("rAdd").click(); });
+
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));}
+
+/* ---- init ---- */
+show("gate");
+$("pin").focus();
+</script>
+</body>
+</html>

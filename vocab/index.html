@@ -1,0 +1,3754 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>능률VOCA 단어 학습</title>
+<style>
+  :root{
+    --ink:#1c2733;
+    --ink-soft:#5a6b7b;
+    --paper:#f6f4ee;
+    --card:#ffffff;
+    --line:#dfe4ea;
+    --accent:#2f6f5e;       /* deep teal-green */
+    --accent-soft:#e3efe9;
+    --gold:#c08a2d;          /* marking accent */
+    --wrong:#c0492f;
+    --wrong-soft:#f7e6e1;
+    --shadow:0 6px 24px rgba(28,39,51,.08);
+    --r:16px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:880px;margin:0 auto;padding:24px 18px 80px;min-height:100%}
+  button{font-family:inherit;cursor:pointer;border:none;background:none}
+  .hidden{display:none !important}
+
+  /* ---------- Header ---------- */
+  header.top{display:flex;align-items:center;gap:12px;margin-bottom:28px;flex-wrap:wrap}
+  .brand{font-size:13px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  .crumb{font-size:13px;color:var(--ink-soft);margin-left:auto;display:flex;gap:8px;align-items:center}
+  .crumb button{color:var(--ink-soft);font-size:13px;text-decoration:underline;text-underline-offset:3px}
+  .crumb button:hover{color:var(--accent)}
+
+  h1.title{font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1.15;margin-bottom:6px}
+  .subtitle{color:var(--ink-soft);font-size:15px;margin-bottom:24px}
+
+  /* ---------- Grade grid ---------- */
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+  @media(max-width:560px){.grid{grid-template-columns:1fr}}
+  .grade-card{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+    padding:22px 20px;text-align:left;transition:transform .15s ease,box-shadow .15s ease,border-color .15s;
+    display:flex;flex-direction:column;gap:6px;box-shadow:var(--shadow)
+  }
+  .grade-card:hover{transform:translateY(-3px);border-color:var(--accent);box-shadow:0 10px 30px rgba(47,111,94,.14)}
+  .grade-card .g-eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:700}
+  .grade-card .g-name{font-size:22px;font-weight:800}
+  .grade-card .g-meta{font-size:13px;color:var(--ink-soft)}
+  .grade-card.empty{opacity:.55}
+  .grade-card.empty:hover{transform:none;border-color:var(--line);box-shadow:var(--shadow)}
+
+  /* ---------- DAY list ---------- */
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:20px}
+  .day-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:10px;margin-top:16px}
+  .day-chip{
+    border:1px solid var(--line);border-radius:12px;padding:14px 8px;text-align:center;
+    background:var(--paper);transition:.15s;font-weight:600
+  }
+  .day-chip:hover{border-color:var(--accent);background:var(--accent-soft)}
+  .day-chip .d-num{font-size:16px}
+  .day-chip .d-count{font-size:11px;color:var(--ink-soft);font-weight:400}
+  .day-chip.all{background:var(--accent);color:#fff;border-color:var(--accent);grid-column:1/-1}
+  .day-chip.all:hover{background:#27604f}
+  .day-chip.all .d-count{color:rgba(255,255,255,.85)}   /* 초록 바탕에서도 읽히게 */
+  .day-chip.on{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 2px var(--accent-soft)}
+  .day-chip.on .d-num{color:var(--accent)}
+  .day-chip .d-tick{display:none;position:absolute;top:5px;right:7px;font-size:12px;color:var(--accent);font-weight:800}
+  .day-chip{position:relative}
+  .day-chip.on .d-tick{display:block}
+
+  .pick-bar{
+    position:sticky;bottom:12px;margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+    background:var(--card);border:1px solid var(--accent);border-radius:14px;padding:12px 14px;
+    box-shadow:0 8px 24px rgba(28,39,51,.14)
+  }
+  .pick-bar .pk-txt{font-size:14px;font-weight:700;color:var(--accent);flex:1;min-width:150px}
+  .pick-bar button{border-radius:10px;padding:11px 18px;font-weight:800;font-size:14px}
+  .pick-bar .pk-go{background:var(--accent);color:#fff}
+  .pick-bar .pk-go:hover{background:#27604f}
+  .pick-bar .pk-clear{border:1px solid var(--line);background:var(--card);color:var(--ink-soft);font-weight:700}
+
+  /* ---------- Mode menu ---------- */
+  .mode-row{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:18px}
+  @media(max-width:560px){.mode-row{grid-template-columns:1fr}}
+  .mode-btn{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;text-align:left;
+    box-shadow:var(--shadow);transition:.15s;display:flex;gap:14px;align-items:center
+  }
+  .mode-btn:hover{border-color:var(--accent);transform:translateY(-2px)}
+  .mode-btn .ic{font-size:24px;width:40px;height:40px;display:grid;place-items:center;background:var(--accent-soft);border-radius:10px;flex:none}
+  .mode-btn .m-title{font-weight:700;font-size:16px}
+  .mode-btn .m-sub{font-size:12px;color:var(--ink-soft)}
+  .mode-btn:disabled{opacity:.5;cursor:not-allowed}
+  .mode-btn:disabled:hover{transform:none;border-color:var(--line)}
+
+  .scope-banner{
+    background:var(--accent-soft);border-radius:12px;padding:12px 16px;margin-top:8px;
+    font-size:14px;color:var(--accent);font-weight:600;display:flex;justify-content:space-between;align-items:center
+  }
+  .scope-banner .chg{font-size:12px;text-decoration:underline;color:var(--accent);cursor:pointer}
+
+  /* ---------- Flashcard ---------- */
+  .stage{margin-top:18px}
+  .progress{height:6px;background:var(--line);border-radius:99px;overflow:hidden;margin-bottom:18px}
+  .progress > i{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
+  .counter{text-align:center;font-size:13px;color:var(--ink-soft);margin-bottom:12px}
+
+  .flashcard{
+    perspective:1600px;height:300px;margin-bottom:18px
+  }
+  .fc-inner{position:relative;width:100%;height:100%;transition:transform .5s cubic-bezier(.4,.2,.2,1);transform-style:preserve-3d;cursor:pointer}
+  .fc-inner.flipped{transform:rotateY(180deg)}
+  .fc-face{
+    position:absolute;inset:0;backface-visibility:hidden;border-radius:20px;border:1px solid var(--line);
+    background:var(--card);box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:28px;text-align:center
+  }
+  .fc-back{transform:rotateY(180deg);background:var(--accent);border-color:var(--accent);color:#fff}
+  .fc-word{font-size:38px;font-weight:800;letter-spacing:-.02em}
+  .fc-pos{display:inline-block;margin-top:14px;font-size:13px;color:var(--ink-soft);border:1px solid var(--line);border-radius:99px;padding:3px 12px}
+  .fc-mean{font-size:26px;font-weight:700;line-height:1.4}
+  .fc-hint{position:absolute;bottom:16px;font-size:12px;color:var(--ink-soft)}
+  .fc-back .fc-hint{color:rgba(255,255,255,.7)}
+  .fav-star{position:absolute;top:14px;right:16px;font-size:24px;color:var(--line);transition:.15s;z-index:3;cursor:pointer}
+  #quizBody{position:relative}
+  #quizBody .fav-star{top:-2px;right:2px;padding:6px}
+  .fav-star.on{color:var(--gold)}
+  .fc-back .fav-star{color:rgba(255,255,255,.45)}
+  .fc-back .fav-star.on{color:#ffd97a}
+
+  .nav-row{display:flex;gap:10px}
+  .nav-row button{flex:1;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:14px;font-weight:700;font-size:15px;transition:.15s}
+  .nav-row button:hover{border-color:var(--accent);background:var(--accent-soft)}
+  .nav-row button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .nav-row button.primary:hover{background:#27604f}
+  .nav-row button:disabled{opacity:.4;cursor:not-allowed}
+
+  /* ---------- Quiz ---------- */
+  .quiz-q{font-size:34px;font-weight:800;text-align:center;margin:8px 0 6px}
+  .quiz-prompt{text-align:center;color:var(--ink-soft);font-size:14px;margin-bottom:20px}
+  .opt{
+    display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);
+    border-radius:12px;padding:16px 18px;margin-bottom:10px;font-size:16px;transition:.12s
+  }
+  .opt:hover:not(:disabled){border-color:var(--accent);background:var(--accent-soft)}
+  .opt:disabled{cursor:default}
+  .opt.correct{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:700}
+  .opt.wrong{border-color:var(--wrong);background:var(--wrong-soft);color:var(--wrong)}
+  .quiz-foot{margin-top:8px;display:flex;gap:10px;align-items:center}
+  .quiz-foot .score{font-size:14px;color:var(--ink-soft)}
+  .quiz-foot button{margin-left:auto;background:var(--accent);color:#fff;border-radius:12px;padding:12px 22px;font-weight:700}
+
+  /* ---------- 주관식(서술형) 답안 ---------- */
+  .ans-row{display:flex;gap:10px;margin-bottom:12px}
+  .ans-row input{
+    flex:1;min-width:0;border:1px solid var(--line);border-radius:12px;padding:15px 16px;
+    font-size:18px;font-family:inherit;background:var(--card);transition:.15s
+  }
+  .ans-row input:focus{outline:none;border-color:var(--accent);background:#fff;box-shadow:0 0 0 3px var(--accent-soft)}
+  .ans-row input:disabled{background:var(--paper);color:var(--ink-soft)}
+  .ans-row button{background:var(--accent);color:#fff;border-radius:12px;padding:0 24px;font-weight:800;font-size:16px;flex:none}
+  .ans-row button:hover{background:#27604f}
+  .ans-row button:disabled{opacity:.45;cursor:default}
+  .ans-tip{font-size:12px;color:var(--ink-soft);margin-bottom:4px;line-height:1.6}
+
+  .ans-feed{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:15px 17px;margin-bottom:12px;font-size:15px}
+  .ans-feed .fb-t{display:block;font-size:17px;font-weight:800;margin-bottom:5px}
+  .ans-feed .fb-line{color:var(--ink);line-height:1.65}
+  .ans-feed .fb-line b{font-weight:800}
+  .ans-feed.ok{border-color:var(--accent);background:var(--accent-soft)}
+  .ans-feed.ok .fb-t{color:var(--accent)}
+  .ans-feed.no{border-color:var(--wrong);background:var(--wrong-soft)}
+  .ans-feed.no .fb-t{color:var(--wrong)}
+  .ans-feed.maybe{border-color:var(--gold);background:#fbf4e4}
+  .ans-feed.maybe .fb-t{color:#8a6417}
+  .fb-btns{display:flex;gap:8px;margin-top:13px;flex-wrap:wrap}
+  .fb-btns button{border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px 15px;font-weight:700;font-size:13.5px;transition:.12s}
+  .fb-btns button:hover{border-color:var(--accent);color:var(--accent)}
+  .fb-btns button.solid{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .fb-btns button.solid:hover{background:#27604f;color:#fff}
+  .fb-btns button.ghost{background:transparent;border-style:dashed;color:var(--ink-soft);font-weight:600}
+  .fb-btns button:disabled{opacity:.5;cursor:default}
+  .sim{display:flex;align-items:center;gap:9px;margin-top:11px;font-size:11.5px;color:var(--ink-soft)}
+  .sim .track{flex:1;height:6px;border-radius:99px;background:rgba(28,39,51,.1);overflow:hidden}
+  .sim .track i{display:block;height:100%;border-radius:99px;background:currentColor;transition:width .4s}
+  .ans-feed.ok .sim{color:var(--accent)}
+  .ans-feed.no .sim{color:var(--wrong)}
+  .ans-feed.maybe .sim{color:var(--gold)}
+
+  /* ---------- Result ---------- */
+  .result{text-align:center;padding:18px 0}
+  .result .big{font-size:52px;font-weight:800;color:var(--accent)}
+  .result .lbl{color:var(--ink-soft);margin-bottom:20px}
+  .result .row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+  .result .row button{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:14px 20px;font-weight:700}
+  .result .row button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .result .row button.warn{background:var(--wrong);color:#fff;border-color:var(--wrong)}
+
+  /* ---------- List view (vocab list / favorites / wrong) ---------- */
+  .list-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .list-head h2{font-size:20px;font-weight:800}
+  .list-head .count{font-size:13px;color:var(--ink-soft);background:var(--paper);border:1px solid var(--line);border-radius:99px;padding:3px 12px}
+  .vrow{
+    display:flex;align-items:center;gap:14px;padding:14px 8px;border-bottom:1px solid var(--line)
+  }
+  .vrow:last-child{border-bottom:none}
+  .vrow .vw{font-size:18px;font-weight:700;min-width:120px}
+  .vrow .vp{font-size:12px;color:var(--ink-soft);border:1px solid var(--line);border-radius:99px;padding:2px 9px;flex:none}
+  .vrow .vm{color:var(--ink-soft);flex:1}
+  .vrow .vstar{font-size:22px;color:var(--line)}
+  .vrow .vstar.on{color:var(--gold)}
+  .empty-state{text-align:center;padding:48px 20px;color:var(--ink-soft)}
+  .empty-state .e-ic{font-size:40px;margin-bottom:10px}
+
+  footer{margin-top:30px;text-align:center;font-size:12px;color:var(--ink-soft)}
+
+  /* ---------- Login ---------- */
+  .login-wrap{max-width:420px;margin:24px auto 0}
+  .login-panel{padding:26px 24px;display:flex;flex-direction:column;gap:16px}
+  .fld{display:flex;flex-direction:column;gap:7px}
+  .fld span{font-size:13px;font-weight:700;color:var(--ink-soft)}
+  .fld input{
+    border:1px solid var(--line);border-radius:12px;padding:14px 16px;font-size:17px;font-family:inherit;
+    background:var(--paper);transition:.15s;width:100%
+  }
+  .fld input:focus{outline:none;border-color:var(--accent);background:#fff;box-shadow:0 0 0 3px var(--accent-soft)}
+  .login-go{background:var(--accent);color:#fff;border-radius:12px;padding:15px;font-weight:800;font-size:16px;transition:.15s}
+  .login-go:hover{background:#27604f}
+  .login-go:disabled{opacity:.6;cursor:wait}
+  .login-note{font-size:13px;text-align:center;min-height:18px;color:var(--wrong);font-weight:600}
+  .login-fine{font-size:12px;color:var(--ink-soft);text-align:center;line-height:1.5}
+  .who{font-size:13px;color:var(--accent);font-weight:700;display:flex;align-items:center;gap:8px}
+  .who .logout{font-size:12px;color:var(--ink-soft);text-decoration:underline;cursor:pointer;font-weight:400}
+  .sync-dot{width:7px;height:7px;border-radius:99px;background:#c9cf57;display:inline-block}
+  .sync-dot.ok{background:var(--accent)}
+  .sync-dot.busy{background:var(--gold);animation:pulse 1s infinite}
+  @keyframes pulse{50%{opacity:.3}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <span class="brand">능률VOCA · 단어 학습</span>
+    <nav class="crumb" id="crumb"></nav>
+    <span id="whoami" class="who hidden"></span>
+  </header>
+
+  <!-- ============ SCREEN: LOGIN ============ -->
+  <section id="screen-login">
+    <div class="login-wrap">
+      <h1 class="title" style="text-align:center">단어 학습 시작하기</h1>
+      <p class="subtitle" style="text-align:center">성적 사이트와 <b>똑같이</b> 이름과 PIN으로 입장하세요.<br>같은 정보로 어느 기기에서든 내 즐겨찾기를 볼 수 있어요.</p>
+      <div class="panel login-panel">
+        <label class="fld">
+          <span>이름</span>
+          <input id="loginName" type="text" inputmode="text" placeholder="예: 김민수" autocomplete="off">
+        </label>
+        <label class="fld">
+          <span>PIN (학부모님 연락처 뒷 4자리)</span>
+          <input id="loginPhone" type="tel" inputmode="numeric" maxlength="4" placeholder="예: 4821" autocomplete="off">
+        </label>
+        <button id="loginBtn" class="login-go">입장하기</button>
+        <p class="login-note" id="loginMsg"></p>
+        <p class="login-fine">성적 사이트에서 쓰던 <b>PIN</b>(학부모님 연락처 뒷 4자리)과 같습니다.<br>기억나지 않으면 선생님께 여쭤보세요.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SCREEN: HOME (grade select) ============ -->
+  <section id="screen-home">
+    <h1 class="title">오늘의 단어를 시작해요</h1>
+    <p class="subtitle">시험 범위를 골라 플래시카드 · 퀴즈 · 단어장으로 공부하세요.</p>
+    <div class="grid" id="gradeGrid"></div>
+  </section>
+
+  <!-- ============ SCREEN: DAY select ============ -->
+  <section id="screen-day" class="hidden">
+    <h1 class="title" id="dayTitle">범위 선택</h1>
+    <p class="subtitle">전체로 한 번에, 또는 <span id="unitWord">챕터</span>를 <b>여러 개 골라서</b> 함께 공부·시험 볼 수 있어요.</p>
+    <div class="panel">
+      <div class="day-grid" id="dayGrid"></div>
+      <div class="pick-bar hidden" id="pickBar">
+        <span class="pk-txt" id="pickTxt"></span>
+        <button class="pk-clear" id="pickClear">선택 해제</button>
+        <button class="pk-go" id="pickGo">선택한 범위로 공부하기</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SCREEN: MODE select ============ -->
+  <section id="screen-mode" class="hidden">
+    <h1 class="title">학습 방법 선택</h1>
+    <div class="scope-banner">
+      <span id="scopeLabel"></span>
+      <span class="chg" id="changeScope">범위 변경</span>
+    </div>
+    <div class="mode-row">
+      <button class="mode-btn" data-mode="flash"><span class="ic">🃏</span><span><span class="m-title">플래시카드</span><br><span class="m-sub">카드를 넘기며 뜻 확인 · 즐겨찾기</span></span></button>
+      <button class="mode-btn" data-mode="quiz"><span class="ic">✏️</span><span><span class="m-title">객관식 퀴즈</span><br><span class="m-sub">6개 보기에서 뜻 고르기 · 20문제</span></span></button>
+      <button class="mode-btn" data-mode="typequiz"><span class="ic">⌨️</span><span><span class="m-title">주관식 퀴즈</span><br><span class="m-sub">뜻을 직접 입력 · 20문제</span></span></button>
+      <button class="mode-btn" data-mode="list"><span class="ic">📖</span><span><span class="m-title">단어장</span><br><span class="m-sub">전체 목록 보기 · 즐겨찾기 표시</span></span></button>
+      <button class="mode-btn" data-mode="fav"><span class="ic">⭐</span><span><span class="m-title">즐겨찾기</span><br><span class="m-sub">별표한 단어 모아보기 · 재시험</span></span></button>
+      <button class="mode-btn" data-mode="wrongquiz" id="wrongBtn"><span class="ic">🔁</span><span><span class="m-title">틀린 단어</span><br><span class="m-sub">틀렸던 단어 보기 · 재시험 · 제외</span></span></button>
+    </div>
+  </section>
+
+  <!-- ============ SCREEN: FLASHCARD ============ -->
+  <section id="screen-flash" class="hidden">
+    <div class="stage">
+      <div class="progress"><i id="flashBar"></i></div>
+      <div class="counter" id="flashCounter"></div>
+      <div class="flashcard">
+        <div class="fc-inner" id="fcInner">
+          <div class="fc-face fc-front">
+            <span class="fav-star" id="favFront">★</span>
+            <div class="fc-word" id="fcWord"></div>
+            <div class="fc-pos" id="fcPos"></div>
+            <span class="fc-hint">카드를 눌러 뜻 보기</span>
+          </div>
+          <div class="fc-face fc-back">
+            <span class="fav-star" id="favBack">★</span>
+            <div class="fc-mean" id="fcMean"></div>
+            <span class="fc-hint">카드를 눌러 단어 보기</span>
+          </div>
+        </div>
+      </div>
+      <div class="nav-row">
+        <button id="flashPrev">← 이전</button>
+        <button id="flashShuffle">🔀 섞기</button>
+        <button id="flashNext" class="primary">다음 →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SCREEN: QUIZ ============ -->
+  <section id="screen-quiz" class="hidden">
+    <div class="stage">
+      <div class="progress"><i id="quizBar"></i></div>
+      <div class="counter" id="quizCounter"></div>
+      <div id="quizBody">
+        <span class="fav-star" id="favQuiz" title="즐겨찾기">★</span>
+        <div class="quiz-q" id="quizWord"></div>
+        <div class="quiz-prompt" id="quizPrompt">알맞은 뜻을 고르세요</div>
+        <div id="quizOpts"></div>
+        <div id="quizType" class="hidden">
+          <div class="ans-row">
+            <input id="ansInput" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="뜻을 한국어로 입력하세요">
+            <button id="ansSubmit">확인</button>
+          </div>
+          <div id="ansFeed" class="ans-feed hidden"></div>
+          <p class="ans-tip">뜻이 여러 개면 하나만 써도 되고, <b>비슷한 뜻</b>으로 써도 정답으로 인정돼요.<br>
+            다만 <b>품사는 정확해야</b> 합니다 — 동사는 ‘~하다’, 형용사는 ‘~한’으로 쓰세요.<br>
+            모르겠으면 그냥 비워 두고 <b>확인</b>을 누르세요.</p>
+        </div>
+        <div class="quiz-foot">
+          <span class="score" id="quizScore"></span>
+          <button id="quizNext" class="hidden">다음 →</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SCREEN: RESULT ============ -->
+  <section id="screen-result" class="hidden">
+    <div class="result">
+      <div class="big" id="resPct"></div>
+      <div class="lbl" id="resLbl"></div>
+      <div class="row">
+        <button class="primary" id="resRetry">다시 풀기</button>
+        <button class="warn hidden" id="resWrong">틀린 단어만 풀기</button>
+        <button id="resHome">학습 메뉴로</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SCREEN: LIST (vocab / favorites) ============ -->
+  <section id="screen-list" class="hidden">
+    <div class="panel">
+      <div class="list-head">
+        <h2 id="listTitle"></h2>
+        <span class="count" id="listCount"></span>
+      </div>
+      <div id="listActions" class="hidden" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+        <button id="listQuizBtn" style="background:var(--accent);color:#fff;border-radius:10px;padding:10px 16px;font-weight:700;font-size:14px">✏️ 객관식 재시험</button>
+        <button id="listTypeBtn" style="border:1px solid var(--accent);color:var(--accent);background:var(--card);border-radius:10px;padding:10px 16px;font-weight:700;font-size:14px">⌨️ 주관식 재시험</button>
+        <span id="listHint" style="font-size:12px;color:var(--ink-soft);align-self:center"></span>
+      </div>
+      <div id="listBody"></div>
+    </div>
+  </section>
+
+  <footer>능률VOCA 단어 학습 · 모바일에서도 잘 작동합니다 · <span id="verTag"></span></footer>
+  <div id="verBanner" class="hidden" style="position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink,#333);color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;box-shadow:0 6px 20px rgba(0,0,0,.25);z-index:99;display:flex;gap:12px;align-items:center">
+    새 버전이 나왔어요
+    <button onclick="location.href=location.pathname+'?r='+Date.now()" style="background:#fff;color:#333;border:none;border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer">새로고침</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ===================== Supabase 설정 ===================== */
+const SUPABASE_URL = "https://uxzsleryzpjaoqciyqvs.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV4enNsZXJ5enBqYW9xY2l5cXZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MDc4MDIsImV4cCI6MjA5NzA4MzgwMn0.mt91HfP2DV4Q9gZ_0Ts-B2P6fB3PmQlLJK2XcJeKzL4";
+let sb = null;
+try { sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON); } catch(e){ console.warn("Supabase init 실패", e); }
+
+/* ===================== AI 채점 (선택) =====================
+   규칙·사전으로 "정답"이 나온 답은 여기까지 오지 않습니다.
+   "비슷함 / 오답"으로 나온 것만 AI에게 한 번 더 물어봅니다.
+   주소를 비워 두면 AI 채점 없이 지금까지의 규칙만으로 채점합니다.        */
+/* 입장 확인은 성적 사이트(score-system)의 학생 명단을 그대로 씁니다.
+   이름 + PIN(학부모님 연락처 뒷 4자리)이 그쪽에 있어야 들어올 수 있습니다.
+   admin.html → 명단 관리 에 넣은 학생은 추가로 허용됩니다.
+   true 로 바꾸면 성적 사이트가 응답하지 않을 때도 입장을 막습니다
+   (기본값 false: 서버 문제로 수업이 끊기지 않도록). */
+const STRICT_ROSTER = false;
+
+/* ---- 버전 표시·새 버전 감지 ----
+   브라우저가 옛날 페이지를 캐시로 들고 있으면 새 기능이 "사라진" 것처럼 보인다
+   (실제로 즐겨찾기 버튼이 그렇게 안 보인 적이 있다). 그래서
+   1) 화면 아래에 버전을 항상 보여 주고
+   2) 접속할 때 서버의 최신 버전을 캐시 없이 확인해서, 다르면 새로고침을 권한다. */
+const APP_VER = "2026-08-31-1";
+document.addEventListener("DOMContentLoaded", ()=>{
+  const t=document.getElementById("verTag"); if(t) t.textContent="v"+APP_VER;
+  if(location.protocol!=="http:" && location.protocol!=="https:") return;  // 파일로 열면 검사 불가
+  fetch(location.pathname, {cache:"no-store"}).then(r=>r.text()).then(html=>{
+    const m=html.match(/APP_VER\s*=\s*"([^"]+)"/);
+    if(m && m[1]!==APP_VER) document.getElementById("verBanner").classList.remove("hidden");
+  }).catch(()=>{});
+});
+
+const AI_JUDGE_URL = "https://uxzsleryzpjaoqciyqvs.supabase.co/functions/v1/judge-meaning";
+// ↑ 함수를 아직 배포하지 않았다면 호출이 실패하고 규칙 채점으로 넘어갑니다 (수업에 지장 없음).
+//   AI 채점을 아예 끄려면 "" 로 비워 두세요.
+const AI_SHARE_ACCEPTED = true;  // AI가 인정한 답을 모든 학생에게 공유 (같은 답은 다시 호출하지 않음 = 비용 절감)
+</script>
+<script>
+/* =====================================================================
+   단어 데이터 — 여기만 채우면 됩니다.
+   구조:
+   VOCAB_DATA = {
+     "용산 고1 2026 2학기 중간고사": {
+       tag: "고1 · 2026 2학기",     // 홈 카드 위에 작게 붙는 말 (선택)
+       unit: "챕터",                 // 범위의 단위 이름 (선택, 기본 "DAY")
+       days: {
+         "교과서 2-1": [ {w:"spark", m:"일으키다[유발하다]"}, ... ],
+         "1-2509-20": [ ... ],
+       }
+     },
+     "용산 고1 2026 기말고사": { ... }        // 시험/학기 단위로 늘려 가면 됩니다
+   }
+   - w: 단어(표제어)   m: 뜻   p: 품사(동/명/형, 선택)
+     p 를 적지 않으면 뜻의 형태에서 품사를 알아냅니다
+     (뜻이 "간과하다" 면 동사형만, "원자" 면 명사형만 정답 처리).
+   - alt: (선택) 주관식 퀴즈에서 함께 정답으로 인정할 다른 표현. 쉼표로 구분.
+          사전마다 뜻풀이가 달라서 학생이 다르게 쓸 만한 말을 적어 두면 됩니다.
+          예) {w:"subsequently", p:"부", m:"그 뒤에, 나중에", alt:"추후에, 이후에, 뒤이어"}
+          글자가 전혀 달라도( 나중 ↔ 추후 ) 여기 적어 두면 100% 정답 처리됩니다.
+   - days 의 키는 범위 이름입니다. "1","2" 처럼 숫자면 "DAY 1" 로 보이고,
+     "교과서 2-1" 처럼 글자가 섞이면 적은 그대로 보입니다. 적은 순서대로 나열됩니다.
+   - 비어 있는 그룹은 홈 화면에서 "준비 중"으로 표시됩니다.
+   ===================================================================== */
+
+const GROUPS = ["용산 고1 2026 2학기 중간고사", "용산 고2 2026 2학기 중간고사"];
+
+const VOCAB_DATA = {
+  "용산 고1 2026 2학기 중간고사": {
+    tag: "고1 · 2026 2학기",
+    unit: "챕터",
+    days: {
+      "1-2509-20": [
+        {w:"inefficient", m:"비효율적인"},
+        {w:"overlook", m:"간과하다"},
+        {w:"potential", m:"잠재적인"},
+        {w:"opening minutes", m:"도입부 몇 분"},
+        {w:"pressing", m:"긴급한, 다급한"},
+        {w:"demand", m:"요구, 다급히 처리해야 할 일"},
+        {w:"disappear", m:"사라지다"},
+        {w:"It’s no wonder (that)", m:"~하는 것은 당연하다"},
+        {w:"on time", m:"정각에, 제시간에"},
+        {w:"get ~ off to a great start", m:"~을 아주 잘 시작하다"},
+        {w:"set the tone", m:"분위기를 조성하다"},
+        {w:"the rest of", m:"~의 나머지"},
+        {w:"routine", m:"정례적인 활동"},
+        {w:"brief", m:"짧은, 잠시 동안의"},
+        {w:"transition", m:"전환"},
+        {w:"subject", m:"과목"},
+        {w:"material", m:"학습 내용, 자료"},
+        {w:"in summary", m:"요약하자면"},
+        {w:"establish", m:"확립하다, 정착시키다"},
+        {w:"effective", m:"효과적인"}
+      ],
+      "1-2509-21": [
+        {w:"atom", m:"원자"},
+        {w:"universe", m:"우주"},
+        {w:"inhale", m:"(숨을) 들이쉬다"},
+        {w:"exhale", m:"(숨을) 내쉬다"},
+        {w:"remaining", m:"남은, 남아 있는"},
+        {w:"means", m:"수단, 방법 (형태는 복수형이지만 '수단'이라는 뜻의 단수로도 쓰임)"},
+        {w:"make up", m:"~을 구성하다"},
+        {w:"pool", m:"공동 자원[집합체]"},
+        {w:"cycle", m:"순환하다"},
+        {w:"evaporate", m:"증발시키다"},
+        {w:"recycle", m:"재활용[재순환]하다"},
+        {w:"on a grand scale", m:"거대한 규모로, 대대적으로"},
+        {w:"origin", m:"기원, 출처"},
+        {w:"exist", m:"존재하다"},
+        {w:"throughout", m:"~ 전체에 걸쳐"},
+        {w:"limitless", m:"무한한"},
+        {w:"nonliving", m:"무생물의"},
+        {w:"present", m:"현재의"},
+        {w:"caretaker", m:"관리인, 임시 보관자"},
+        {w:"follow", m:"~의 뒤를 잇다"}
+      ],
+      "1-2509-22": [
+        {w:"involve", m:"포함[수반]하다"},
+        {w:"a range of", m:"다양한"},
+        {w:"flexibility", m:"유연성"},
+        {w:"endurance", m:"지구력"},
+        {w:"weeding", m:"잡초 뽑기"},
+        {w:"compost", m:"퇴비"},
+        {w:"beneficial", m:"유익한"},
+        {w:"challenging", m:"힘든[어려운]"},
+        {w:"low-impact", m:"(신체에) 충격이 적은"},
+        {w:"accessible", m:"접근하기 쉬운"},
+        {w:"profound", m:"깊은[지대한]"},
+        {w:"tend to", m:"~을 보살피다"},
+        {w:"meditative", m:"명상적인"},
+        {w:"anxiety", m:"불안"},
+        {w:"repetitive", m:"반복적인"},
+        {w:"induce", m:"유도하다[일으키다]"},
+        {w:"mindfulness", m:"마음챙김"},
+        {w:"elevate", m:"높이다[북돋우다]"},
+        {w:"cognition", m:"인지(능력)"},
+        {w:"symptom", m:"증상"},
+        {w:"accomplishment", m:"성취(감)"},
+        {w:"thrive", m:"잘 자라다[번성하다]"},
+        {w:"boost", m:"높이다[증진시키다]"},
+        {w:"self-esteem", m:"자존감"},
+        {w:"overall", m:"전반적인"}
+      ],
+      "1-2509-23": [
+        {w:"take advantage of", m:"~을 활용[이용]하다"},
+        {w:"translate", m:"변환하다"},
+        {w:"perception", m:"지각, 인지"},
+        {w:"phenomenon", m:"현상"},
+        {w:"perceive", m:"감각하다, 인지하다"},
+        {w:"consist of", m:"~로 구성되다"},
+        {w:"amplify", m:"증폭시키다"},
+        {w:"feed into", m:"~로 유입되다"},
+        {w:"sensory input", m:"감각 입력"},
+        {w:"bring into clear view", m:"~을 명확하게 보이게 하다"},
+        {w:"on one's own", m:"스스로, 자력으로"},
+        {w:"instrument", m:"계측기, 관찰 도구"},
+        {w:"observe", m:"관찰하다"},
+        {w:"take the form of", m:"~의 형태를 띠다"},
+        {w:"expand the reach of", m:"~의 범위를 확장하다"},
+        {w:"ultraviolet spectrum", m:"자외선 스펙트럼"},
+        {w:"audible", m:"(소리가) 들리는"},
+        {w:"alternatively", m:"그 대신에"},
+        {w:"property", m:"특성, 속성"},
+        {w:"sensory capacity", m:"감각 능력"}
+      ],
+      "1-2509-24": [
+        {w:"opponent", m:"반대자"},
+        {w:"experimentation", m:"실험"},
+        {w:"decline", m:"감소"},
+        {w:"mortality", m:"사망률"},
+        {w:"contribute to", m:"~에 기여하다"},
+        {w:"claim", m:"주장하다"},
+        {w:"correlation", m:"상관관계"},
+        {w:"advancement", m:"발전[진보]"},
+        {w:"former", m:"전자"},
+        {w:"latter", m:"후자"},
+        {w:"reject", m:"거부하다[일축하다]"},
+        {w:"inference", m:"추론"},
+        {w:"prescribe", m:"규정하다"},
+        {w:"prosthetic device", m:"인공 보조 장치"},
+        {w:"subsequently", m:"그 뒤에[이어서]"},
+        {w:"prior", m:"이전의[사전의]"},
+        {w:"consequently", m:"결과적으로"},
+        {w:"legal necessity", m:"법적 필요성"},
+        {w:"physician", m:"의사"},
+        {w:"clinical", m:"임상의"},
+        {w:"substantial", m:"상당한[중요한]"}
+      ],
+      "1-2509-29": [
+        {w:"mammalian", m:"포유류의"},
+        {w:"herbivore", m:"초식 동물"},
+        {w:"predator", m:"포식자"},
+        {w:"instant", m:"즉각적인"},
+        {w:"flight", m:"도망[도주]"},
+        {w:"perceive", m:"인지하다"},
+        {w:"threat", m:"위협"},
+        {w:"herd", m:"무리[떼] / 몰다"},
+        {w:"stand one's ground", m:"도망치지 않고 버티다"},
+        {w:"captivity", m:"사육, 감금 (상태)"},
+        {w:"enclosure", m:"(울타리를 친) 우리"},
+        {w:"panic", m:"공포에 질리다"},
+        {w:"repeatedly", m:"반복적으로"},
+        {w:"attempt", m:"시도"},
+        {w:"game", m:"사냥감"},
+        {w:"Fertile Crescent", m:"비옥한 초승달 지대"},
+        {w:"settled", m:"정착한"},
+        {w:"opportunity", m:"기회"},
+        {w:"domesticate", m:"길들이다[가축화하다]"},
+        {w:"blindly", m:"맹목적으로"},
+        {w:"leap", m:"도약하다[뛰다]"}
+      ],
+      "1-2509-30": [
+        {w:"species", m:"종, 생물종"},
+        {w:"tendency", m:"경향, 성향"},
+        {w:"cooperate", m:"협력하다"},
+        {w:"complicated", m:"복잡한"},
+        {w:"plenty", m:"풍부한"},
+        {w:"nomadic", m:"유목의"},
+        {w:"tribe", m:"부족"},
+        {w:"in one's interest", m:"~에게 이득이 되는"},
+        {w:"happen upon", m:"~을 우연히 만나다"},
+        {w:"hospitality", m:"환대, 대접"},
+        {w:"survival", m:"생존"},
+        {w:"depend on", m:"~에 달려 있다"},
+        {w:"shelter", m:"거처, 피신처"},
+        {w:"ironically", m:"역설적이게도"},
+        {w:"sophisticated", m:"정교한"},
+        {w:"security", m:"보안, 방비"},
+        {w:"keep away", m:"멀리하다"},
+        {w:"desire", m:"욕망, 욕구"},
+        {w:"combined with", m:"~와 결합되어"},
+        {w:"interaction", m:"상호작용"},
+        {w:"common folk", m:"평범한 사람들, 서민"},
+        {w:"disconnection", m:"단절"},
+        {w:"blindness", m:"보지 못함, 무지"}
+      ],
+      "1-2509-31": [
+        {w:"content", m:"만족하는"},
+        {w:"discontent", m:"불만족스러운"},
+        {w:"determine", m:"결정하다"},
+        {w:"merely", m:"단지, 그저"},
+        {w:"individual", m:"개별적인"},
+        {w:"successive", m:"연속적인, 잇따른"},
+        {w:"affect", m:"영향을 미치다"},
+        {w:"gust of wind", m:"돌풍"},
+        {w:"adjust", m:"적응하다"},
+        {w:"default level", m:"기본 수준"},
+        {w:"well-being", m:"행복, 안녕"},
+        {w:"highs and lows", m:"기복[높낮이]"},
+        {w:"seek its own level", m:"수평을 이루다"},
+        {w:"baseline", m:"기준선, 기본 상태"},
+        {w:"euphoria", m:"행복감, 희열"},
+        {w:"fade", m:"희미해지다, 시들해지다"},
+        {w:"despair", m:"절망"},
+        {w:"break-up", m:"이별, 결별"},
+        {w:"tendency", m:"경향, 성향"},
+        {w:"long for", m:"~을 갈망하다"},
+        {w:"for the rest of", m:"~의 남은 동안"},
+        {w:"adapt", m:"적응하다"}
+      ],
+      "1-2509-32": [
+        {w:"put off", m:"~을 미루다"},
+        {w:"squeeze into", m:"~을 밀어 넣다"},
+        {w:"eventually", m:"결국"},
+        {w:"overwhelming", m:"압도적인"},
+        {w:"force", m:"강제로 ~하게 하다"},
+        {w:"drive", m:"욕구, 충동"},
+        {w:"be due to", m:"~ 때문이다"},
+        {w:"in part", m:"부분적으로"},
+        {w:"compound", m:"화합물"},
+        {w:"build up", m:"축적되다[쌓이다]"},
+        {w:"break down", m:"분해하다"},
+        {w:"molecule", m:"분자"},
+        {w:"keep track of", m:"~을 파악하다"},
+        {w:"trigger", m:"유발하다[일으키다]"},
+        {w:"accumulation", m:"축적"},
+        {w:"factor", m:"요인, 요소"},
+        {w:"optimal", m:"최적의"},
+        {w:"sleep debt", m:"수면 부채"},
+        {w:"make up", m:"보충하다[메우다]"},
+        {w:"built-in", m:"내장된[타고난]"},
+        {w:"molecular", m:"분자의"},
+        {w:"feedback", m:"피드백, 반응"},
+        {w:"become accustomed to", m:"~에 익숙해지다"},
+        {w:"catch up with", m:"~의 발목을 잡다[따라잡다]"}
+      ],
+      "1-2509-33": [
+        {w:"uncertainty", m:"불확실성"},
+        {w:"member of the public", m:"일반 대중"},
+        {w:"appreciate", m:"이해하다[인식하다]"},
+        {w:"significance", m:"중요성[의미]"},
+        {w:"relative", m:"상대적인"},
+        {w:"take for example", m:"~을 예로 들다"},
+        {w:"measure", m:"측정하다"},
+        {w:"relatively", m:"상대적으로"},
+        {w:"precise", m:"정밀한[정확한]"},
+        {w:"after all", m:"결국[어쨌든]"},
+        {w:"significant digit", m:"유효 숫자"},
+        {w:"accuracy", m:"정확도"},
+        {w:"one part in a million", m:"백만 분의 일"},
+        {w:"or so", m:"~정도[가량]"},
+        {w:"digit", m:"숫자[자릿수]"},
+        {w:"quoted", m:"제시된[인용된]"},
+        {w:"depend on", m:"~에 달려 있다"},
+        {w:"intend to", m:"~할 의도이다"},
+        {w:"care about", m:"~에 신경 쓰다"},
+        {w:"rise", m:"(해·달 등이) 뜨다"},
+        {w:"satellite", m:"인공위성"},
+        {w:"orbit", m:"궤도를 돌다"},
+        {w:"accurately", m:"정확하게"}
+      ],
+      "1-2509-34": [
+        {w:"journalist", m:"언론인"},
+        {w:"argue", m:"주장하다"},
+        {w:"renewable energy", m:"재생 가능 에너지"},
+        {w:"infrastructure", m:"기간 시설[인프라]"},
+        {w:"in addition to", m:"~에 더하여"},
+        {w:"alternative", m:"대안의[대체 가능한]"},
+        {w:"procedure", m:"절차"},
+        {w:"transformation", m:"변화[전환]"},
+        {w:"fossil fuel", m:"화석 연료"},
+        {w:"scarce", m:"희귀한[부족한]"},
+        {w:"excavate", m:"채굴하다[발굴하다]"},
+        {w:"push towards", m:"~을 추진하다"},
+        {w:"construction", m:"건설"},
+        {w:"undermine", m:"약화시키다[해치다]"},
+        {w:"factor", m:"요인"},
+        {w:"effort", m:"노력"},
+        {w:"emission", m:"배출(량)"},
+        {w:"remark", m:"언급하다"},
+        {w:"seldom", m:"좀처럼 ~않는"},
+        {w:"transition", m:"전환[이행]"},
+        {w:"proposal", m:"제안(서)"},
+        {w:"tend to", m:"~하는 경향이 있다"},
+        {w:"requirement", m:"요구 조건[필요 요건]"}
+      ],
+      "1-2509-35": [
+        {w:"intelligent", m:"지능적인"},
+        {w:"human-like", m:"인간 같은"},
+        {w:"myth", m:"신화"},
+        {w:"automaton", m:"자동 장치[인형]"},
+        {w:"artificial being", m:"인공적 존재"},
+        {w:"ancient", m:"고대의"},
+        {w:"release", m:"풀어놓다[발산하다]"},
+        {w:"ill", m:"재앙[악]"},
+        {w:"likewise", m:"마찬가지로"},
+        {w:"literature", m:"문학"},
+        {w:"creature", m:"피조물[생물]"},
+        {w:"mathematician", m:"수학자"},
+        {w:"reason", m:"추론하다"},
+        {w:"measure", m:"측정하다"},
+        {w:"autonomously", m:"자율적으로"},
+        {w:"coin", m:"(신조어를) 만들다"},
+        {w:"replace", m:"대체하다"},
+        {w:"previously", m:"이전에"},
+        {w:"automata", m:"자동 장치들"},
+        {w:"practice", m:"실행[실천]"},
+        {w:"endow", m:"부여하다[주다]"},
+        {w:"creator", m:"창조자"},
+        {w:"reasoning", m:"추론"}
+      ],
+      "1-2509-36": [
+        {w:"cope with", m:"~에 대처하다"},
+        {w:"extreme", m:"극심한"},
+        {w:"hibernate", m:"동면하다"},
+        {w:"immobile", m:"움직이지 않는"},
+        {w:"surface", m:"지상으로 올라오다"},
+        {w:"stock up on", m:"~을 비축하다"},
+        {w:"extended", m:"연장된[길어진]"},
+        {w:"reptile", m:"파충류"},
+        {w:"rely on", m:"~에 의존하다"},
+        {w:"sophisticated", m:"정교한"},
+        {w:"bladder", m:"방광"},
+        {w:"act as", m:"~의 역할을 하다"},
+        {w:"reabsorb", m:"재흡수하다"},
+        {w:"incredibly", m:"놀랍게도"},
+        {w:"take in", m:"섭취하다[흡수하다]"},
+        {w:"freshwater", m:"담수[민물]"},
+        {w:"survival", m:"생존"},
+        {w:"park ranger", m:"공원 관리원"},
+        {w:"remind", m:"상기시키다[일깨우다]"},
+        {w:"terrified", m:"겁에 질린"},
+        {w:"empty", m:"비우다"},
+        {w:"precious", m:"귀중한"},
+        {w:"reserve", m:"비축량[저장량]"}
+      ],
+      "1-2509-37": [
+        {w:"pedal", m:"페달을 밟다"},
+        {w:"level", m:"평평한"},
+        {w:"force", m:"힘"},
+        {w:"act", m:"작용하다"},
+        {w:"gradually", m:"서서히[점차]"},
+        {w:"suddenly", m:"갑자기"},
+        {w:"distance", m:"거리"},
+        {w:"put the brakes on", m:"브레이크를 걸다"},
+        {w:"exert", m:"(힘을) 가하다"},
+        {w:"grip", m:"꽉 잡다[움켜잡다]"},
+        {w:"rub", m:"문지르다[마찰하다]"},
+        {w:"wheel-rim", m:"바퀴 테[림]"},
+        {w:"friction", m:"마찰(력)"},
+        {w:"tend to", m:"~하는 경향이 있다"},
+        {w:"direction", m:"방향"},
+        {w:"opposite", m:"반대의"},
+        {w:"backwards", m:"뒤로, 역방향으로"},
+        {w:"axle", m:"차축"},
+        {w:"resistance", m:"저항"},
+        {w:"apply", m:"적용하다"},
+        {w:"generate", m:"발생시키다"},
+        {w:"mainly", m:"주로"},
+        {w:"rotate", m:"회전하다"}
+      ],
+      "1-2509-38": [
+        {w:"nonlinear", m:"비선형의"},
+        {w:"random access", m:"임의 접근"},
+        {w:"shot", m:"장면[샷]"},
+        {w:"fast forward", m:"빨리 돌리기"},
+        {w:"fast reverse", m:"되돌리기"},
+        {w:"a range of", m:"다양한"},
+        {w:"special effect", m:"특수 효과"},
+        {w:"wipe", m:"와이프(화면 전환 기법)"},
+        {w:"dissolve", m:"디졸브(화면 겹침 전환)"},
+        {w:"highlight", m:"주요 특징"},
+        {w:"process", m:"과정[절차]"},
+        {w:"desired", m:"원하는"},
+        {w:"rewind", m:"(테이프를) 되돌리다"},
+        {w:"remove", m:"제거하다"},
+        {w:"adjust", m:"조절하다[조정하다]"},
+        {w:"length", m:"길이"},
+        {w:"automatically", m:"자동으로"},
+        {w:"linear", m:"선형의"},
+        {w:"compose", m:"작성하다[작품을 쓰다]"},
+        {w:"retype", m:"다시 입력하다"},
+        {w:"on the other hand", m:"반면에"},
+        {w:"word processing", m:"문서 작성"},
+        {w:"delete", m:"삭제하다"},
+        {w:"fix", m:"수정하다[고치다]"},
+        {w:"keystroke", m:"키 누르기[키 입력]"}
+      ],
+      "1-2509-39": [
+        {w:"morally", m:"도덕적으로"},
+        {w:"significantly", m:"상당히[현저하게]"},
+        {w:"judge", m:"판단하다[평가하다]"},
+        {w:"intention", m:"의도"},
+        {w:"motive", m:"동기"},
+        {w:"relevant", m:"유의미한[관련이 있는]"},
+        {w:"intend to", m:"~할 작정이다[의도하다]"},
+        {w:"unintentionally", m:"의도치 않게[본의 아니게]"},
+        {w:"turn out", m:"(결과가) ~되다"},
+        {w:"slapstick", m:"슬랩스틱(신체적 동작을 통한 과장된 코미디)"},
+        {w:"be worth -ing", m:"~할 가치가 있다"},
+        {w:"mention", m:"언급하다"},
+        {w:"false", m:"잘못된[그릇된]"},
+        {w:"impression", m:"인상[생각]"},
+        {w:"actual", m:"실제의"},
+        {w:"consequence", m:"결과"},
+        {w:"count toward", m:"~에 반영되다[고려되다]"},
+        {w:"prevent", m:"막다[예방하다]"},
+        {w:"mean well", m:"좋은 뜻으로 하다[선의를 품다]"},
+        {w:"contrary to", m:"~와는 반대로"},
+        {w:"regard A as B", m:"A를 B로 여기다[간주하다]"}
+      ],
+      "1-2509-40": [
+        {w:"preconception", m:"선입견[사전 개념]"},
+        {w:"establish", m:"형성하다[확립하다]"},
+        {w:"unconscious", m:"무의식적인"},
+        {w:"hierarchy", m:"위계[계층 구조]"},
+        {w:"reflect", m:"반영하다[나타내다]"},
+        {w:"functional", m:"기능적인"},
+        {w:"momentary", m:"순간적인"},
+        {w:"priority", m:"우선순위"},
+        {w:"visualize", m:"마음속에 그리다[시각화하다]"},
+        {w:"mind's eye", m:"마음의 눈[상상]"},
+        {w:"in profile", m:"옆모습으로[측면으로]"},
+        {w:"expectation", m:"기대[예상]"},
+        {w:"interfere with", m:"~을 방해하다"},
+        {w:"document", m:"(상세히) 기록하다"},
+        {w:"impartially", m:"편견 없이[공정하게]"},
+        {w:"interpret", m:"해석하다[설명하다]"},
+        {w:"confusing", m:"혼란스러운"},
+        {w:"serve up", m:"제공하다[차려내다]"},
+        {w:"mechanical", m:"기계적인"},
+        {w:"indifference", m:"무관심[냉담]"},
+        {w:"flatness", m:"평면성"},
+        {w:"unrecognizable", m:"알아볼 수 없는[식별 불가능한]"}
+      ],
+      "교과서 1-1": [
+        {w:"missing", m:"행방불명된, 사라진"},
+        {w:"rescue team", m:"구조대"},
+        {w:"National Forest", m:"국유림"},
+        {w:"turn out", m:"~임이 밝혀지다[알고 보니 ~이다]"},
+        {w:"play a key role", m:"핵심적인 역할을 하다"},
+        {w:"go over to", m:"~에게 (진행을) 넘기다"},
+        {w:"details", m:"세부 사항"},
+        {w:"entrance", m:"입구"},
+        {w:"recently", m:"최근에"},
+        {w:"rescue", m:"구조하다"},
+        {w:"experienced", m:"숙련된, 경험이 풍부한"},
+        {w:"go on a hike", m:"등산을 가다"},
+        {w:"forest fire", m:"산불"},
+        {w:"destroy", m:"파괴하다, 훼손하다"},
+        {w:"cause", m:"~하게 만들다[원인이 되다]"},
+        {w:"take a wrong turn", m:"길을 잘못 들다"},
+        {w:"get lost", m:"길을 잃다"},
+        {w:"shout for help", m:"구조를 요청하며 외치다"},
+        {w:"in case", m:"~할 경우에 대비하여"},
+        {w:"pass by", m:"(옆을) 지나쳐 가다"},
+        {w:"plan to", m:"~할 계획이다"},
+        {w:"temperature", m:"기온, 온도"},
+        {w:"drop", m:"(기온 등이) 떨어지다"}
+      ],
+      "교과서 1-2": [
+        {w:"signal", m:"신호"},
+        {w:"to make matters worse", m:"설상가상으로"},
+        {w:"nearly", m:"거의"},
+        {w:"dead", m:"(배터리가) 방전된"},
+        {w:"spot", m:"장소[지점]"},
+        {w:"weak", m:"미약한[약한]"},
+        {w:"surroundings", m:"주변 환경[풍경]"},
+        {w:"local police", m:"현지 경찰[관할 경찰]"},
+        {w:"inform A of B", m:"A에게 B를 알리다[통보하다]"},
+        {w:"missing", m:"실종된[행방불명된]"},
+        {w:"immediately", m:"즉시"},
+        {w:"rescue team", m:"구조대"},
+        {w:"despite", m:"~에도 불구하고"},
+        {w:"through the night", m:"밤새도록"},
+        {w:"not have any idea", m:"전혀 알지 못하다"},
+        {w:"hang over", m:"~ 위로 드리우다[늘어뜨리다]"},
+        {w:"edge", m:"가장자리[절벽 끝]"},
+        {w:"canyon", m:"협곡"},
+        {w:"be covered in", m:"~로 덮여 있다"},
+        {w:"ash", m:"재"},
+        {w:"recent", m:"최근의"},
+        {w:"quality", m:"(사진 등의) 화질[품질]"},
+        {w:"poor", m:"(화질·품질 등이) 좋지 않은"},
+        {w:"due to", m:"~ 때문에"},
+        {w:"location setting", m:"위치 설정"},
+        {w:"be turned off", m:"(전원·기능 등이) 꺼져 있다"}
+      ],
+      "교과서 1-3": [
+        {w:"condition", m:"환경, 상태"},
+        {w:"find out", m:"알아내다, 밝혀내다"},
+        {w:"clue", m:"단서, 힌트"},
+        {w:"post", m:"(게시물 등을) 게시하다"},
+        {w:"recognize", m:"(보고) 알아보다, 인식하다"},
+        {w:"scenery", m:"경치, 풍경"},
+        {w:"examine", m:"면밀히 조사하다"},
+        {w:"satellite image", m:"위성 사진"},
+        {w:"track", m:"추적하다, 자취를 따라가다"},
+        {w:"inform A of B", m:"A에게 B를 알리다[통보하다]"},
+        {w:"potential", m:"잠재적인"},
+        {w:"determine", m:"(사실을) 알아내다[밝히다]"},
+        {w:"film", m:"(영화 등을) 촬영하다"},
+        {w:"immediately", m:"즉시, 곧바로"},
+        {w:"remind A of B", m:"A에게 B를 떠올리게 하다"},
+        {w:"infer", m:"추론하다"},
+        {w:"approximate", m:"대략적인, 거의 정확한"},
+        {w:"location", m:"위치"},
+        {w:"be familiar with", m:"~에 익숙하다"},
+        {w:"feature", m:"특징, 지형적 특성"},
+        {w:"guess", m:"추측하다"},
+        {w:"valley", m:"계곡, 골짜기"},
+        {w:"ash", m:"재"},
+        {w:"a second night", m:"이틀째 밤"}
+      ],
+      "교과서 1-4": [
+        {w:"final step", m:"최종 단계"},
+        {w:"compare A with B", m:"A와 B를 비교하다"},
+        {w:"view", m:"전경, 경치"},
+        {w:"satellite image", m:"위성 사진"},
+        {w:"find a match", m:"일치하는 것을 찾다"},
+        {w:"provide A with B", m:"A에게 B를 제공하다"},
+        {w:"probable", m:"유력한, 개연성이 높은"},
+        {w:"location", m:"위치"},
+        {w:"rescue helicopter", m:"구조 헬리콥터"},
+        {w:"less than", m:"~ 미만의"},
+        {w:"indicate", m:"지목하다, 가리키다"},
+        {w:"thanks to", m:"~ 덕분에"},
+        {w:"unusual", m:"비범한, 예사롭지 않은"},
+        {w:"skill", m:"기술, 실력"},
+        {w:"unharmed", m:"다치지 않은, 무사한"},
+        {w:"video call", m:"영상 통화"},
+        {w:"local police", m:"현지 경찰"},
+        {w:"remind", m:"당부하다, 상기시키다"},
+        {w:"inform A of B", m:"A에게 B를 알리다"},
+        {w:"planned route", m:"예정된 경로"},
+        {w:"paper map", m:"종이 지도"}
+      ],
+      "교과서 2-1": [
+        {w:"spark", m:"일으키다[유발하다]"},
+        {w:"criminal", m:"범인[범죄자]"},
+        {w:"crime scene", m:"범죄 현장"},
+        {w:"leave behind", m:"남기다"},
+        {w:"trace", m:"흔적"},
+        {w:"presence", m:"존재"},
+        {w:"obvious", m:"분명한[명확한]"},
+        {w:"soil", m:"흙"},
+        {w:"detective", m:"형사[탐정]"},
+        {w:"evidence", m:"증거"},
+        {w:"analyze", m:"분석하다"},
+        {w:"clue", m:"단서"},
+        {w:"commit", m:"(범죄를) 저지르다"},
+        {w:"process", m:"과정"},
+        {w:"forensic science", m:"법의학[과학 수사]"},
+        {w:"evolve", m:"발전하다"},
+        {w:"thanks to", m:"~ 덕분에"},
+        {w:"contribution", m:"기여[공헌]"},
+        {w:"development", m:"발전"},
+        {w:"medicine", m:"의학"},
+        {w:"attend", m:"다니다[입학하다]"},
+        {w:"accept", m:"받아들이다[입학을 허가하다]"},
+        {w:"have no choice but to", m:"~할 수밖에 없다"},
+        {w:"It is not until ~ that ...", m:"~하고 나서야 비로소 …하다"},
+        {w:"career", m:"경력[직업]"}
+      ],
+      "교과서 2-2": [
+        {w:"real-life", m:"실제의"},
+        {w:"medical examiner", m:"검시관"},
+        {w:"investigation", m:"수사[조사]"},
+        {w:"investigate", m:"수사하다[조사하다]"},
+        {w:"close", m:"(사건 등을) 종결하다"},
+        {w:"examine", m:"(시신 등을) 검시하다"},
+        {w:"legal medicine", m:"법의학"},
+        {w:"spark", m:"(관심 등을) 일으키다[유발하다]"},
+        {w:"expert", m:"전문가"},
+        {w:"adopt", m:"채택하다[도입하다]"},
+        {w:"furthermore", m:"게다가[더욱이]"},
+        {w:"devote", m:"바치다[헌신하다]"},
+        {w:"field", m:"분야"},
+        {w:"persuade", m:"설득하다"},
+        {w:"fortune", m:"재산[부]"},
+        {w:"branch of study", m:"학문 분야"},
+        {w:"set up", m:"설립하다[구축하다]"},
+        {w:"rare", m:"희귀한[귀한]"},
+        {w:"document", m:"문서[기록]"},
+        {w:"independent", m:"독립적인"},
+        {w:"support", m:"지지[지원]"},
+        {w:"governor", m:"주지사"},
+        {w:"chairman", m:"학과장[위원장]"},
+        {w:"Department of Legal Medicine", m:"법의학과"}
+      ],
+      "교과서 2-3": [
+        {w:"effort", m:"노력"},
+        {w:"department", m:"학과"},
+        {w:"train", m:"교육하다[훈련시키다]"},
+        {w:"medical examiner", m:"검시관"},
+        {w:"potential", m:"잠재적인"},
+        {w:"evidence", m:"증거"},
+        {w:"step on", m:"~을 밟다"},
+        {w:"destroy", m:"훼손하다[파괴하다]"},
+        {w:"realize", m:"알아차리다[깨닫다]"},
+        {w:"due to", m:"~ 때문에"},
+        {w:"analyze", m:"분석하다"},
+        {w:"observe", m:"관찰하다"},
+        {w:"crime scene", m:"범죄 현장"},
+        {w:"point of view", m:"관점"},
+        {w:"effectively", m:"효과적으로"},
+        {w:"come up with", m:"~을 생각해내다"},
+        {w:"creative", m:"창의적인"},
+        {w:"miniature", m:"축소 모형"},
+        {w:"highly", m:"매우"},
+        {w:"detailed", m:"세밀한[정교한]"},
+        {w:"accurate", m:"정확한"},
+        {w:"based on", m:"~에 기반한"},
+        {w:"criminal case", m:"범죄 사건"},
+        {w:"blood stain", m:"혈흔[핏자국]"},
+        {w:"miss", m:"놓치다"},
+        {w:"label", m:"라벨[표지]"},
+        {w:"notice", m:"포착하다[알아채다]"}
+      ],
+      "교과서 2-4": [
+        {w:"hold a seminar", m:"세미나를 개최하다"},
+        {w:"week-long", m:"일주일간 계속되는"},
+        {w:"miniature", m:"축소 모형의"},
+        {w:"case file", m:"사건 기록 문서"},
+        {w:"detective", m:"형사[탐정]"},
+        {w:"determine", m:"밝혀내다[판단하다]"},
+        {w:"result from", m:"~에서 비롯되다"},
+        {w:"accident", m:"사고"},
+        {w:"violent crime", m:"강력 범죄"},
+        {w:"observe", m:"관찰하다"},
+        {w:"destroy", m:"훼손하다[파괴하다]"},
+        {w:"evidence", m:"증거"},
+        {w:"observation", m:"관찰(력)"},
+        {w:"improve", m:"향상시키다[개선하다]"},
+        {w:"annual", m:"매년의[연례의]"},
+        {w:"attend", m:"참석하다"},
+        {w:"special agent", m:"특수 요원"},
+        {w:"military staff", m:"군 관계자"},
+        {w:"career", m:"경력[이력]"},
+        {w:"struggle to", m:"~하려고 애쓰다"},
+        {w:"field", m:"분야"},
+        {w:"contribution", m:"기여[공헌]"},
+        {w:"forensic science", m:"법의학[과학 수사]"},
+        {w:"significant", m:"상당한[중요한]"},
+        {w:"It is no wonder that", m:"~하는 것은 당연하다"}
+      ]
+    }
+  },
+  "용산 고2 2026 2학기 중간고사": {
+    tag: "고2 · 2026 2학기",
+    unit: "챕터",
+    days: {
+      "2-2509-30": [
+        {w:"empathy", m:"공감(능력)"},
+        {w:"praise", m:"칭송하다, 칭찬하다"},
+        {w:"scholar", m:"학자"},
+        {w:"public figure", m:"유명 인사"},
+        {w:"booster", m:"적극적인 지지자"},
+        {w:"critic", m:"비판가"},
+        {w:"interpersonal", m:"개인 간의"},
+        {w:"intergroup", m:"집단 간의"},
+        {w:"conflict", m:"갈등, 충돌"},
+        {w:"maintain", m:"주장하다"},
+        {w:"exhausting", m:"소진시키는"},
+        {w:"burnout", m:"번아웃, 극심한 피로"},
+        {w:"insensitivity", m:"무감각, 둔감함"},
+        {w:"suffering", m:"고통, 괴로움"},
+        {w:"empathize with", m:"~에 공감하다"},
+        {w:"in-group", m:"내집단"},
+        {w:"resist", m:"거부하다, 반대하다"},
+        {w:"out-group", m:"외집단"},
+        {w:"competitive", m:"경쟁적인"},
+        {w:"threatening", m:"위협적인"},
+        {w:"context", m:"맥락, 상황"},
+        {w:"prescription", m:"처방, 해결책"},
+        {w:"counterproductive", m:"역효과를 내는"},
+        {w:"encourage", m:"조장하다, 부추기다"},
+        {w:"us vs. them mentality", m:"편 가르기 사고방식"},
+        {w:"dissimilar", m:"다른, 닮지 않은"},
+        {w:"unfamiliar", m:"생소한, 낯선"},
+        {w:"accurately", m:"정확하게"},
+        {w:"frustration", m:"좌절감, 답답함"},
+        {w:"give up on", m:"~을 포기하다"},
+        {w:"employ", m:"(수단·도구를) 이용하다"},
+        {w:"in pursuit of", m:"~을 추구하여"},
+        {w:"harmony", m:"조화, 화합"},
+        {w:"rational", m:"이성적인, 합리적인"},
+        {w:"compassion", m:"연민, 깊은 동정심"}
+      ],
+      "2-2509-31": [
+        {w:"paradoxically", m:"역설적이게도"},
+        {w:"uncertainty", m:"불확실성"},
+        {w:"shake A out of B", m:"A를 B에서 벗어나게 하다"},
+        {w:"everyday routine", m:"매일 반복되는 일상"},
+        {w:"attend", m:"참석하다"},
+        {w:"occasion", m:"특정한 때, 경우"},
+        {w:"engaged", m:"몰입한, 열중한"},
+        {w:"hold true", m:"(규칙·말 등이) 유효하다"},
+        {w:"risky", m:"위험성을 띤, 위험한"},
+        {w:"sense", m:"감각"},
+        {w:"sharp", m:"예리한, 민감한"},
+        {w:"notice", m:"알아차리다, 포착하다"},
+        {w:"release", m:"분출, 방출"},
+        {w:"feel-good", m:"기분을 좋게 만들어 주는"},
+        {w:"rush of pleasure", m:"갑자기 밀려오는 강한 즐거움[쾌감의 분출]"},
+        {w:"chance encounter", m:"우연한 만남"},
+        {w:"financial reward", m:"금전적 보상[돈이나 재물로 받는 대가]"},
+        {w:"enjoyable", m:"즐거운, 기분 좋은"},
+        {w:"plot twist", m:"줄거리 반전"},
+        {w:"astonishing", m:"몹시 놀라운, 경탄할 만한"}
+      ],
+      "2-2509-32": [
+        {w:"market mechanism", m:"시장 메커니즘"},
+        {w:"incentive", m:"동기, 유인"},
+        {w:"reveal", m:"드러내다, 밝히다"},
+        {w:"stand in contrast to", m:"~와 대조를 이루다"},
+        {w:"strategic", m:"전략적인"},
+        {w:"negotiation", m:"협상"},
+        {w:"preference", m:"선호(도)"},
+        {w:"production capacity", m:"생산 능력"},
+        {w:"competitive market", m:"경쟁 시장"},
+        {w:"clear", m:"(수요와 공급이 일치하여) 거래가 청산되다"},
+        {w:"on the spot", m:"즉석에서, 그 자리에서"},
+        {w:"leave no room for", m:"~의 여지[가능성]를 남기지 않다"},
+        {w:"sticky", m:"(가격·임금 등이) 경직된"},
+        {w:"assume", m:"가정하다, 전제하다"},
+        {w:"adapt", m:"(변화에 맞추어) 조정하다"},
+        {w:"instantaneously", m:"즉각적으로, 순식간에"},
+        {w:"circumstance", m:"상황, 정황"},
+        {w:"satisfy", m:"(욕구·조건을) 충족시키다"},
+        {w:"optimal", m:"최선의, 최적의"},
+        {w:"gain", m:"이익, 이득"},
+        {w:"switch to", m:"~로 전환하다, 바꾸다"},
+        {w:"motivational", m:"동기 부여의"},
+        {w:"fall into denial", m:"(불편한 사실을) 부정하는 상태에 빠지다"},
+        {w:"demand", m:"수요"},
+        {w:"brutal", m:"가혹한, 인정사정없는"},
+        {w:"accept", m:"(사실을) 받아들이다, 인정하다"}
+      ],
+      "2-2509-33": [
+        {w:"definition", m:"정의, 뜻"},
+        {w:"constantly", m:"끊임없이, 지속적으로"},
+        {w:"revise", m:"개정하다, 수정하다"},
+        {w:"keep up with", m:"~에 뒤처지지 않다, ~을 따라잡다"},
+        {w:"Roman", m:"고대 로마의"},
+        {w:"addict", m:"중독자"},
+        {w:"debt", m:"빚, 채무"},
+        {w:"creditor", m:"채권자"},
+        {w:"eventually", m:"결국, 마침내"},
+        {w:"come to V", m:"~하게 되다"},
+        {w:"be associated with", m:"~와 연관되다"},
+        {w:"dependency", m:"의존(성), 의존증"},
+        {w:"addiction", m:"중독"},
+        {w:"refer to", m:"~을 가리키다"},
+        {w:"homeowner", m:"집주인, 주택 소유자"},
+        {w:"have nothing to do with", m:"~와 아무런 관련이 없다"},
+        {w:"property", m:"재산, 부동산"},
+        {w:"make it likely that", m:"~할 가능성을 높이다"},
+        {w:"mate", m:"배우자, 짝"},
+        {w:"wed", m:"결혼한"},
+        {w:"blow up", m:"폭파시키다"},
+        {w:"Parliament", m:"의회, 국회"},
+        {w:"capture", m:"체포하다, 생포하다"},
+        {w:"put to death", m:"~를 처형하다, 사형에 처하다"},
+        {w:"loyalist", m:"충성파, 체제 옹호자"},
+        {w:"effigy", m:"(화형식 등에서 불태우는) 인형, 본보기상"},
+        {w:"nickname", m:"별명을 붙이다"},
+        {w:"connotation", m:"함축된 의미, 어감"},
+        {w:"slang", m:"속어, 은어"},
+        {w:"wicked", m:"아주 멋진, 훌륭한"},
+        {w:"transport", m:"이동시키다, 보내다"},
+        {w:"great-grandchild", m:"증손주[손주의 자녀]"},
+        {w:"speech", m:"언어, 말씨"},
+        {w:"ever-changing", m:"끊임없이 변화하는"},
+        {w:"reflection", m:"반영, 투영"},
+        {w:"invention", m:"발명, 창작물"}
+      ],
+      "2-2509-34": [
+        {w:"term", m:"용어"},
+        {w:"anchoring", m:"앵커링, 고정"},
+        {w:"introduce", m:"도입하다, 소개하다"},
+        {w:"observe", m:"관찰하다"},
+        {w:"confine", m:"제한하다, 한정하다"},
+        {w:"literal", m:"문자 그대로의"},
+        {w:"implied", m:"암시된, 함축적인"},
+        {w:"interpretation", m:"해석"},
+        {w:"elicit", m:"이끌어 내다"},
+        {w:"point A towards B", m:"A를 B의 방향으로 안내하다[가리키다]"},
+        {w:"desired", m:"원해진, 의도된"},
+        {w:"specific", m:"구체적인, 특정한"},
+        {w:"argue", m:"주장하다"},
+        {w:"symbolic", m:"상징적인"},
+        {w:"guide", m:"안내하다, 인도하다"},
+        {w:"identification", m:"식별"},
+        {w:"recognize", m:"인지하다, 알아채다"},
+        {w:"combine A with B", m:"A와 B를 결합하다"},
+        {w:"produce", m:"만들어 내다"},
+        {w:"accurate", m:"정확한"},
+        {w:"on the one hand", m:"한편으로는"},
+        {w:"on the other (hand)", m:"다른 한편으로는"},
+        {w:"thus", m:"따라서, 그리하여"},
+        {w:"add depth", m:"깊이를 더하다"},
+        {w:"eliminate", m:"제거하다, 없애다"},
+        {w:"breadth", m:"폭, 범위"},
+        {w:"rational", m:"이성적인, 합리적인"},
+        {w:"emotional", m:"감정적인, 정서적인"},
+        {w:"tagline", m:"태그라인, 슬로건"},
+        {w:"direct", m:"방향을 제시하다"},
+        {w:"intended", m:"의도된"},
+        {w:"so that", m:"~하도록"},
+        {w:"avoid", m:"피하다"},
+        {w:"remote-control", m:"원격 조종하다"},
+        {w:"in advance", m:"미리, 사전에"}
+      ],
+      "2-2509-35": [
+        {w:"according to", m:"~에 따르면"},
+        {w:"theory", m:"이론"},
+        {w:"mass", m:"질량"},
+        {w:"bend", m:"휘게 하다, 꺾다"},
+        {w:"space-time", m:"시공간"},
+        {w:"prediction", m:"예측, 예견"},
+        {w:"lead to", m:"~로 이어지다"},
+        {w:"phenomenon", m:"현상"},
+        {w:"gravitational lensing", m:"중력 렌즈 현상"},
+        {w:"distant", m:"먼, 멀리 떨어진"},
+        {w:"appear to V", m:"~하는 것으로 보이다"},
+        {w:"location", m:"위치, 장소"},
+        {w:"pass by", m:"~ 옆을 지나가다"},
+        {w:"normally", m:"평소에는, 보통은"},
+        {w:"visible", m:"눈에 보이는"},
+        {w:"be out", m:"(해·달 등이) 떠 있다, 나와 있다"},
+        {w:"solar eclipse", m:"일식"},
+        {w:"allow O to V", m:"O가 V할 수 있게 해주다"},
+        {w:"observe", m:"관측하다, 관찰하다"},
+        {w:"gravity", m:"중력"},
+        {w:"position", m:"위치, 자리"},
+        {w:"shift", m:"이동, 변화"},
+        {w:"predict", m:"예측하다"},
+        {w:"exactly", m:"정확하게, 틀림없이"}
+      ],
+      "2-2509-36": [
+        {w:"naturally", m:"타고나게, 본능적으로"},
+        {w:"be wired to V", m:"~하도록 타고나다"},
+        {w:"organize", m:"체계화하다, 정리하다"},
+        {w:"hierarchy", m:"서열, 위계질서"},
+        {w:"make sense of", m:"~을 이해하다"},
+        {w:"maintain", m:"유지하다, 지키다"},
+        {w:"belief", m:"신념, 믿음"},
+        {w:"generally", m:"전반적으로, 대체로"},
+        {w:"react to", m:"~에 반응하다"},
+        {w:"threat", m:"위협, 위협 요소"},
+        {w:"inherent", m:"고유한, 타고난, 내재된"},
+        {w:"equal", m:"동등한 존재, 평등한 사람"},
+        {w:"be supposed to V", m:"~하기로 되어 있다, ~해야 한다"},
+        {w:"play by the rules", m:"규칙을 따르다, 정당하게 행동하다"},
+        {w:"cut off", m:"(차량 앞으로) 갑자기 끼어들다"},
+        {w:"violate", m:"(규칙·법을) 위반하다"},
+        {w:"imply", m:"암시하다, 내포하다"},
+        {w:"status", m:"지위, 신분"},
+        {w:"infringe on", m:"~을 침해하다"},
+        {w:"understanding", m:"이해, 인식"},
+        {w:"highway", m:"고속도로"},
+        {w:"road rage", m:"(운전 중) 분노"},
+        {w:"kick in", m:"작용하기 시작하다, 발동하다"},
+        {w:"unconscious", m:"무의식적인"},
+        {w:"Who are you to V", m:"네가 뭔데 ~하느냐"},
+        {w:"get frustrated with", m:"~에게 짜증이 나다, 답답해하다"},
+        {w:"end an argument", m:"말다툼을 끝내다"},
+        {w:"Because I said so", m:"내가 그렇다면 그런 줄 알아"},
+        {w:"equivalent", m:"대등한 것, 상응하는 것"},
+        {w:"regress to", m:"~로 퇴행하다, 되돌아가다"},
+        {w:"biological", m:"생물학적인, 본능적인"},
+        {w:"tendency", m:"경향, 성향"},
+        {w:"reaffirm", m:"재확인하다, 다시 공고히 하다"}
+      ],
+      "2-2509-37": [
+        {w:"once", m:"일단 ~하면"},
+        {w:"hammer in", m:"망치로 박다"},
+        {w:"friction", m:"마찰력"},
+        {w:"hold in place", m:"~을 제자리에 고정하다"},
+        {w:"arise", m:"발생하다, 생겨나다"},
+        {w:"surface", m:"표면"},
+        {w:"slide", m:"미끄러지다"},
+        {w:"against", m:"~에 맞대어"},
+        {w:"pull apart", m:"(잡아당겨) 떼어내다"},
+        {w:"nail together", m:"못을 박아 연결하다"},
+        {w:"fiber", m:"섬유, 결"},
+        {w:"grip", m:"꽉 잡다, 움켜쥐다"},
+        {w:"shaft", m:"(못·연장 등의) 길쭉한 몸통 부분"},
+        {w:"rip apart", m:"찢어발기다"},
+        {w:"along its length", m:"길이를 따라"},
+        {w:"tension", m:"장력"},
+        {w:"experiment", m:"실험"},
+        {w:"stretch", m:"(길이가) 늘어나다"},
+        {w:"split in half", m:"반으로 쪼개지다"},
+        {w:"come loose", m:"느슨해지다, 풀리다"},
+        {w:"overcome", m:"극복하다"},
+        {w:"take + 힘/시간 + to V", m:"~하는 데 (힘이나 시간 등이) 들다"},
+        {w:"the former", m:"전자"},
+        {w:"concern oneself with", m:"~에 신경을 쓰다"}
+      ],
+      "2-2509-38": [
+        {w:"traditional", m:"전통적인, 기존의"},
+        {w:"respected", m:"존경받는"},
+        {w:"pillar of the community", m:"지역 사회의 기둥"},
+        {w:"cautious", m:"신중한, 조심스러운"},
+        {w:"sort of", m:"일종의"},
+        {w:"banker", m:"은행가, 은행 임원"},
+        {w:"appear", m:"나타나다, 등장하다"},
+        {w:"loud", m:"요란한"},
+        {w:"flashy", m:"호화로운"},
+        {w:"arrogant", m:"오만한, 거만한"},
+        {w:"take a risk", m:"위험을 무릅쓰다"},
+        {w:"get rich quick", m:"일확천금을 노리다"},
+        {w:"blow money on", m:"~에 돈을 탕진하다"},
+        {w:"champagne", m:"샴페인"},
+        {w:"speculation", m:"투기"},
+        {w:"wheat", m:"밀"},
+        {w:"petrol", m:"휘발유, 가솔린"},
+        {w:"run a car", m:"차를 운행하다"},
+        {w:"speculate", m:"투기하다"},
+        {w:"have no interest in", m:"~에 아무런 관심이 없다"},
+        {w:"a load of", m:"많은, 다량의"},
+        {w:"simply", m:"단지, 그저"},
+        {w:"rise", m:"(가격·치수 등이) 오르다, 상승하다"},
+        {w:"drought", m:"가뭄"},
+        {w:"predict", m:"예측하다, 예보하다"},
+        {w:"wheat-growing area", m:"밀 재배 지역"},
+        {w:"guess", m:"추측, 예상"},
+        {w:"for a profit", m:"이윤을 남기고, 이익을 보고"}
+      ],
+      "2-2509-39": [
+        {w:"mechanical property", m:"기계적 특성"},
+        {w:"lend oneself to", m:"~에 적합하다"},
+        {w:"cellulose fiber", m:"셀룰로오스 섬유"},
+        {w:"partially", m:"부분적으로"},
+        {w:"snap", m:"뚝 끊어지다"},
+        {w:"maximum", m:"최대의, 최고의"},
+        {w:"bend", m:"구부러짐, 꺾인 부위"},
+        {w:"allow O to V", m:"O가 V할 수 있게 하다"},
+        {w:"permanent", m:"영구적인"},
+        {w:"crease", m:"접힌 자국, 주름"},
+        {w:"sufficient", m:"충분한"},
+        {w:"undamaged", m:"손상되지 않은"},
+        {w:"material", m:"재료, 물질"},
+        {w:"crack", m:"금이 가다, 깨지다"},
+        {w:"fall apart", m:"산산조각 나다, 떨어져 나가다"},
+        {w:"indeed", m:"참으로, 실제로"},
+        {w:"pretty much", m:"거의, 사실상"},
+        {w:"maintain", m:"유지하다"},
+        {w:"resist", m:"버티다, 견뎌내다"},
+        {w:"be pulled apart", m:"양쪽으로 잡아당겨지다"},
+        {w:"tear", m:"찢다 (본문 torn은 과거분사)"},
+        {w:"accurately", m:"정확하게"},
+        {w:"along", m:"~을 따라"},
+        {w:"point of weakness", m:"약한 부위, 약점"},
+        {w:"initial", m:"초기의, 시작의"},
+        {w:"open up", m:"(구멍·균열 등이) 생겨나다, 벌어지다"},
+        {w:"winning combination", m:"최상의 결합"},
+        {w:"assume", m:"(특정한 형태·양상을) 띠다, 취하다"},
+        {w:"hence", m:"그렇기 때문에"},
+        {w:"origami", m:"종이접기 (예술)"},
+        {w:"metal foil", m:"금속 박, 호일"},
+        {w:"somewhat", m:"어느 정도, 약간"},
+        {w:"sheeting", m:"얇은 판[막] 형태의 재료"},
+        {w:"tend to V", m:"~하는 경향이 있다, ~하기 쉽다"},
+        {w:"unless", m:"~하지 않는 한"},
+        {w:"in which case", m:"그러한 경우에는"},
+        {w:"lack", m:"결여되다, 부족하다"},
+        {w:"rigidity", m:"단단함, 강성"},
+        {w:"wrapping material", m:"포장재, 포장 용품"},
+        {w:"stiff", m:"뻣뻣한, 꼿꼿한"},
+        {w:"uniquely", m:"독보적으로, 유달리"},
+        {w:"be suited to", m:"~에 적합하다"}
+      ],
+      "2-2509-40": [
+        {w:"tell", m:"구별하다, 알아채다"},
+        {w:"belong to", m:"~에 속하다"},
+        {w:"litter", m:"한 배에서 태어난 새끼들"},
+        {w:"mix up", m:"섞이다, 뒤엉키다"},
+        {w:"scent", m:"냄새, 향기"},
+        {w:"distinguish A from B", m:"A와 B를 구별하다"},
+        {w:"offspring", m:"자식, 새끼"},
+        {w:"despite", m:"~에도 불구하고"},
+        {w:"be faced with", m:"~에 직면하다, ~을 맞닥뜨리다"},
+        {w:"selection", m:"(선택 대상이 되는) 무리, 집합"},
+        {w:"wander", m:"(제자리를 벗어나) 헤매다, 거닐다"},
+        {w:"nest", m:"둥지, 보금자리"},
+        {w:"appear to V", m:"~하는 것으로 보이다"},
+        {w:"favor", m:"편애하다, 더 좋아하다"},
+        {w:"retrieve", m:"데려오다, 되찾아 오다"},
+        {w:"uncertain", m:"불확실한, 불분명한"},
+        {w:"distress", m:"(극심한) 고통, 곤경"},
+        {w:"vocalization", m:"발성, 울음소리"},
+        {w:"powerful", m:"강력한, 영향력이 큰"},
+        {w:"resist", m:"참다, 견디다"},
+        {w:"regardless of", m:"~에 상관없이"},
+        {w:"in the wild", m:"야생에서"},
+        {w:"squeaking", m:"끽끽거리는"},
+        {w:"out in the open", m:"(넓은) 야외에, 노출된 곳에"},
+        {w:"be likely to V", m:"~할 가능성이 높다, ~하기 쉽다"},
+        {w:"attract", m:"끌어들이다, 유인하다"},
+        {w:"predator", m:"포식자, 천적"},
+        {w:"rapid", m:"신속한, 빠른"},
+        {w:"rescue", m:"구조, 구출"},
+        {w:"strategy", m:"전략, 방안"},
+        {w:"prevent A from -ing", m:"A가 ~하는 것을 막다"},
+        {w:"draw attention", m:"관심을 끌다, 주의를 끌다"},
+        {w:"unwanted", m:"원치 않는, 불필요한"}
+      ],
+      "2-2510-20": [
+        {w:"healthcare", m:"보건 의료 분야"},
+        {w:"solid", m:"견고한, 확실한"},
+        {w:"professional", m:"전문적인, 직업상의"},
+        {w:"patient", m:"환자"},
+        {w:"develop", m:"형성하다, 발전시키다"},
+        {w:"establish", m:"(기준·경계 등을) 설정하다, 구축하다"},
+        {w:"realistic", m:"현실적인"},
+        {w:"self-boundary", m:"자기 경계"},
+        {w:"protect", m:"보호하다, 지키다"},
+        {w:"keep the focus on", m:"~에 초점[중점]을 두다"},
+        {w:"frequently", m:"자주, 빈번하게"},
+        {w:"think of A as B", m:"A를 B로 생각하다"},
+        {w:"be likely to V", m:"~하기 쉽다, ~할 가능성이 높다"},
+        {w:"share", m:"(정보 등을) 나누다, 이야기하다"},
+        {w:"personal", m:"사적인, 개인적인"},
+        {w:"appropriate", m:"적절한, 알맞은"},
+        {w:"health-related", m:"건강과 관련된"},
+        {w:"embarrassing", m:"당황스러운, 부끄러운"},
+        {w:"be thought of as", m:"~로 여겨지다"},
+        {w:"professional boundary", m:"전문적 경계"},
+        {w:"treat", m:"대하다, 다루다"},
+        {w:"respect", m:"존중, 예의"},
+        {w:"friendly", m:"친절한, 다정한"}
+      ],
+      "2-2510-21": [
+        {w:"coat A in B", m:"A에 B를 묻히다"},
+        {w:"swab", m:"솜방망이, 면봉"},
+        {w:"spot", m:"부위, 자리"},
+        {w:"record", m:"기록하다"},
+        {w:"gargle", m:"(입을) 헹구다"},
+        {w:"thoroughly", m:"깨끗이, 완전히"},
+        {w:"swab with", m:"~을 면봉으로 바르다"},
+        {w:"reaction", m:"반응"},
+        {w:"reveal", m:"드러내다, 밝히다"},
+        {w:"preference", m:"선호, 취향"},
+        {w:"suggest", m:"시사하다, 암시하다"},
+        {w:"link", m:"관련성, 연관 관계"},
+        {w:"taster status", m:"미각 상태"},
+        {w:"behavioral disorder", m:"행동 장애"},
+        {w:"non-taster", m:"미각 둔감자"},
+        {w:"tend to V", m:"~하는 경향이 있다"},
+        {w:"incidence", m:"발생률, 빈도"},
+        {w:"alcoholism", m:"알코올 중독"},
+        {w:"liquor", m:"독주, 독한 술"},
+        {w:"bitter", m:"쓴, 쓴맛이 나는"},
+        {w:"conversely", m:"반대로, 역으로"},
+        {w:"super-taster", m:"미각 민감자"},
+        {w:"nutritious", m:"영양가 높은"},
+        {w:"mildly", m:"약간, 가볍게"},
+        {w:"deprive A of B", m:"A에게서 B를 박탈하다[빼앗다]"},
+        {w:"balanced diet", m:"균형 잡힌 식단"},
+        {w:"not nearly as ~ as ...", m:"...만큼 전혀 ~하지 않은"},
+        {w:"glamorous", m:"화려한"},
+        {w:"make sense", m:"타당하다"},
+        {w:"pay attention to", m:"~에 주의를 기울이다"},
+        {w:"sensitivity", m:"민감성, 감도"},
+        {w:"shape", m:"형성하다, 결정짓다"},
+        {w:"dietary", m:"식습관의, 음식의"}
+      ],
+      "2-2510-22": [
+        {w:"testify to", m:"~을 증명하다, ~을 입증하다"},
+        {w:"embrace", m:"수용, 포용"},
+        {w:"ignorance", m:"무지, 모름"},
+        {w:"arguably", m:"단언컨대, 주장하건대"},
+        {w:"suppose", m:"추정하다, 가정하다"},
+        {w:"given", m:"특정한, 정해진"},
+        {w:"scenario", m:"상황, 조건"},
+        {w:"bother to V", m:"굳이 ~하다"},
+        {w:"rise", m:"부상, 대두, 등장"},
+        {w:"experimental philosophy", m:"실험 철학"},
+        {w:"coincide with", m:"~와 동시에 일어나다"},
+        {w:"liberation", m:"해방, 풀려남"},
+        {w:"curiosity", m:"호기심"},
+        {w:"valuable", m:"가치 있는, 귀중한"},
+        {w:"rather than", m:"~라기보다는"},
+        {w:"questionable", m:"의심스러운, 가치가 의문시되는"},
+        {w:"attribute", m:"특성, 자질"},
+        {w:"for all that", m:"~에도 불구하고"},
+        {w:"be assumed to V", m:"~하는 것으로 전제되다[여겨지다]"},
+        {w:"support", m:"뒷받침하다, 지지하다"},
+        {w:"philosophical framework", m:"철학적 틀, 학문적 기반 체계"},
+        {w:"approved", m:"승인된, 공인된"},
+        {w:"methodology", m:"방법론"},
+        {w:"state", m:"(명확히) 밝히다"},
+        {w:"hypothesis", m:"가설"},
+        {w:"conduct", m:"(실험·조사를) 수행하다, 실시하다"},
+        {w:"out of curiosity", m:"호기심에서, 궁금하여"},
+        {w:"in the view of", m:"~의 견해로는"},
+        {w:"astronomer", m:"천문학자"},
+        {w:"once in a while", m:"가끔, 어쩌다가 한 번"},
+        {w:"prove", m:"~임이 드러나다"},
+        {w:"fruitless", m:"결실 없는, 성과가 없는"}
+      ],
+      "2-2510-23": [
+        {w:"discard", m:"버리다, 폐기하다"},
+        {w:"replace", m:"대체하다, 교체하다"},
+        {w:"scientific theory", m:"과학 이론"},
+        {w:"evidence", m:"증거"},
+        {w:"support", m:"뒷받침하다, 지지하다"},
+        {w:"offer", m:"제시하다, 제공하다"},
+        {w:"vast", m:"방대한, 엄청난"},
+        {w:"body", m:"집합체, 거대한 양"},
+        {w:"gravity", m:"중력"},
+        {w:"late", m:"후반의, 말기의"},
+        {w:"prediction", m:"예측, 예견"},
+        {w:"match", m:"부합하다, 일치하다"},
+        {w:"observation", m:"관측 (결과), 관찰"},
+        {w:"discrepancy", m:"불일치, 차이"},
+        {w:"develop", m:"(이론을) 수립하다, 발전시키다"},
+        {w:"general theory of relativity", m:"일반 상대성 이론"},
+        {w:"still", m:"그럼에도 불구하고"},
+        {w:"ignore", m:"무시하다, 도외시하다"},
+        {w:"gain acceptance", m:"인정[수용]을 받다, 받아들여지다"},
+        {w:"equally", m:"동등하게, 똑같이"},
+        {w:"view A as B", m:"A를 B로 보다[여기다]"},
+        {w:"broader", m:"더 넓은, 더 포괄적인"},
+        {w:"seek", m:"찾다, 추구하다"},
+        {w:"go beyond", m:"~을 넘어서다, 초월하다"},
+        {w:"as well as", m:"~뿐만 아니라"},
+        {w:"work", m:"(이론 등이) 적용되다, 효력을 발휘하다"},
+        {w:"realm", m:"영역, 범위"}
+      ],
+      "2-2510-24": [
+        {w:"pause", m:"멈추다, 잠시 쉬다"},
+        {w:"in the middle of", m:"~의 한가운데, 한창 ~할 때"},
+        {w:"take a moment", m:"잠시 시간을 내다"},
+        {w:"refresh", m:"(기분·정신을) 상쾌하게 하다, 새롭게 하다"},
+        {w:"recharge", m:"재충전하다"},
+        {w:"midday", m:"정오의, 한낮의"},
+        {w:"underestimate", m:"과소평가하다"},
+        {w:"break away from", m:"~에서 벗어나다"},
+        {w:"routine", m:"일상, 늘 하는 일"},
+        {w:"be designed to V", m:"~하도록 설계되다[의도되다]"},
+        {w:"stimulate", m:"자극하다, 활성화하다"},
+        {w:"cognitive", m:"인지의, 사고의"},
+        {w:"tiredness", m:"피로, 피곤함"},
+        {w:"enhance", m:"향상시키다, 높이다"},
+        {w:"productivity", m:"생산성"},
+        {w:"the rest of", m:"~의 나머지"},
+        {w:"Neurobic", m:"뉴로빅, 뇌 신경 운동"},
+        {w:"effective", m:"효과적인"},
+        {w:"target", m:"겨냥하다"},
+        {w:"agile", m:"민첩한, 명석한"},
+        {w:"alert", m:"기민한"},
+        {w:"oasis", m:"오아시스, 안식처"},
+        {w:"prepare A for B", m:"A에게 B를 대비시키다"},
+        {w:"challenge", m:"난관, 도전 과제"},
+        {w:"strategic", m:"전략적인"},
+        {w:"boost", m:"증진시키다, 북돋우다"},
+        {w:"capability", m:"능력, 역량"},
+        {w:"ensure", m:"보장하다"},
+        {w:"remain", m:"유지되다, ~한 상태로 남아있다"},
+        {w:"sharp", m:"날카로운, 명확한"},
+        {w:"briefly", m:"잠시, 짧게"},
+        {w:"experiment with", m:"~을 시도해 보다"},
+        {w:"work wonders", m:"기적 같은 효과를 내다"},
+        {w:"non-dominant", m:"주사용 손이 아닌, 자주 쓰지 않는"},
+        {w:"task", m:"과업, 일, 작업"},
+        {w:"switch", m:"전환, 바꾸기"},
+        {w:"challenge", m:"자극하다"},
+        {w:"activate", m:"활성화하다"},
+        {w:"pathway", m:"(신경) 회로, 경로"},
+        {w:"typically", m:"일반적으로, 평소에"},
+        {w:"be engaged", m:"(신경 회로 등이) 가동되다"},
+        {w:"promote", m:"촉진하다, 자극하다"},
+        {w:"flexibility", m:"유연성, 융통성"}
+      ],
+      "2-2510-29": [
+        {w:"cell", m:"세포"},
+        {w:"divide", m:"분열하다"},
+        {w:"genome", m:"유전체[게놈]"},
+        {w:"daughter (cell)", m:"딸세포"},
+        {w:"identical", m:"동일한, 똑같은"},
+        {w:"parent cell", m:"모세포"},
+        {w:"on rare occasions", m:"드물게, 어쩌다 가끔"},
+        {w:"represent", m:"나타내다, 의미하다"},
+        {w:"prospect", m:"전망, 가능성"},
+        {w:"disrupt", m:"(구조·과정을) 교란하다, 방해하다"},
+        {w:"coding sequence", m:"암호화 서열[배열]"},
+        {w:"perpetuate", m:"영속시키다, 계속 지속되게 하다"},
+        {w:"altered", m:"(유전적으로) 변형된, 바뀐"},
+        {w:"likelihood", m:"가능성, 확률"},
+        {w:"reproduce", m:"복제하다, 번식하다"},
+        {w:"neutral", m:"중립적인"},
+        {w:"a matter of chance", m:"운[우연]에 달린 일"},
+        {w:"cousin", m:"사촌"},
+        {w:"lead nowhere", m:"아무런 성과[결과]를 내지 못하다"},
+        {w:"suffer", m:"(손상이나 피해를) 입다, 겪다"},
+        {w:"progeny", m:"자손, 후손"},
+        {w:"mutation", m:"돌연변이"},
+        {w:"natural selection", m:"자연선택"},
+        {w:"organism", m:"유기체, 생물체"},
+        {w:"evolve", m:"진화하다"},
+        {w:"genetic specification", m:"유전적 명세[특성]"},
+        {w:"exploit", m:"(자원이나 환경을) 효과적으로 이용하다[활용하다]"}
+      ],
+      "2-2510-30": [
+        {w:"liberal", m:"자유주의의"},
+        {w:"fair equality of opportunity", m:"공정한 기회의 균등"},
+        {w:"outweigh", m:"~보다 더 크다[중요하다]"},
+        {w:"preservation", m:"보존, 유지"},
+        {w:"integrity", m:"온전함, 완전성"},
+        {w:"in contrast", m:"대조적으로"},
+        {w:"Confucian", m:"유교의"},
+        {w:"assume", m:"(역할·책임을) 맡다, 띠다"},
+        {w:"fundamental", m:"근본적인"},
+        {w:"flourishing", m:"번영, 만개"},
+        {w:"institution", m:"제도, 체계"},
+        {w:"essential", m:"본질적인, 필수적인"},
+        {w:"primarily", m:"주로, 우선적으로"},
+        {w:"be regarded as", m:"~로 여겨지다[간주되다]"},
+        {w:"Confucian", m:"유학자, 유교를 따르는 사람"},
+        {w:"possess", m:"지니다, 소유하다"},
+        {w:"inherent", m:"내재적인, 고유한"},
+        {w:"abandon", m:"포기하다, 버리다"},
+        {w:"result in", m:"~라는 결과를 낳다[야기하다]"},
+        {w:"societal", m:"사회의"},
+        {w:"inequality", m:"불평등"},
+        {w:"impose", m:"(제한·의무 등을) 가하다, 부과하다"},
+        {w:"restriction", m:"제한, 규제"},
+        {w:"implement", m:"(정책·계획 등을) 실행하다, 시행하다"},
+        {w:"egalitarian", m:"평등주의의"},
+        {w:"positive right", m:"적극적 권리"},
+        {w:"in the pursuit of", m:"~을 추구하여[추구함에 있어]"},
+        {w:"on the other hand", m:"반면에"},
+        {w:"assign", m:"(역할·책임을) 부여하다, 맡기다"},
+        {w:"welfare", m:"복지"},
+        {w:"tolerate", m:"용인하다, 참다"},
+        {w:"stem from", m:"~에서 유래하다, ~로부터 비롯되다"},
+        {w:"as long as", m:"~하는 한"},
+        {w:"safeguard", m:"보호하다, 지키다"}
+      ],
+      "2-2510-31": [
+        {w:"statistics", m:"통계(학)"},
+        {w:"systematic", m:"체계적인"},
+        {w:"collection", m:"수집"},
+        {w:"quantitative", m:"양적인, 수량적인"},
+        {w:"state", m:"국가"},
+        {w:"occur", m:"발생하다, 일어나다"},
+        {w:"industrialised country", m:"선진국, 공업국"},
+        {w:"simultaneously", m:"동시에"},
+        {w:"measure", m:"측정하다"},
+        {w:"convention", m:"약속, 관습"},
+        {w:"this is the case", m:"실제로 그러하다"},
+        {w:"phenomenon", m:"현상 (복수형 phenomena)"},
+        {w:"charge", m:"(요금을) 부과하다[청구하다]"},
+        {w:"category", m:"범주"},
+        {w:"classification", m:"분류"},
+        {w:"framework", m:"체계, 틀"},
+        {w:"aggregation", m:"집계, 합산"},
+        {w:"official statistics", m:"공식 통계"},
+        {w:"devise", m:"고안하다"},
+        {w:"serve", m:"(목적에) 부합하다, 이바지하다"},
+        {w:"macroeconomic", m:"거시 경제의"},
+        {w:"policy", m:"정책"},
+        {w:"authority", m:"권위, 권한"},
+        {w:"quantification", m:"정량화, 수량화"},
+        {w:"characterise", m:"~을 특징짓다[규정하다]"},
+        {w:"social technology", m:"사회적 기술"},
+        {w:"intended to", m:"~하도록 의도된"}
+      ],
+      "2-2510-32": [
+        {w:"expert", m:"전문가"},
+        {w:"be aware of", m:"~을 알고 있다[인식하다]"},
+        {w:"chemistry", m:"화학적 원리[성분]"},
+        {w:"underlie", m:"~의 바탕이 되다[기초를 이루다]"},
+        {w:"quality", m:"특성, 성질"},
+        {w:"perspective", m:"관점, 시각"},
+        {w:"potentially", m:"잠재적으로"},
+        {w:"enhance", m:"향상시키다, 높이다"},
+        {w:"aspect", m:"측면, 양상"},
+        {w:"microorganism", m:"미생물"},
+        {w:"depth", m:"깊이, 심도"},
+        {w:"expertise", m:"전문 지식"},
+        {w:"tend to", m:"~하는 경향이 있다"},
+        {w:"in silos", m:"서로 고립되어, 독립적으로"},
+        {w:"section", m:"구분하다, 나누다"},
+        {w:"specialized", m:"전문화된, 특화된"},
+        {w:"vocabulary", m:"용어, 어휘"},
+        {w:"research community", m:"연구 단체[학계]"},
+        {w:"be dedicated to", m:"~에 전념하다[매진하다]"},
+        {w:"component", m:"구성 요소"},
+        {w:"specialist topic", m:"전문 분야[주제]"},
+        {w:"rarely", m:"좀처럼 ~하지 않는"},
+        {w:"as a whole", m:"전체로서, 통틀어"},
+        {w:"evidently", m:"분명히, 명백히"},
+        {w:"complex", m:"복잡한"},
+        {w:"comment", m:"언급하다, 의견을 밝히다"},
+        {w:"vast", m:"방대한, 엄청난"},
+        {w:"manageable", m:"관리[감당]할 수 있는"}
+      ],
+      "교과서 2-1": [
+        {w:"domain", m:"영역, 분야"},
+        {w:"reserve", m:"따로 떼어 두다, 지정하다"},
+        {w:"exclusively", m:"오로지, 전적으로"},
+        {w:"conduct", m:"(실험·조사 등을) 실시하다, 수행하다"},
+        {w:"experiment", m:"실험"},
+        {w:"analyze", m:"분석하다"},
+        {w:"have in common with", m:"~와 공통점을 가지다"},
+        {w:"ordinary", m:"평범한, 일반적인"},
+        {w:"perception", m:"인식, 견해"},
+        {w:"far from", m:"전혀 ~이 아닌"},
+        {w:"in reality", m:"실제로, 사실은"},
+        {w:"belong to", m:"~에 속하다"},
+        {w:"play a role in", m:"~에서 역할을 하다"},
+        {w:"advancement", m:"발전, 진보"},
+        {w:"numerous", m:"수많은, 다수의"},
+        {w:"citizen science", m:"시민 과학"},
+        {w:"contribution", m:"기여, 공헌"},
+        {w:"make a contribution to", m:"~에 기여하다"},
+        {w:"remarkable", m:"놀라운, 주목할 만한"},
+        {w:"accomplishment", m:"성취, 업적"}
+      ],
+      "교과서 2-2": [
+        {w:"astronomy", m:"천문학"},
+        {w:"researcher", m:"연구원[자]"},
+        {w:"evolution", m:"진화"},
+        {w:"galaxy", m:"은하"},
+        {w:"sound", m:"~처럼 들리다[느껴지다]"},
+        {w:"dull", m:"따분한[지루한]"},
+        {w:"time-consuming", m:"시간이 많이 걸리는"},
+        {w:"classify", m:"분류하다"},
+        {w:"around", m:"대략[약]"},
+        {w:"according to", m:"~에 따라"},
+        {w:"shape", m:"모양[형태]"},
+        {w:"since", m:"~때문에"},
+        {w:"similar", m:"비슷한[유사한]"},
+        {w:"actually", m:"실제로는[사실상]"},
+        {w:"slightly", m:"약간[조금]"},
+        {w:"sort", m:"분류하다[구분하다]"},
+        {w:"individually", m:"개별적으로[하나하나]"},
+        {w:"require", m:"필요로 하다[요구하다]"},
+        {w:"tremendous", m:"엄청난[대단한]"},
+        {w:"amount", m:"양"},
+        {w:"whole", m:"전체의[온전한]"},
+        {w:"remaining", m:"남아 있는"}
+      ],
+      "교과서 2-3": [
+        {w:"complain about", m:"~에 대해 불평[하소연]하다"},
+        {w:"situation", m:"상황[처지]"},
+        {w:"suggest", m:"제안하다"},
+        {w:"turn to", m:"~에 의지하다[도움을 청하다]"},
+        {w:"eventually", m:"결국[마침내]"},
+        {w:"end up -ing", m:"결국 ~하게 되다"},
+        {w:"launch", m:"시작[출시/착수]하다"},
+        {w:"crowdsourced", m:"대중 참여의[크라우드소싱된]"},
+        {w:"as ~ as possible", m:"가능한 한 ~하게"},
+        {w:"interface", m:"인터페이스[사용자 조작 환경]"},
+        {w:"allow A to-v", m:"A가 ~할 수 있게 하다"},
+        {w:"those who", m:"~하는 사람들"},
+        {w:"participate", m:"참여[참가]하다"},
+        {w:"greet", m:"맞이하다[환영하다]"},
+        {w:"brief", m:"간단한[짧은]"},
+        {w:"tutorial", m:"사용 안내서[설명서]"},
+        {w:"describe", m:"묘사[설명]하다"},
+        {w:"feature", m:"특징[특성]"},
+        {w:"smooth", m:"매끄러운[완만한]"},
+        {w:"rounded", m:"둥그스름한[원형의]"},
+        {w:"shape", m:"형태[모양]"},
+        {w:"oval", m:"타원형[타원의]"},
+        {w:"spiral", m:"나선형[나선의]"},
+        {w:"completion", m:"완료[완성]"},
+        {w:"participant", m:"참가자"},
+        {w:"classify", m:"분류하다"},
+        {w:"effectively", m:"효과적으로"}
+      ],
+      "교과서 2-4": [
+        {w:"media", m:"매체[미디어]"},
+        {w:"spread the word", m:"말을 퍼뜨리다[소식을 알리다]"},
+        {w:"participant", m:"참가자[참여자]"},
+        {w:"shortly after", m:"~한 직후에[얼마 지나지 않아]"},
+        {w:"launch", m:"시작[출시]하다"},
+        {w:"nearly", m:"거의"},
+        {w:"classification", m:"분류 (작업)"},
+        {w:"per", m:"~당[마다]"},
+        {w:"individual", m:"개인[사람]"},
+        {w:"participate", m:"참여[참가]하다"},
+        {w:"If it had not been for ~", m:"~이 없었더라면"},
+        {w:"decade", m:"10년 (decades 수십 년)"},
+        {w:"on one's own", m:"혼자서[스스로]"},
+        {w:"pass", m:"(시간이) 지나다[흐르다]"},
+        {w:"grow into", m:"~로 성장[확장]하다"},
+        {w:"ordinary", m:"평범한[일반적인]"},
+        {w:"active", m:"활발한[활동적인]"},
+        {w:"than ever before", m:"그 어느 때보다"},
+        {w:"registered", m:"등록된[가입된]"},
+        {w:"worldwide", m:"전 세계적인[전 세계에]"},
+        {w:"offer", m:"제공하다"},
+        {w:"a wide range of", m:"다양한[광범위한]"},
+        {w:"astronomy", m:"천문학"},
+        {w:"biology", m:"생물학"},
+        {w:"physics", m:"물리학"},
+        {w:"and more", m:"그 밖의 많은 것[기타 등등]"},
+        {w:"get involved", m:"참여[관여]하다"},
+        {w:"definitely", m:"분명히[꼭/반드시]"},
+        {w:"check out", m:"살펴보다[확인하다]"}
+      ],
+      "교과서 2-5": [
+        {w:"chase", m:"쫓다[추적하다]"},
+        {w:"form", m:"결성하다[형성하다]"},
+        {w:"informal", m:"비공식적인[자율적인]"},
+        {w:"would", m:"~하곤 했다"},
+        {w:"exceptional", m:"뛰어난[이례적인/특별한]"},
+        {w:"the rest of", m:"~의 나머지"},
+        {w:"notice", m:"알아차리다[눈치채다]"},
+        {w:"appear", m:"나타나다[보이다]"},
+        {w:"unusual", m:"특이한[흔치 않은]"},
+        {w:"ribbon", m:"(빛의) 띠[줄기]"},
+        {w:"stretch", m:"뻗어 있다[이어지다]"},
+        {w:"thousands of", m:"수천의"},
+        {w:"last", m:"지속되다"},
+        {w:"while", m:"반면에"},
+        {w:"remain", m:"머무르다[남아 있다]"},
+        {w:"a whole", m:"온전한[내내]"},
+        {w:"in appearance", m:"겉모습이[외관상]"},
+        {w:"possess", m:"지니다[가지고 있다]"},
+        {w:"notably", m:"눈에 띄게[현저하게]"},
+        {w:"feature", m:"특징[특성]"},
+        {w:"unsure of", m:"~을 잘 모르는[확신하지 못하는]"},
+        {w:"phenomenon", m:"현상"},
+        {w:"based on", m:"~에 바탕을 두고[기반하여]"},
+        {w:"animated movie", m:"애니메이션 영화"},
+        {w:"unfamiliar", m:"낯선[생소한]"},
+        {w:"object", m:"물체[대상]"}
+      ],
+      "교과서 2-6": [
+        {w:"photograph", m:"사진을 찍다[촬영하다]"},
+        {w:"several", m:"몇몇의[여러]"},
+        {w:"discuss", m:"논의[상의]하다"},
+        {w:"expert", m:"전문가"},
+        {w:"astronomy", m:"천문학"},
+        {w:"local", m:"지역의[현지의]"},
+        {w:"surprisingly", m:"놀랍게도"},
+        {w:"neither", m:"(둘 중) 어느 쪽도 ~않다"},
+        {w:"have no idea", m:"전혀 알지 못하다[모르다]"},
+        {w:"confirm", m:"확인하다[확증하다]"},
+        {w:"resemble", m:"닮다[유사하다]"},
+        {w:"realize", m:"깨닫다[알아차리다]"},
+        {w:"discover", m:"발견하다"},
+        {w:"phenomenon", m:"현상"},
+        {w:"properly", m:"제대로[올바르게]"},
+        {w:"in order to", m:"~하기 위해서"},
+        {w:"fund", m:"자금[재정]을 지원하다"},
+        {w:"citizen science", m:"시민 과학"},
+        {w:"involve", m:"참여시키다[수반하다]"},
+        {w:"the public", m:"일반 대중[일반인들]"},
+        {w:"ordinary", m:"평범한[일반적인]"},
+        {w:"gather", m:"모으다[수집하다]"},
+        {w:"in progress", m:"진행 중인"}
+      ],
+      "교과서 2-7": [
+        {w:"in honor of", m:"~을 기려[경의를 표하여]"},
+        {w:"phenomenon", m:"현상"},
+        {w:"capital letter", m:"대문자"},
+        {w:"stand for", m:"~을 나타내다[의미하다]"},
+        {w:"thermal", m:"열의"},
+        {w:"emission", m:"방출"},
+        {w:"velocity", m:"속도"},
+        {w:"enhancement", m:"증가[강화]"},
+        {w:"acknowledge", m:"인정하다"},
+        {w:"dedicated", m:"헌신적인[열성적인]"},
+        {w:"deserve", m:"~을 받을 만하다[자격이 있다]"},
+        {w:"credit", m:"공로[인정]"},
+        {w:"If it had not been for ~", m:"~이 없었더라면"},
+        {w:"remain", m:"~한 상태로 남아 있다"},
+        {w:"unnoticed", m:"눈에 띄지 않는[주목받지 못한]"},
+        {w:"theory", m:"이론[가설]"},
+        {w:"prove", m:"입증하다[증명하다]"},
+        {w:"for certain", m:"확실히[분명히]"},
+        {w:"collaborate", m:"협력[협동]하다"},
+        {w:"mystery", m:"미스터리[수수께끼]"},
+        {w:"individual", m:"개인[사람]"},
+        {w:"involved in", m:"~에 관련된[참여하는]"},
+        {w:"professional", m:"전문적인[직업적인]"},
+        {w:"citizen scientist", m:"시민 과학자"},
+        {w:"desire", m:"바라다[열망하다]"},
+        {w:"advance", m:"발전시키다[진보시키다]"},
+        {w:"degree", m:"학위"},
+        {w:"be capable of", m:"~할 능력이 있다[~할 수 있다]"},
+        {w:"valuable", m:"가치 있는[소중한]"},
+        {w:"contribution", m:"기여[공헌]"},
+        {w:"take part in", m:"~에 참여하다"},
+        {w:"achievement", m:"성취[업적]"},
+        {w:"volunteer", m:"(시간·노력을) 자발적으로 제공하다[바치다]"},
+        {w:"for the purpose of", m:"~을 목적으로[위해]"}
+      ]
+    }
+  }
+};
+
+/* ===================== 앱 로직 (수정 불필요) ===================== */
+
+// favorites: Set of "group|day|word"
+const favorites = new Set();
+// wrongStore: persistent wrong words across sessions, Set of word_id
+const wrongStore = new Set();
+// wrongOk: 틀린 단어를 한 번 맞힌 상태 (두 번 연속 맞히면 자동 제외, kind: wrong_ok)
+const wrongOk = new Set();
+// 주관식에서 "정답으로 인정된 답" — "그룹|DAY|단어|정규화답"
+const aliasOwn    = new Set();   // 이 학생이 스스로 인정한 답
+const aliasGlobal = new Set();   // 선생님이 모든 학생에게 인정해 준 답
+const aliasAsked  = new Set();   // 이번 접속에서 인정 요청을 보낸 답
+
+const student = { key:null, name:null };
+// 선생님이 승인해 모든 학생에게 적용되는 인정 답안이 저장되는 가상 계정
+const ALIAS_OWNER = "__ALIAS__";
+// AI가 인정해 모든 학생에게 공유되는 답안 (선생님이 admin 에서 지울 수 있음)
+const ALIAS_AI_OWNER = "__ALIAS_AI__";
+
+const state = {
+  group:null, scopeDays:null, scopeLabel:"", pick:new Set(),
+  pool:[], idx:0, flipped:false,
+  quiz:{order:[], i:0, score:0, wrong:[], answered:false},
+};
+
+const $ = id => document.getElementById(id);
+const screens = ["login","home","day","mode","flash","quiz","result","list"];
+function show(name){
+  screens.forEach(s=>$("screen-"+s).classList.toggle("hidden", s!==name));
+  buildCrumb(name);
+  window.scrollTo(0,0);
+}
+
+function buildCrumb(name){
+  const c=$("crumb"); c.innerHTML="";
+  const add=(txt,fn)=>{const b=document.createElement("button");b.textContent=txt;b.onclick=fn;c.appendChild(b);
+    const sep=document.createElement("span");sep.textContent="›";sep.style.color="var(--line)";c.appendChild(sep);};
+  if(name==="home"||name==="login")return;
+  add("홈",()=>show("home"));
+  if(state.group){
+    if(name==="day"){c.lastChild.remove();return;}
+    add(state.group,()=>openDayScreen(state.group));
+  }
+  if(["flash","quiz","result","list"].includes(name)){
+    add(state.scopeLabel||"학습",()=>show("mode"));
+  }
+  if(c.lastChild) c.lastChild.remove(); // drop trailing separator
+}
+
+/* 범위(챕터/DAY) 표시 이름 — 키가 숫자면 "DAY 3", 아니면 적은 그대로 */
+function unitName(group){ return (VOCAB_DATA[group]||{}).unit || "DAY"; }
+function dayLabel(group,key){
+  return /^\d+$/.test(String(key)) ? unitName(group)+" "+key : String(key);
+}
+function dayKeys(group){ return Object.keys(VOCAB_DATA[group].days); }  // 적은 순서 그대로
+
+function favKey(group,day,word){return group+"|"+day+"|"+word;}
+function isFav(item){return favorites.has(favKey(item.group,item.day,item.word||item.w));}
+
+// flatten a group's days into [{group,day,w,p,m,word}]
+function itemsForScope(group, days){
+  const g=VOCAB_DATA[group]; const out=[];
+  const keys = days==="ALL" ? Object.keys(g.days) : days;
+  keys.forEach(d=>{
+    (g.days[d]||[]).forEach(e=>out.push({group, day:d, w:e.w, p:e.p, m:e.m, alt:e.alt||"", word:e.w}));
+  });
+  return out;
+}
+function countGroup(group){
+  const g=VOCAB_DATA[group]; let n=0;
+  Object.values(g.days).forEach(arr=>n+=arr.length); return n;
+}
+
+/* ---------- HOME ---------- */
+function buildHome(){
+  const grid=$("gradeGrid"); grid.innerHTML="";
+  GROUPS.forEach(g=>{
+    const n=countGroup(g);
+    const card=document.createElement("button");
+    card.className="grade-card"+(n===0?" empty":"");
+    const dayCount=Object.keys(VOCAB_DATA[g].days).length;
+    const tag=(VOCAB_DATA[g].tag)||"단어장";
+    card.innerHTML=`<span class="g-eyebrow">${esc(tag)}</span>
+      <span class="g-name">${esc(g)}</span>
+      <span class="g-meta">${n>0?`단어 ${n}개 · ${dayCount}개 ${esc(unitName(g))}`:"단어 준비 중"}</span>`;
+    if(n>0) card.onclick=()=>openDayScreen(g);
+    grid.appendChild(card);
+  });
+}
+
+/* ---------- DAY screen ---------- */
+function openDayScreen(group){
+  state.group=group;
+  $("dayTitle").textContent=group+" · 범위 선택";
+  const uw=$("unitWord"); if(uw) uw.textContent=unitName(group);
+  const grid=$("dayGrid"); grid.innerHTML="";
+  const total=countGroup(group);
+
+  const all=document.createElement("button");
+  all.className="day-chip all";
+  all.innerHTML=`<div class="d-num">전체 학습</div><div class="d-count">${total}개 단어 · ${dayKeys(group).length}개 ${esc(unitName(group))}</div>`;
+  all.onclick=()=>setScope(group,"ALL","전체");
+  grid.appendChild(all);
+
+  state.pick=new Set();
+  dayKeys(group).forEach(d=>{
+    const arr=VOCAB_DATA[group].days[d];
+    const chip=document.createElement("button");
+    chip.className="day-chip";
+    chip.innerHTML=`<span class="d-tick">✓</span>
+      <div class="d-num">${esc(dayLabel(group,d))}</div><div class="d-count">${arr.length}개</div>`;
+    chip.onclick=()=>togglePick(group,d,chip);
+    grid.appendChild(chip);
+  });
+  renderPickBar(group);
+  show("day");
+}
+
+/* 여러 챕터를 골라 한 번에 공부·시험 */
+function togglePick(group,d,chip){
+  if(state.pick.has(d)) state.pick.delete(d); else state.pick.add(d);
+  chip.classList.toggle("on",state.pick.has(d));
+  renderPickBar(group);
+}
+function pickLabel(group){
+  const ks=dayKeys(group).filter(d=>state.pick.has(d));   // 화면 순서대로
+  if(ks.length===1) return dayLabel(group,ks[0]);
+  return `${dayLabel(group,ks[0])} 외 ${ks.length-1}개`;
+}
+function renderPickBar(group){
+  const bar=$("pickBar");
+  const ks=dayKeys(group).filter(d=>state.pick.has(d));
+  if(!ks.length){ bar.classList.add("hidden"); return; }
+  const n=ks.reduce((a,d)=>a+VOCAB_DATA[group].days[d].length,0);
+  $("pickTxt").textContent=`${esc(unitName(group))} ${ks.length}개 선택 · 단어 ${n}개`;
+  bar.classList.remove("hidden");
+}
+$("pickClear").onclick=()=>{
+  state.pick=new Set();
+  document.querySelectorAll("#dayGrid .day-chip.on").forEach(c=>c.classList.remove("on"));
+  renderPickBar(state.group);
+};
+$("pickGo").onclick=()=>{
+  const ks=dayKeys(state.group).filter(d=>state.pick.has(d));
+  if(!ks.length)return;
+  setScope(state.group, ks, pickLabel(state.group));
+};
+
+function setScope(group,days,label){
+  state.group=group;
+  state.scopeDays=days;
+  state.scopeLabel=label;
+  $("scopeLabel").textContent=`${group} · ${label}`;
+  // disable wrong-quiz if no stored wrongs for this scope yet
+  show("mode");
+}
+
+/* ---------- MODE buttons ---------- */
+document.querySelectorAll(".mode-btn").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    const mode=btn.dataset.mode;
+    if(mode==="flash") startFlash();
+    else if(mode==="quiz") startQuiz(itemsForScope(state.group,state.scopeDays),"choice");
+    else if(mode==="typequiz") startQuiz(itemsForScope(state.group,state.scopeDays),"type");
+    else if(mode==="list") openList("list");
+    else if(mode==="fav") openList("fav");
+    else if(mode==="wrongquiz") openList("wrong");
+  });
+});
+$("changeScope").onclick=()=>openDayScreen(state.group);
+
+/* ---------- FLASHCARD ---------- */
+function startFlash(){
+  state.pool=itemsForScope(state.group,state.scopeDays);
+  state.idx=0; state.flipped=false;
+  renderFlash(); show("flash");
+}
+function renderFlash(){
+  const it=state.pool[state.idx];
+  if(!it)return;
+  $("fcWord").textContent=it.w;
+  $("fcPos").textContent=it.p||"";
+  $("fcMean").textContent=it.m;
+  state.flipped=false;
+  $("fcInner").classList.remove("flipped");
+  const pct=((state.idx+1)/state.pool.length)*100;
+  $("flashBar").style.width=pct+"%";
+  $("flashCounter").textContent=`${state.idx+1} / ${state.pool.length}`;
+  $("flashPrev").disabled=state.idx===0;
+  $("flashNext").textContent=state.idx===state.pool.length-1?"처음으로":"다음 →";
+  updateFavStar();
+}
+function updateFavStar(){
+  const it=state.pool[state.idx]; const on=isFav(it);
+  $("favFront").classList.toggle("on",on);
+  $("favBack").classList.toggle("on",on);
+}
+$("fcInner").onclick=()=>{state.flipped=!state.flipped;$("fcInner").classList.toggle("flipped",state.flipped);};
+/* 즐겨찾기 넣고 빼기 — 플래시카드·퀴즈 공용 */
+function favToggleItem(it){
+  const k=favKey(it.group,it.day,it.w);
+  if(favorites.has(k)){favorites.delete(k); syncDelete("fav",k);}
+  else {favorites.add(k); syncUpsert("fav",it);}
+}
+function toggleFav(e){
+  e.stopPropagation();
+  favToggleItem(state.pool[state.idx]);
+  updateFavStar();
+}
+$("favFront").onclick=toggleFav;
+$("favBack").onclick=toggleFav;
+/* 퀴즈 화면의 별표 — 지금 풀고 있는 문제의 단어를 즐겨찾기에 넣고 뺀다 */
+function updateQuizFavStar(){
+  const q=state.quiz; if(!q) return;
+  $("favQuiz").classList.toggle("on", isFav(q.order[q.i]));
+}
+$("favQuiz").onclick=e=>{
+  e.stopPropagation();
+  const q=state.quiz; if(!q) return;
+  favToggleItem(q.order[q.i]);
+  updateQuizFavStar();
+};
+$("flashNext").onclick=()=>{state.idx=(state.idx+1)%state.pool.length;renderFlash();};
+$("flashPrev").onclick=()=>{if(state.idx>0){state.idx--;renderFlash();}};
+$("flashShuffle").onclick=()=>{shuffle(state.pool);state.idx=0;renderFlash();};
+
+/* =====================================================================
+   주관식 채점기 — 한국어 뜻 유사도 판정 (외부 API 불필요, 100% 브라우저)
+   1) 정규화  2) 어간 추출  3) 동의어 사전  4) 자모 편집거리/바이그램
+   ===================================================================== */
+
+/* ---- 한글 자모 분해 ---- */
+const HB=0xAC00;
+const CHO=["ㄱ","ㄲ","ㄴ","ㄷ","ㄸ","ㄹ","ㅁ","ㅂ","ㅃ","ㅅ","ㅆ","ㅇ","ㅈ","ㅉ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
+const JUNG=["ㅏ","ㅐ","ㅑ","ㅒ","ㅓ","ㅔ","ㅕ","ㅖ","ㅗ","ㅘ","ㅙ","ㅚ","ㅛ","ㅜ","ㅝ","ㅞ","ㅟ","ㅠ","ㅡ","ㅢ","ㅣ"];
+const JONG=["","ㄱ","ㄲ","ㄳ","ㄴ","ㄵ","ㄶ","ㄷ","ㄹ","ㄺ","ㄻ","ㄼ","ㄽ","ㄾ","ㄿ","ㅀ","ㅁ","ㅂ","ㅄ","ㅅ","ㅆ","ㅇ","ㅈ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
+function toJamo(s){
+  let out="";
+  for(const ch of String(s)){
+    const c=ch.charCodeAt(0)-HB;
+    if(c>=0&&c<11172) out+=CHO[Math.floor(c/588)]+JUNG[Math.floor((c%588)/28)]+JONG[c%28];
+    else out+=ch;
+  }
+  return out;
+}
+
+/* ---- 정규화 ---- */
+// 괄호주석·물결표 조사·기호·공백 제거
+function normKo(s){
+  return String(s||"")
+    .replace(/[（(\[【<{][^）)\]】>}]*[）)\]】>}]/g," ")   // (…) 안 주석 제거
+    .replace(/[~∼〜]\s*[을를이가에게와과로써의는은]*/g," ") // ~을/~를 자리표시 제거
+    .replace(/\b(무엇|누구|어떤것|어떤)\s*[을를이가에게]?/g," ")
+    .replace(/[^가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9]+/g,"")
+    .toLowerCase();
+}
+/* 뜻 문자열을 여러 개의 정답 후보로 분리.
+   괄호 안의 구분자로는 자르지 않는다 — "(화질·품질 등이) 좋지 않은" 을
+   그냥 자르면 "화질" 이 단독 정답이 되어 버린다(그건 quality 의 뜻이다). */
+function splitMeaning(m){
+  const src=String(m||"");
+  const out=[]; let buf="", depth=0;
+  for(const ch of src){
+    if("（([【<{".includes(ch)) depth++;
+    else if("）)]】>}".includes(ch)) depth=Math.max(0,depth-1);
+    else if(depth===0 && ",;/|·∙、‧".includes(ch)){ out.push(buf); buf=""; continue; }
+    buf+=ch;
+  }
+  out.push(buf);
+  return out.map(x=>x.trim()).filter(Boolean);
+}
+
+/* ---- 어간 후보 추출 ---- */
+const VERB_END=["하게하다","하게되다","되어지다","해지다","시키다","당하다","스러운","스럽게","스럽다","되었다","적으로","하는","되는","했다","됐다","하기","되기","하여","해서","적인","하다","되다","이다","롭다","로운","답다","다운","한다","한","된","인","함","됨","음","는","적","기","다"];
+const SHORT_END=["다","은","는","한","인","음","기","힘","임"];
+// 활용형 어미 (맞추어→맞추, 지키고→지키). 2글자 이상 남을 때만 자름
+const CONJ_END=["었다","았다","여서","어서","아서","어야","아야","어","아","여","고","며","면","게","지","려","러","자"];
+const PARTICLE=["으로","에게","에서","와","과","을","를","이","가","은","는","의","에","도","만","로"];
+function stripOnce(t,list,minLeft){
+  for(const suf of list){
+    if(t.length>suf.length && t.endsWith(suf) && t.length-suf.length>=minLeft) return t.slice(0,-suf.length);
+  }
+  return t;
+}
+// 명사형 어미(-ㅁ/-ㄴ/-ㄹ 받침) 제거: 버림 -> 버리, 넓음 -> 넓으
+function stripCoda(t){
+  if(t.length<2) return t;
+  const c=t.charCodeAt(t.length-1)-HB;
+  if(c<0||c>=11172) return t;
+  const jong=c%28;
+  if(jong!==16 && jong!==4 && jong!==8) return t; // ㅁ, ㄴ, ㄹ 만
+  return t.slice(0,-1)+String.fromCharCode(HB+(c-jong));
+}
+function stemSet(s){
+  const out=new Set();
+  const n=normKo(s);
+  if(!n) return out;
+  out.add(n);
+  const seeds=[n];
+  const p=stripOnce(n,PARTICLE,2); if(p!==n){out.add(p); seeds.push(p);}
+  seeds.slice().forEach(x=>{
+    const v=stripOnce(x,VERB_END,2); if(v!==x){out.add(v); seeds.push(v);}
+    const v1=stripOnce(x,SHORT_END,1); if(v1!==x){out.add(v1); seeds.push(v1);}
+    const v2=stripOnce(x,CONJ_END,2);  if(v2!==x){out.add(v2); seeds.push(v2);}
+  });
+  seeds.forEach(x=>{
+    const c=stripCoda(x);
+    if(c!==x){
+      out.add(c);
+      const c2=stripOnce(c,VERB_END,2); if(c2!==c) out.add(c2);
+    }
+  });
+  out.delete("");
+  return out;
+}
+function stemKo(s){
+  // 대표 어간 (사전 키 용도)
+  const n=normKo(s);
+  if(n.length<2) return n;
+  let t=stripOnce(n,PARTICLE,2);
+  const v=stripOnce(t,VERB_END,2);
+  if(v!==t) return v;
+  const v1=stripOnce(t,SHORT_END,1);
+  if(v1!==t) return v1;
+  const c=stripCoda(t);
+  return c!==t ? c : t;
+}
+function shareSet(A,B){
+  for(const x of A) if(B.has(x)) return true;
+  return false;
+}
+
+/* ---- 문제에 적힌 제외 뜻 ----
+   "Address(주소x)" 처럼 괄호 안에 'x' 를 붙여 두면 그 뜻은 정답으로 인정하지 않는다.
+   여러 개면 쉼표로: "Address(주소x, 연설x)"                                  */
+const _wordCache=new Map();
+/* 괄호 표기: "address(주소x)" = 그 뜻 제외, "address(v)" = 그 품사만 인정.
+   함께 쓸 수도 있다: "address(v, 주소x)" */
+const POS_MARK={v:"동",verb:"동","동":"동",n:"명",noun:"명","명":"명",
+                a:"형",adj:"형","형":"형",ad:"부",adv:"부","부":"부"};
+function parseWord(w){
+  const raw=String(w||"").trim();
+  if(_wordCache.has(raw)) return _wordCache.get(raw);
+  let out={base:raw, no:[], pos:""};
+  const m=raw.match(/^(.*?)\s*[（(]([^)）]*)[)）]\s*$/);
+  if(m){
+    const no=[]; let pos="";
+    m[2].split(/[,，·/]/).map(x=>x.trim()).filter(Boolean).forEach(part=>{
+      const hit=part.match(/^(.*?)\s*[xX✗×]$/);
+      if(hit && hit[1].trim()){ no.push(hit[1].trim()); return; }
+      const pm=POS_MARK[part.toLowerCase()];
+      if(pm) pos=pm;
+    });
+    if(no.length||pos) out={base:(m[1].trim()||raw), no, pos};
+  }
+  _wordCache.set(raw,out);
+  return out;
+}
+/* 이 단어에 지정된 품사. p 필드 또는 (v) 표기 — 지정되면 그 품사만 인정한다. */
+function itemPos(item){ return item.p || parseWord(item.w).pos || ""; }
+function posLocked(item){ return !!itemPos(item); }
+
+/* ---- 품사 판별 ----
+   뜻이 맞아도 품사가 다르면 오답이다.
+     acquire(동) 에 "획득"(명사) → 오답,  "획득하다" → 정답
+     abstract(형) 에 "추상"(명사) → 오답,  "추상적인" → 정답
+   확실한 표지만 보고, 애매하면 양쪽 다 가능한 것으로 두어 억울한 오답을 만들지 않는다. */
+
+// 이것으로 끝나면 부사형 ("순간적으로", "조심스럽게", "신속히")
+// 관형형("순간적인")과 부사형("순간적으로")은 품사가 다르므로 구분해야 한다
+const ADV_END=["적으로","스럽게","롭게","답게","하게","히"];
+// 이것으로 끝나면 확실히 용언(동사·형용사)
+// "하여"·"해서" 는 연결형이므로 여기 두지 않는다 (아래 CONN_ONLY_END 참고)
+/* "하기"·"되기" 는 용언을 명사로 바꾼 형태(명사형)라 따로 다룬다 — 아래 NOMIN_END 참고.
+   "포함하다"(용언)에도 "원자"(체언)에도 맞지 않는다. */
+// 홀글자 "인" 은 넣지 않는다 — "확인"·"용인"·"요인"·"관리인" 은 관형형이 아니라 명사다.
+// 관형형으로 쓰이는 "-적인" 은 위에 따로 있다.
+const VERB_ONLY_END=["하다","되다","이다","시키다","당하다","스럽다","스러운","롭다","로운","답다","다운",
+                     "적인","하는","되는","했다","됐다","되었다","한다",
+                     "한","운"];
+// 조사일 수도, 어미일 수도 있어 양쪽 다 가능한 것 ("짐은"=명사+조사, "넓은"=형용사)
+const AMBIG_END=["은","는"];
+// 사실상 조사로만 쓰이는 것 — 붙어 있으면 체언으로 본다.
+// ("핵심적인 역할을 하다" 문제에 "핵심적인 역할을" 이라고 쓰면 품사 오답)
+const NOUN_ONLY_END=["이","가","을","를","의","에"];
+/* 명사형(-ㅁ/-음/-기, "포함"·"버림"·"얻음")은 체언으로 본다.
+   "포함하다" 문제에 "포함" 이라고 쓰면 오답이어야 하기 때문이다.
+   ("함","기" 를 용언 표지로 잡으면 포함·연기·경기 같은 명사가 함께 걸린다) */
+
+/* 활용형 어미 — "요약하자면", "감소하면", "얻으면" 같은 형태를 용언으로 잡는다.
+   "화면"·"사고"·"측면" 같은 진짜 명사를 잘못 잡지 않도록,
+   앞에 하/되/시키 같은 표지가 오거나 '으-' 로 이어지는 경우만 본다. */
+/* 관형형("포함하는")은 언제나 용언이다 — 연결형과 갈라 놓는다. */
+const VERB_ADN_RE=/.+(하|되|시키|당하)(는)$/;
+/* 연결형·부사형 어미. "요약하자면"·"감소하면" 처럼 용언에서 나온 형태다. */
+const VERB_CONJ_RE=/.+(하|되|시키|당하)(자면|면서|면|며|고서|고|지만|니까|도록|거나|든지|여서|여야|여|야|지|게|니|자|어|아)$/;
+const CONN_ONLY_END=["하여","해서"];
+/* 명사형 어미 — "포함하기"·"구성되기".
+   용언에서 나온 명사이므로 용언 뜻("포함하다")에도, 체언 뜻("원자")에도 맞지 않는다.
+   ("잡초 뽑기"처럼 뜻 자체가 -기 명사인 경우는 글자가 같으므로 애초에 검사하지 않는다) */
+const NOMIN_END=["하기","되기","시키기","당하기"];
+const VERB_LINK_RE=/(으면|으며|으니|으므로|어서|아서|여서|어야|아야|지만|도록|거나|든지|어도|아도|았고|었고)$/;
+
+function posSet(raw,strict){
+  const t=normKo(raw);
+  const out=new Set();
+  if(!t) return out;
+  if(/다$/.test(t)){ out.add("용언"); return out; }        // ~다 로 끝나면 용언
+  for(const e of ADV_END){
+    if(t.length>e.length && t.endsWith(e)){ out.add("부사"); return out; }
+  }
+  for(const e of NOMIN_END){
+    if(t.length>e.length && t.endsWith(e)){ out.add("명사형"); return out; }
+  }
+  if(VERB_ADN_RE.test(t)){ out.add("용언"); return out; }
+  /* 연결형("~에 더하여")은 그 자체로 서술어가 아니라 뒤 절에 이어지는 형태다.
+     교재의 뜻이 연결형이면 그 뜻은 부사구·전치사구이므로 용언 답안을 받지 않는다(strict).
+     학생 답안이 연결형이면 "간과하여" 처럼 용언에서 나온 것일 수 있으므로 용언도 함께 인정한다. */
+  if(VERB_CONJ_RE.test(t) || VERB_LINK_RE.test(t)
+     || CONN_ONLY_END.some(e=>t.length>e.length && t.endsWith(e))){
+    out.add("연결"); if(!strict) out.add("용언"); return out;
+  }
+  for(const e of VERB_ONLY_END){
+    if(t.length>e.length && t.endsWith(e)){ out.add("용언"); return out; }
+  }
+  for(const e of AMBIG_END){
+    if(t.length>e.length && t.endsWith(e)){ out.add("용언"); out.add("체언"); return out; }
+  }
+  for(const e of NOUN_ONLY_END){
+    if(t.length>e.length && t.endsWith(e)){ out.add("체언"); return out; }
+  }
+  out.add("체언");
+  return out;
+}
+
+// 단어의 품사(p)가 요구하는 형태. 부사 등은 형태가 다양해 검사하지 않는다.
+const POS_NEED={ "명":"체언", "동":"용언", "형":"용언", "부":"부사" };
+function posLabel(p){ return {"명":"명사","동":"동사","형":"형용사","부":"부사"}[p]||p; }
+function posHint(p){
+  return p==="동" ? "‘~하다’처럼 <b>동사</b>로 써 주세요."
+       : p==="형" ? "‘~한/~인’처럼 <b>형용사</b>로 써 주세요."
+       : p==="명" ? "‘~하다’를 빼고 <b>명사</b>로 써 주세요."
+       : p==="부" ? "‘~하게 / ~적으로’처럼 <b>부사</b>로 써 주세요." : "";
+}
+/* 단어가 요구하는 품사.
+   p 를 적어 두었으면 그것을 쓰고, 없으면 뜻의 형태에서 알아낸다.
+     "간과하다"  → 용언만 정답   ("간과" 는 오답)
+     "원자"      → 체언만 정답   ("원자이다" 는 오답)
+   뜻이 여럿이면 그중 하나라도 맞으면 통과시킨다. */
+const _needCache=new Map();
+function neededPos(item){
+  const lock=itemPos(item);
+  if(POS_NEED[lock]) return new Set([POS_NEED[lock]]);
+  const key=answerText(item);
+  if(_needCache.has(key)) return _needCache.get(key);
+  const need=new Set();
+  refVariants(key).forEach(v=>posSet(v.raw,true).forEach(x=>need.add(x)));
+  _needCache.set(key,need);
+  return need;
+}
+/* 교재의 뜻에 조사만 덧붙인 답인지 확인한다.
+   "기회" 가 뜻인데 "기회의", "기회를" 이라고 쓴 경우다.
+   조사를 뗀 형태가 교재의 뜻과 정확히 같을 때만 잡으므로,
+   "폭넓은"(넓은의 유의어) 처럼 우연히 조사로 끝나는 답은 걸리지 않는다. */
+const TRAIL_PARTICLE=["으로서","으로","에게서","에게","에서","까지","부터","마다","조차","라도",
+                      "의","을","를","이","가","은","는","에","도","만","와","과","로","랑"];
+function addedParticle(answer,item){
+  const a=normKo(answer);
+  const refs=refVariants(answerText(item));
+  if(refs.some(v=>v.n===a)) return null;          // 뜻 그대로면 통과
+
+  // (1) 조사를 떼면 교재 뜻과 정확히 같은 경우 — "기회" 에 "기회의"
+  for(const p of TRAIL_PARTICLE){
+    if(a.length>p.length && a.endsWith(p)){
+      const bare=a.slice(0,-p.length);
+      const hit=refs.find(v=>v.n===bare);
+      if(hit) return {particle:p, want:hit.raw};
+    }
+  }
+
+  /* (2) 교재 뜻이 명사인데 답이 조사로 끝나는 경우 — "가장자리" 에 "모서리는"
+     사전에 있는 다른 뜻이라도 조사가 붙어 있으면 형태가 틀린 것이다.
+     · 뜻이 명사일 때만 본다. 용언이면 "폭넓은" 처럼 어미일 수 있다.
+     · 조사를 뗀 나머지가 두 글자 이상일 때만 본다.
+       ("차이", "정의" 처럼 조사처럼 끝나는 두 글자 명사를 잘못 잡지 않도록) */
+  const need=neededPos(item);
+  if(need.size===1 && need.has("체언")){
+    for(const p of NOUN_ONLY_END.concat(["은","는"])){
+      if(a.endsWith(p) && a.length-p.length>=2) return {particle:p, want:null};
+    }
+  }
+  return null;
+}
+
+/* 답이 교재의 뜻에서 "하다"·"되다" 만 뗀 형태인가 — "제한하다" 에 "제한".
+   이건 용언을 명사로 바꾼 명사형이다. 끝 글자가 우연히 관형형 어미와 같아도
+   ("제한" 의 "한") 명사로 봐야 한다. */
+function isGlossStem(answer,item){
+  const a=normKo(answer);
+  if(!a) return false;
+  return refVariants(answerText(item)).some(v=>{
+    for(const suf of ["하다","되다","시키다","당하다"]){
+      if(v.n.length>suf.length && v.n.endsWith(suf) && v.n.slice(0,-suf.length)===a) return true;
+    }
+    return false;
+  });
+}
+/* 품사가 맞는가. 선생님이 적어 둔 뜻과 글자가 똑같으면 검사하지 않는다. */
+function posOk(answer,item){
+  const need=neededPos(item);
+  if(!need.size) return true;
+  const cand = isGlossStem(answer,item) ? new Set(["체언"]) : posSet(answer);
+  for(const c of cand) if(need.has(c)) return true;
+  return false;
+}
+/* ---- 태(態) — 능동인가 피동인가 ----
+   "고안하다"(devise) 에 "고안되다" 라고 쓰면 그건 be devised 의 뜻이다.
+   그런데 두 낱말은 글자 하나 차이라 유사도가 0.95 로 나오고, 품사도 둘 다 용언이라
+   지금까지는 그냥 정답으로 통과했다. 태가 어긋나는 것을 여기서 잡아 낸다.
+
+   맞고 틀림은 여기서 정하지 않는다. 영어 동사가 타동사뿐이면("devise") 피동 답은
+   오답이지만, 자·타동 양쪽으로 쓰이면("improve") 피동 답도 맞는 말이기 때문이다.
+   그건 사전을 봐야 아는 사실이므로 AI 에게 넘긴다.
+
+   앞에 두 글자 이상을 요구하는 이유:
+     "타당하다"·"정당하다" 의 "당하다" 를 피동으로 잡지 않기 위해서다.
+     "~하게 되다" 의 "되다" 도 홀로 쓰인 것이므로 태를 따지지 않는다. */
+const VOICE_PASSIVE_RE=/[가-힣]{2,}(되다|돼다|당하다)$/;
+const VOICE_ACTIVE_RE =/[가-힣]{2,}(하다|시키다)$/;
+function voiceOf(raw){
+  const t=normKo(raw);
+  if(!t) return "";
+  if(VOICE_PASSIVE_RE.test(t)) return "피동";   // "당하다" 가 "하다" 로도 끝나므로 먼저 본다
+  if(VOICE_ACTIVE_RE.test(t)) return "능동";
+  return "";
+}
+/* 교재의 뜻 중 답과 태가 맞는 것이 하나라도 있으면 통과.
+   양쪽 모두 태를 알 수 있는데 서로 다를 때만 어긋난 것으로 본다. */
+function voiceBad(answer,item){
+  const av=voiceOf(answer);
+  if(!av) return false;
+  const gv=refVariants(answerText(item)).map(v=>voiceOf(v.raw)).filter(Boolean);
+  if(!gv.length) return false;
+  return !gv.includes(av);
+}
+/* 품사 이름은 선생님이 p 를 적어 둔 경우에만 쓴다.
+   뜻에서 유추한 경우에는 이름 대신 모범답안의 형태를 보여 준다
+   ("요약하자면" 을 "명사" 라고 부르면 오히려 헷갈린다). */
+function neededPosLabel(item){
+  const lock=itemPos(item);
+  return POS_NEED[lock] ? posLabel(lock) : "";
+}
+
+/* ---- 동의어 사전 (자주 나오는 뜻 묶음) ---- */
+const SYN_GROUPS=[
+["버리다","포기하다","단념하다","그만두다","내버리다","저버리다","폐기하다","떠나다"],
+["능력","재능","역량","실력","기량","소질","재주","힘"],
+["흡수하다","빨아들이다","받아들이다","섭취하다","몰두시키다"],
+["추상적","관념적","개념적","막연한"],
+["정확한","정밀한","올바른","틀림없는","꼭맞는"],
+["이루다","성취하다","달성하다","해내다","이룩하다","이뤄내다"],
+["얻다","획득하다","습득하다","취득하다","손에넣다","배우다","익히다"],
+["적응하다","맞추다","조정하다","순응하다","각색하다","개작하다"],
+["이익","혜택","이득","유익","이점","장점","도움"],
+["편견","선입견","편향","치우침","편파"],
+["간단한","짧은","간략한","간결한","잠깐의","잠시의"],
+["넓은","광범위한","폭넓은","너른","방대한"],
+["부담","짐","책임","부담감","무거운짐"],
+["늘리다","증가하다","늘다","증대하다","확대하다","키우다","불리다"],
+["줄이다","감소하다","줄다","축소하다","낮추다","덜다"],
+["중요한","중대한","소중한","주요한","핵심적인","귀중한"],
+["어려운","힘든","곤란한","까다로운","고된"],
+["쉬운","간편한","수월한","용이한"],
+["놀라운","굉장한","대단한","훌륭한","뛰어난","탁월한","우수한"],
+["이상한","특이한","낯선","기이한","괴상한","야릇한"],
+["결정하다","정하다","결심하다","판단하다","작정하다"],
+["설명하다","해명하다","밝히다","풀이하다","서술하다"],
+["주장하다","우기다","강조하다","역설하다","단언하다"],
+["제안하다","제시하다","권하다","건의하다","시사하다","암시하다"],
+["거절하다","거부하다","물리치다","사양하다","반려하다"],
+["허락하다","허용하다","승인하다","인정하다","용인하다"],
+["금지하다","막다","방지하다","못하게하다","저지하다","억제하다"],
+["예상하다","예측하다","기대하다","내다보다","짐작하다","전망하다"],
+["발견하다","찾다","찾아내다","알아내다","밝혀내다","탐지하다"],
+["발명하다","만들어내다","창조하다","창안하다","고안하다"],
+["유지하다","지키다","보존하다","간직하다","보전하다","존속하다"],
+["개선하다","향상시키다","나아지다","좋아지다","발전하다","증진하다"],
+["감소","하락","저하","축소","쇠퇴"],
+["증가","상승","증대","확대","성장"],
+["원인","이유","까닭","근거","동기"],
+["결과","결말","성과","결실","귀결"],
+["영향","효과","작용","여파","영향력"],
+["목적","목표","의도","취지","지향"],
+["방법","방식","수단","방책","길","방안"],
+["문제","어려움","난관","과제","쟁점"],
+["해결하다","풀다","처리하다","극복하다","타개하다"],
+["위험","위기","모험","위태로움","위협"],
+["안전한","무사한","안심되는"],
+["환경","주위","상황","여건","배경","주변"],
+["사회","공동체","집단","단체"],
+["개인","사람","개체","인간"],
+["문화","문명","교양"],
+["전통","관습","풍습","인습","관례"],
+["경제","재정","경기"],
+["정치","정책","통치","행정"],
+["과학","학문","학술"],
+["기술","기법","솜씨","기교","공학"],
+["정보","자료","데이터","소식"],
+["지식","앎","학식","지혜","견문"],
+["경험","체험","겪다","경력"],
+["기억하다","외우다","암기하다","떠올리다","회상하다","되새기다"],
+["잊다","잊어버리다","망각하다"],
+["이해하다","알다","깨닫다","파악하다","알아듣다","인식하다","납득하다"],
+["오해하다","잘못알다","착각하다"],
+["표현하다","나타내다","드러내다","표시하다","표명하다"],
+["감정","느낌","정서","기분","심정"],
+["행복한","즐거운","기쁜","유쾌한","만족한","흐뭇한"],
+["슬픈","우울한","서글픈","비참한","침울한"],
+["화난","분노한","성난","격분한","noe"],
+["두려운","무서운","겁나는","공포","무시무시한"],
+["걱정하다","근심하다","염려하다","불안해하다","우려하다"],
+["놀라다","깜짝놀라다","경악하다","당황하다"],
+["믿다","신뢰하다","확신하다","신용하다","의지하다"],
+["의심하다","의혹","수상히여기다","불신하다"],
+["희망","바람","소망","기대","염원"],
+["노력","수고","애씀","힘씀","분투"],
+["노력하다","애쓰다","힘쓰다","수고하다","분투하다","힘들이다"],
+["성공하다","해내다","이뤄내다","번창하다"],
+["실패하다","좌절하다","실수하다","그르치다"],
+["경쟁하다","겨루다","다투다","경합하다"],
+["협력하다","협동하다","협조하다","함께하다"],
+["돕다","도와주다","지원하다","원조하다","보조하다","거들다"],
+["방해하다","저지하다","지장을주다","훼방놓다","가로막다"],
+["파괴하다","부수다","무너뜨리다","망가뜨리다","파멸시키다","훼손하다"],
+["만들다","제작하다","생산하다","제조하다","창작하다","산출하다"],
+["사용하다","이용하다","쓰다","활용하다","적용하다"],
+["소비하다","낭비하다","소모하다","탕진하다"],
+["절약하다","아끼다","저축하다","모으다","비축하다"],
+["제공하다","주다","공급하다","베풀다","건네다","수여하다"],
+["요구하다","요청하다","청하다","부탁하다","요망하다"],
+["명령하다","지시하다","시키다","분부하다","명하다"],
+["선택하다","고르다","택하다","선정하다","선발하다"],
+["비교하다","견주다","대조하다","대비하다"],
+["구별하다","구분하다","분간하다","식별하다","가리다"],
+["포함하다","담다","아우르다","들어있다","내포하다","포괄하다"],
+["제외하다","빼다","배제하다","제거하다","없애다","덜어내다"],
+["증명하다","입증하다","증거를대다","실증하다"],
+["반대하다","대립하다","맞서다","저항하다","항의하다","거스르다"],
+["찬성하다","동의하다","승낙하다","수긍하다","동조하다"],
+["예의","예절","공손함","매너","예우"],
+["태도","자세","마음가짐","입장"],
+["성격","성질","특성","기질","본성","천성"],
+["특징","특색","특질","특유의","고유한"],
+["가치","값어치","값","소중함","값진"],
+["의미","뜻","의의","취지","함의"],
+["상황","형편","사정","처지","정황","국면"],
+["사건","사고","일","사태","일어난일"],
+["변화","변동","바뀜","변천","전환"],
+["변하다","바뀌다","달라지다","변화하다","변형되다","전환하다"],
+["움직이다","이동하다","옮기다","이사하다","감동시키다"],
+["멈추다","그치다","중단하다","정지하다","끊다"],
+["계속하다","지속하다","이어지다","계속되다","존속하다"],
+["시작하다","개시하다","착수하다","출발하다","비롯되다"],
+["끝내다","마치다","완료하다","종료하다","마무리하다"],
+["나타나다","등장하다","출현하다","드러나다","보이다"],
+["사라지다","없어지다","소멸하다","자취를감추다","실종되다"],
+["늘어나다","커지다","성장하다","자라다","발달하다","번성하다"],
+["참다","견디다","인내하다","버티다","감내하다","지탱하다"],
+["무시하다","소홀히하다","얕보다","경시하다","등한시하다","묵살하다"],
+["존경하다","우러러보다","공경하다","존중하다","숭배하다"],
+["칭찬하다","찬양하다","기리다","격려하다","치켜세우다"],
+["비난하다","비판하다","탓하다","나무라다","책망하다","혹평하다"],
+["속이다","기만하다","사기치다","현혹하다","눈속임하다"],
+["정직한","솔직한","진실한","성실한","꾸밈없는"],
+["게으른","나태한","태만한","느긋한"],
+["부지런한","근면한","성실한","열심인"],
+["가난한","빈곤한","궁핍한","곤궁한","불쌍한"],
+["부유한","풍부한","넉넉한","풍족한","부자인"],
+["풍부한","많은","충분한","넉넉한","다량의"],
+["부족한","모자란","결핍된","불충분한","희박한"],
+["분명한","명확한","뚜렷한","확실한","명백한"],
+["애매한","모호한","불분명한","흐릿한","막연한"],
+["복잡한","뒤얽힌","까다로운","난해한"],
+["단순한","간단한","소박한","순수한"],
+["진지한","심각한","중대한","엄숙한"],
+["즉시","곧","바로","당장","즉각"],
+["결국","마침내","드디어","끝내","궁극적으로"],
+["아마도","어쩌면","대개","십중팔구"],
+["거의","대부분","대체로","얼추"],
+["완전히","전적으로","온전히","철저히"],
+["겨우","간신히","가까스로","고작"],
+["게다가","더구나","또한","덧붙여"],
+["그러나","하지만","그렇지만","반면에"],
+["그러므로","따라서","그래서","결과적으로"],
+["묶인","구속된","얽매인","매인"],
+["가능성이큰","할것같은","하기쉬운","틀림없는"],
+/* --- 시간 · 순서 --- */
+["나중에","추후에","이후에","뒤에","그다음에","차후에","훗날","이다음에"],
+["뒤이어","연이어","잇따라","곧이어","이어서"],
+["이전에","예전에","앞서","먼저","미리","사전에"],
+["옛날에","과거에","예전에","지난날","한때"],
+["요즘","최근에","근래에","요사이","오늘날"],
+["앞으로","장차","미래에","이제부터"],
+["동시에","한꺼번에","일제히","같은때에"],
+["갑자기","별안간","돌연","느닷없이","불쑥"],
+["점점","차츰","서서히","점차","조금씩"],
+["이미","벌써","진작","일찌감치"],
+["아직","여전히","변함없이","그대로"],
+["잠시","잠깐","한동안","얼마간"],
+["영원히","언제까지나","길이","끝없이"],
+["임시의","일시적인","한때의","잠정적인"],
+["영구적인","항구적인","변치않는","지속적인"],
+/* --- 빈도 --- */
+["자주","종종","흔히","빈번히","곧잘"],
+["가끔","이따금","때때로","간혹","드문드문"],
+["항상","늘","언제나","한결같이","노상"],
+["드물게","좀처럼","거의없이","희귀하게"],
+["결코","절대로","전혀","조금도"],
+/* --- 정도 --- */
+["매우","아주","몹시","굉장히","대단히","무척","엄청"],
+["조금","약간","다소","좀","얼마간"],
+["특히","특별히","유난히","각별히","그중에서도"],
+["오히려","도리어","반대로","거꾸로"],
+["물론","당연히","말할것도없이","두말할나위없이"],
+["실제로","사실은","정말로","참으로","실은"],
+["적어도","최소한","하다못해"],
+["대략","약","얼추","대충","어림잡아"],
+["직접","몸소","스스로","친히"],
+["함께","같이","더불어","나란히"],
+/* --- 접속 --- */
+["예를들면","예컨대","이를테면","가령"],
+["즉","다시말해","바꿔말하면","곧"],
+["그럼에도불구하고","그래도","그런데도","그렇더라도"],
+["왜냐하면","때문이다","그까닭은"],
+["한편","반면","다른한편으로는"],
+/* --- 관계 · 비교 --- */
+["관계","사이","연관","관련","연결"],
+["차이","다름","차이점","격차","간극"],
+["공통점","유사점","닮은점","비슷한점"],
+["대신에","~을대신하여","바꾸어","대체로서"],
+["~에도불구하고","무릅쓰고","아랑곳없이"],
+/* --- 규범 · 사회 --- */
+["규칙","법칙","원칙","규정","준칙"],
+["법","법률","법규","법령"],
+["권리","권한","자격","권한이있음"],
+["의무","책임","도리","본분"],
+["자유","해방","자율","거리낌없음"],
+["평등","균등","대등함","동등함"],
+["정의","공정","올바름","정당함"],
+["진실","사실","참","실상"],
+["거짓","허위","가짜","엉터리"],
+["증거","근거","자료","입증자료"],
+["정부","당국","국가기관","행정부"],
+["국가","나라","국토","국가전체"],
+["국민","시민","백성","민중"],
+["전쟁","싸움","전투","교전"],
+["평화","화평","안온함"],
+["갈등","대립","다툼","마찰","불화"],
+["협상","교섭","절충","담판"],
+["계약","약속","협약","서약"],
+["조건","요건","여건","전제"],
+["기회","계기","호기","찬스"],
+/* --- 학문 · 사고 --- */
+["이론","학설","가설","논리"],
+["실험","시험","테스트","검사"],
+["관찰하다","살펴보다","지켜보다","주시하다","눈여겨보다"],
+["조사하다","살피다","알아보다","탐구하다","연구하다","검토하다"],
+["분석하다","파헤치다","따져보다","해부하다"],
+["측정하다","재다","계측하다","가늠하다"],
+["계산하다","셈하다","헤아리다","산출하다"],
+["추측하다","짐작하다","어림하다","가정하다","추정하다"],
+["결론","결말","맺음","귀결점"],
+["주제","화제","제재","테마"],
+["관점","시각","견해","입장","시점"],
+["의견","견해","생각","소견"],
+["개념","관념","생각","아이디어"],
+["상상하다","떠올리다","머릿속에그리다","공상하다"],
+["집중하다","몰두하다","전념하다","열중하다"],
+["주의","관심","주목","유의"],
+["호기심","궁금증","알고싶음"],
+["의식하다","자각하다","알아차리다","깨닫다"],
+/* --- 감정 · 태도 --- */
+["부끄러운","창피한","수줍은","민망한"],
+["자랑스러운","뿌듯한","자부심있는"],
+["외로운","쓸쓸한","고독한","적적한"],
+["지루한","따분한","싫증나는","심심한"],
+["흥미로운","재미있는","흥미진진한","구미당기는"],
+["감동시키다","마음을움직이다","뭉클하게하다"],
+["만족하다","흡족하다","족하다","흐뭇하다"],
+["실망하다","낙담하다","기대에못미치다"],
+["후회하다","뉘우치다","아쉬워하다","유감스러워하다"],
+["부러워하다","시샘하다","질투하다"],
+["참을성있는","인내심있는","끈기있는"],
+["용감한","용기있는","대담한","씩씩한"],
+["겸손한","공손한","고분고분한"],
+["거만한","오만한","건방진","우쭐대는"],
+["친절한","다정한","상냥한","자상한"],
+["잔인한","무자비한","혹독한","가혹한"],
+["관대한","너그러운","아량있는","후한"],
+["엄격한","엄한","까다로운","깐깐한"],
+["신중한","조심스러운","사려깊은","용의주도한"],
+["대범한","무모한","경솔한","성급한"],
+/* --- 행동 --- */
+["가리키다","지적하다","지목하다","지시하다"],
+["언급하다","말하다","거론하다","입에올리다"],
+["대답하다","응답하다","답변하다","대꾸하다"],
+["질문하다","묻다","물어보다","캐묻다"],
+["토론하다","논의하다","의논하다","논쟁하다"],
+["발표하다","알리다","공표하다","선언하다","announce"],
+["보고하다","전하다","알리다","통보하다"],
+["소개하다","알려주다","선보이다","도입하다"],
+["번역하다","옮기다","통역하다"],
+["기록하다","적다","쓰다","남기다"],
+["출판하다","펴내다","발행하다","간행하다"],
+["초대하다","부르다","청하다","불러들이다"],
+["방문하다","찾아가다","들르다"],
+["떠나다","출발하다","길을나서다","작별하다"],
+["도착하다","이르다","닿다","다다르다"],
+["따라가다","뒤따르다","좇다","추종하다"],
+["도망치다","달아나다","피하다","벗어나다"],
+["피하다","면하다","비켜가다","회피하다"],
+["숨기다","감추다","은폐하다","가리다"],
+["드러내다","밝히다","폭로하다","공개하다"],
+["모으다","수집하다","축적하다","끌어모으다"],
+["나누다","분배하다","가르다","배분하다"],
+["섞다","혼합하다","뒤섞다","버무리다"],
+["연결하다","잇다","결합하다","이어붙이다"],
+["분리하다","떼다","갈라놓다","떼어내다"],
+["대체하다","바꾸다","대신하다","갈아치우다"],
+["수리하다","고치다","손보다","수선하다"],
+["설치하다","놓다","설비하다","마련하다"],
+["운반하다","나르다","옮기다","수송하다"],
+["던지다","내던지다","투척하다"],
+["잡다","붙잡다","쥐다","움켜쥐다","포획하다"],
+["놓치다","잃다","빠뜨리다","실기하다"],
+["기다리다","대기하다","고대하다"],
+["서두르다","급히하다","재촉하다"],
+["미루다","연기하다","늦추다","지연시키다"],
+["준비하다","마련하다","채비하다","대비하다"],
+["시도하다","해보다","꾀하다","기도하다"],
+["연습하다","훈련하다","익히다","단련하다"],
+["가르치다","교육하다","지도하다","일러주다"],
+["배우다","학습하다","익히다","공부하다"],
+["설득하다","납득시키다","타이르다","꾀다"],
+["위협하다","협박하다","으르다","겁주다"],
+["보호하다","지키다","막아주다","감싸다","옹호하다"],
+["구하다","구조하다","살리다","건지다"],
+["치료하다","고치다","낫게하다","진료하다"],
+["기르다","키우다","양육하다","사육하다"],
+["심다","재배하다","가꾸다","경작하다"],
+["짓다","건설하다","세우다","축조하다"],
+["무너지다","붕괴하다","허물어지다","주저앉다"],
+["떨어지다","추락하다","낙하하다","하락하다"],
+["오르다","올라가다","상승하다","등반하다"],
+/* --- 사물 · 개념 --- */
+["건강","건강함","몸상태"],
+["질병","병","질환","앓이"],
+["음식","먹을것","식품","양식"],
+["영양","자양분","영양분"],
+["운동","체조","신체활동"],
+["수면","잠","잠자기"],
+["스트레스","긴장","압박","중압감"],
+["휴식","쉼","휴게","안식"],
+["여행","관광","여정","나들이"],
+["교통","통행","운송","수송"],
+["도시","시내","도회지","도심"],
+["시골","농촌","지방","촌락"],
+["자연","대자연","천연"],
+["기후","날씨","기상","일기"],
+["오염","공해","더럽힘","오염물질"],
+["자원","재원","밑천"],
+["에너지","동력","기운","활력"],
+["쓰레기","폐기물","찌꺼기"],
+["동물","짐승","생물"],
+["식물","초목","풀과나무"],
+["종","종류","품종","갈래"],
+["기능","작용","역할","구실","쓰임"],
+["구조","짜임새","얼개","조직"],
+["체계","시스템","조직","제도"],
+["과정","절차","단계","경로"],
+["순서","차례","순위","서열"],
+["비율","비","백분율","할당"],
+["평균","보통","중간치"],
+["전체","모두","전부","총체"],
+["부분","일부","몫","일부분"],
+["예산","비용","경비","자금"],
+["이윤","수익","이익금","벌이"],
+["손해","손실","피해","적자"],
+["시장","장터","거래처"],
+["상품","제품","물건","물품"],
+["소비자","고객","손님","수요자"],
+["광고","선전","홍보","선전물"],
+["회사","기업","업체","법인"],
+["산업","공업","업계","산업계"],
+["인구","사람수","주민수"],
+["세대","대","연령층"],
+["청소년","십대","젊은이","청년"],
+["노인","어르신","고령자","늙은이"],
+["가족","식구","가정","집안"],
+["동료","짝","파트너","동업자"],
+["지도자","리더","우두머리","수장"],
+["도구","연장","수단","기구"],
+["재료","원료","소재","자재"],
+["증상","징후","조짐","기미"],
+["원리","이치","근본","섭리"],
+["한계","제한","한도","극한"],
+["범위","영역","테두리","권역"],
+["기준","잣대","척도","표준"],
+["수준","정도","레벨","등급"],
+["규모","크기","덩치","스케일"],
+["속도","빠르기","페이스"],
+["양","분량","수량","물량"],
+["질","품질","자질","됨됨이"]
+];
+const SYN_MAP=(()=>{
+  const m=new Map();
+  SYN_GROUPS.forEach((g,i)=>g.forEach(w=>{
+    stemSet(w).forEach(k=>{
+      if(k.length<1)return;
+      if(!m.has(k))m.set(k,new Set());
+      m.get(k).add(i);
+    });
+  }));
+  return m;
+})();
+function synIdx(set){
+  const out=new Set();
+  set.forEach(k=>{const g=SYN_MAP.get(k); if(g)g.forEach(i=>out.add(i));});
+  return out;
+}
+function synShare(setA,setB){ return shareSet(synIdx(setA),synIdx(setB)); }
+// 설명형 답안용: 공백 단위 토막 각각의 어간 후보
+function tokenStems(raw){
+  const out=[];
+  String(raw||"").split(/[\s,;/·]+/).filter(Boolean).forEach(t=>{
+    const st=stemSet(t);
+    if(st.size) out.push(st);
+  });
+  return out;
+}
+
+/* ---- 문자열 유사도 ---- */
+function lev(a,b){
+  const n=a.length,m=b.length;
+  if(!n)return m; if(!m)return n;
+  let prev=new Array(m+1); for(let j=0;j<=m;j++)prev[j]=j;
+  for(let i=1;i<=n;i++){
+    const cur=new Array(m+1); cur[0]=i;
+    for(let j=1;j<=m;j++){
+      cur[j]=Math.min(prev[j]+1, cur[j-1]+1, prev[j-1]+(a[i-1]===b[j-1]?0:1));
+    }
+    prev=cur;
+  }
+  return prev[m];
+}
+function simJamo(a,b){
+  const A=toJamo(a),B=toJamo(b);
+  if(!A.length||!B.length)return 0;
+  return 1-lev(A,B)/Math.max(A.length,B.length);
+}
+function bigrams(s){
+  const m=new Map();
+  for(let i=0;i<s.length-1;i++){const g=s.slice(i,i+2); m.set(g,(m.get(g)||0)+1);}
+  return m;
+}
+function dice(a,b){
+  const A=bigrams(toJamo(a)),B=bigrams(toJamo(b));
+  let inter=0,ta=0,tb=0;
+  A.forEach((v,k)=>{ta+=v; if(B.has(k))inter+=Math.min(v,B.get(k));});
+  B.forEach(v=>{tb+=v;});
+  if(!ta||!tb)return 0;
+  return 2*inter/(ta+tb);
+}
+function contain(a,b){
+  if(!a||!b)return 0;
+  if(a===b)return 1;
+  if(a.includes(b)||b.includes(a)){
+    const r=Math.min(a.length,b.length)/Math.max(a.length,b.length);
+    if(Math.min(a.length,b.length)<2) return 0;
+    return 0.55+0.45*r;
+  }
+  return 0;
+}
+
+/* ---- 하나의 정답 후보와 비교 ---- */
+function pairScore(ans,ref){
+  if(!ans.n||!ref.n)return 0;
+  if(ans.n===ref.n) return 1;
+  let best=0;
+  if(shareSet(ans.s,ref.s)) best=Math.max(best,.95);
+  if(synShare(ans.s,ref.s)) best=Math.max(best,.92);
+  best=Math.max(best,.95*simJamo(ans.n,ref.n));
+  best=Math.max(best,.9*dice(ans.n,ref.n));
+  best=Math.max(best,contain(ans.n,ref.n));
+  // 설명형 답안: "할 수 있는 힘" 처럼 낱말 중 하나가 뜻과 통하면 애매 구간
+  if(ans.t.length>1){
+    for(const ts of ans.t){
+      if(shareSet(ts,ref.s)||synShare(ts,ref.s)){ best=Math.max(best,.78); break; }
+    }
+  }
+  return Math.min(best,1);
+}
+
+/* "포함[수반]하다" 처럼 대괄호로 적힌 대안을 각각의 정답으로 펼친다.
+     포함[수반]하다   → 포함하다, 수반하다
+     ~을 활용[이용]하다 → ~을 활용하다, ~을 이용하다
+     선입견[사전 개념]  → 선입견, 사전 개념                                  */
+function bracketVariants(text){
+  const out=[];
+  const m=String(text||"").match(/^(.*?)\[([^\[\]]+)\](.*)$/);
+  if(!m) return out;
+  const [,before,inner,after]=m;
+  const tail=(before.match(/[가-힣A-Za-z~]+$/)||[""])[0];   // 갈아끼울 끝말
+  const head=before.slice(0,before.length-tail.length);
+  out.push((before+after).trim());                          // 대괄호를 걷어낸 형태
+  /* 대괄호 안에 여러 개면 각각에 뒷말을 붙여 펼친다.
+     "시작[출시/착수]하다" → 출시하다, 착수하다.
+     통째로 두면 나중에 "/" 에서 잘려 "출시" 라는 엉뚱한 정답이 생긴다. */
+  inner.split(/[,/·]/).map(x=>x.trim()).filter(Boolean)
+       .forEach(alt=>out.push((head+alt+after).trim()));
+  return out.filter(Boolean);
+}
+
+/* ---- 단어의 정답 후보 목록 ---- */
+function prep(raw){
+  return {raw:String(raw||"").trim(), n:normKo(raw), s:stemSet(raw), t:tokenStems(raw)};
+}
+const _refCache=new Map();
+function refVariants(meaning){
+  if(_refCache.has(meaning)) return _refCache.get(meaning);
+  const out=[]; const seen=new Set();
+  const push=raw=>{
+    const n=normKo(raw); if(!n||seen.has(n))return; seen.add(n);
+    out.push(prep(raw));
+  };
+  push(meaning);
+  splitMeaning(meaning).forEach(push);
+  splitMeaning(meaning).forEach(p=>{
+    const bare=p.replace(/[（(\[【<{][^）)\]】>}]*[）)\]】>}]/g,"");
+    if(bare!==p) push(bare);
+    bracketVariants(p).forEach(v=>{ push(v); splitMeaning(v).forEach(push); });
+  });
+  bracketVariants(meaning).forEach(v=>{ push(v); splitMeaning(v).forEach(push); });
+  _refCache.set(meaning,out);
+  return out;
+}
+
+/* ---- 최고 점수 ---- */
+function scoreAgainst(answer, meaning, prepared){
+  const a=prepared||prep(answer);
+  let best=0, hit=null;
+  refVariants(meaning).forEach(v=>{
+    const sc=pairScore(a,v);
+    if(sc>best){best=sc; hit=v.raw;}
+  });
+  return {score:best, matched:hit};
+}
+/* 단어의 정답 문자열 = 뜻(m) + 선생님이 적어 둔 추가 정답(alt) */
+function answerText(item){ return item.alt ? item.m+", "+item.alt : item.m; }
+function scoreItem(item, prepared, answer){
+  return scoreAgainst(answer, answerText(item), prepared);
+}
+
+const ACCEPT=0.86, GRAY=0.60;
+
+/* ---- 인정된 답(별칭) ---- */
+function aliasKey(item,ansN){ return favKey(item.group,item.day,item.w)+"|"+ansN; }
+function isAlias(item,ansN){
+  const k=aliasKey(item,ansN);
+  return aliasOwn.has(k)||aliasGlobal.has(k);
+}
+
+/* ---- 최종 채점 ----
+   verdict: correct(정답) | close(비슷함 — 학생이 직접 판단) | wrong(오답)
+            | empty(빈 답) | english(영어로 씀) */
+function gradeAnswer(answer, item, others){
+  const ansN=normKo(answer);
+  if(!ansN) return {verdict:"empty", score:0, matched:item.m};
+  if(/[가-힣]/.test(item.m) && !/[가-힣]/.test(String(answer)))
+    return {verdict:"english", score:0, matched:item.m};
+
+  const A=prep(answer);
+
+  /* 문제에 "(주소x)" 처럼 빼라고 적힌 뜻이면 오답 */
+  const banned=parseWord(item.w).no;
+  for(const b of banned){
+    if(scoreAgainst(answer,b,A).score>=ACCEPT)
+      return {verdict:"excluded", score:0, banned:b, matched:item.m};
+  }
+
+  const mine=scoreItem(item,A,answer);
+
+  /* 품사 검사 — 뜻이 통하는데 품사만 다른 경우에만 "품사 오답" 으로 알려 준다.
+     뜻이 아예 다른 답(유사도가 낮은 답)은 그냥 오답이지 품사 문제가 아니다.
+     선생님이 적어 둔 뜻과 글자가 똑같으면(=score 1) 검사하지 않는다. */
+  // 이미 인정된 답(선생님 승인 · AI 확인 · 학생 자가 인정)이면 다시 묻지 않는다.
+  // 단, 품사를 지정한 단어("(v)" 표기·p 필드)는 저장된 답도 품사가 맞아야 한다
+  // (규칙을 바꾸기 전에 잘못 인정된 답이 남아 있을 수 있다).
+  if(isAlias(item,ansN) && !(posLocked(item) && !posOk(answer,item)))
+    return {verdict:"correct", score:1, via:"alias", matched:item.m};
+
+  // 뜻은 맞는데 조사를 붙인 경우 — 사전에 물어볼 것도 없이 형태 오답
+  const ap = mine.score<1 ? addedParticle(answer,item) : null;
+  if(ap) return {verdict:"pos", score:mine.score, matched:ap.want||item.m, particle:ap.particle};
+
+  /* 교재 뜻이 명사인데, 끝 글자만 떨어뜨린 답은 오답이다.
+     "언론인"(journalist) 에 "언론", "관리인" 에 "관리" — 글자가 거의 같아 유사도는
+     높지만 뜻이 다른 말이다. 뒤에 다른 말을 붙인 답("관리자")은 여기 걸리지 않는다.
+     용언 뜻("잠재적인" 에 "잠재적")은 품사 검사가 더 친절히 알려 주므로 건드리지 않는다. */
+  {
+    const need0=neededPos(item);
+    if(mine.score<1 && need0.size===1 && need0.has("체언") &&
+       refVariants(answerText(item)).some(v=>v.n.length>=3 && v.n.slice(0,-1)===ansN))
+      return {verdict:"wrong", score:mine.score, matched:item.m};
+  }
+
+  // 답의 품사가 교재의 뜻과 다른가 — 점수와 무관하게 기록해서 AI 에게 알린다
+  const posBad = mine.score<1 && !posOk(answer,item);
+
+  if(mine.score>=GRAY && posBad){
+    // 선생님이 품사를 지정한 단어("address(v)" 또는 p 필드)는 그 품사만 인정.
+    // 사전에 다른 품사가 있어도 구제하지 않으므로 AI 를 부르지 않는다.
+    if(posLocked(item))
+      return {verdict:"pos", score:mine.score, matched:mine.matched, need:itemPos(item)};
+    // posOnly: 뜻은 통하는데 품사만 다르다는 뜻.
+    // 그 영어 단어가 사전에서 그 품사로도 쓰이는지 AI 에게 물어본다
+    // (demand 는 교재에 "요구"(명사)만 있어도 "요구하다"(동사) 가 사전에 있다).
+    // AI 를 쓸 수 없으면 지금처럼 오답으로 둔다.
+    return {verdict:"pos", posOnly:true, score:mine.score, matched:mine.matched, need:itemPos(item)};
+  }
+
+  /* 태가 어긋난 답 — "고안하다" 에 "고안되다".
+     품사는 둘 다 용언이라 위 검사를 그냥 통과하고, 글자도 거의 같아 유사도가 높다.
+     맞는지 틀리는지는 그 영어 동사가 타동사뿐인지에 달렸으므로 AI 에게 물어본다.
+     (devise 는 타동사뿐이라 오답, improve 는 자동사로도 쓰여 정답) */
+  if(mine.score>=GRAY && mine.score<1 && !posLocked(item) && voiceBad(answer,item))
+    return {verdict:"pos", posOnly:true, voiceBad:true,
+            score:mine.score, matched:mine.matched, need:itemPos(item)};
+
+  let bestOther=0, otherItem=null;
+  (others||[]).forEach(o=>{
+    if(o.w===item.w || o.m===item.m) return;
+    const sc=scoreItem(o,A,answer).score;
+    if(sc>bestOther){ bestOther=sc; otherItem=o; }
+  });
+  const out={score:mine.score, matched:mine.matched};
+  // 같은 범위의 다른 단어 뜻을 (거의) 그대로 적은 경우
+  if(bestOther>=0.98 && bestOther>mine.score+0.02){
+    out.other=otherItem; out.posMismatch=posBad;
+    // 내 답도 어느 정도 통하면 "비슷함"으로 두고 학생이 직접 판단하게 한다
+    out.verdict = mine.score>=GRAY ? "close" : "wrong";
+    return out;
+  }
+  out.verdict = mine.score>=ACCEPT ? "correct" : (mine.score>=GRAY ? "close" : "wrong");
+  out.posMismatch = posBad;      // AI 판정 시 품사 규칙을 강제 적용하게 한다
+  return out;
+}
+
+/* ---------- QUIZ ---------- */
+const QUIZ_LEN = 20;             // 한 번에 푸는 문제 수 (범위가 아무리 넓어도 이만큼만)
+
+function startQuiz(pool, mode){
+  mode = mode || "choice";
+  if(mode==="choice" && pool.length<CHOICE_COUNT){alert(`객관식 퀴즈는 단어가 ${CHOICE_COUNT}개 이상일 때 풀 수 있어요.`);return;}
+  if(pool.length<1){alert("이 범위에 단어가 없어요.");return;}
+  state.pool=pool.slice();                     // 범위 전체 — 다시 풀기와 보기 뽑기에 쓴다
+  const order=shuffle(pool.slice()).slice(0,QUIZ_LEN);   // 그중 20개만 무작위로
+  state.quiz={mode, order, i:0, score:0, wrong:[], answered:false};
+  renderQuiz(); show("quiz");
+}
+function renderQuiz(){
+  const q=state.quiz; const it=q.order[q.i];
+  const typing = q.mode==="type";
+  $("quizWord").textContent=it.w;
+  const lbl = typing ? neededPosLabel(it) : "";   // 유추한 품사는 표시하지 않는다
+  $("quizPrompt").innerHTML = typing
+    ? `이 단어의 뜻을 직접 입력하세요${lbl?` · <b>${esc(lbl)}</b>`:""}`
+    : "알맞은 뜻을 고르세요";
+  $("quizCounter").textContent=`${q.i+1} / ${q.order.length}`;
+  $("quizBar").style.width=((q.i)/q.order.length)*100+"%";
+  $("quizScore").textContent=`점수 ${q.score} / ${q.order.length}`;
+  $("quizNext").classList.add("hidden");
+  q.answered=false;
+  $("quizOpts").classList.toggle("hidden", typing);
+  $("quizType").classList.toggle("hidden", !typing);
+  updateQuizFavStar();
+  if(typing) renderTypeQuestion();
+  else renderChoiceQuestion(it);
+}
+const CHOICE_COUNT = 6;          // 객관식 보기 개수
+
+function renderChoiceQuestion(it){
+  /* 오답 보기는 "지금 고른 범위" 안에서 뽑는다.
+     범위 전체에서 뽑으면 고르지 않은 챕터의 뜻이 섞여 문제가 쉬워진다.
+     범위가 보기 수보다 작을 때만 그룹 전체에서 채운다. */
+  let src = state.pool && state.pool.length>=CHOICE_COUNT
+    ? state.pool : itemsForScope(state.group,"ALL");
+  const distractors = shuffle(src.filter(x=>x.m!==it.m)).slice(0,CHOICE_COUNT-1);
+  const opts=shuffle([it, ...distractors]);
+  const box=$("quizOpts"); box.innerHTML="";
+  opts.forEach(o=>{
+    const b=document.createElement("button");
+    b.className="opt"; b.textContent=o.m;
+    b.onclick=()=>answerQuiz(b,o,it);
+    box.appendChild(b);
+  });
+}
+
+/* ---------- 주관식 채점 ---------- */
+function renderTypeQuestion(){
+  const inp=$("ansInput");
+  inp.value=""; inp.disabled=false;
+  $("ansSubmit").disabled=false;
+  $("ansFeed").classList.add("hidden");
+  $("ansFeed").innerHTML="";
+  setTimeout(()=>inp.focus(),30);
+}
+function feedback(kind,title,html,score){
+  const f=$("ansFeed");
+  f.className="ans-feed "+kind;
+  const bar = (typeof score==="number")
+    ? `<div class="sim"><span>뜻 유사도</span><span class="track"><i style="width:${Math.round(Math.max(0,Math.min(1,score))*100)}%"></i></span><span>${Math.round(score*100)}%</span></div>`
+    : "";
+  f.innerHTML=`<span class="fb-t">${title}</span><div class="fb-line">${html}</div>${bar}`;
+  f.classList.remove("hidden");
+  return f;
+}
+function lockAnswer(){
+  state.quiz.answered=true;
+  $("ansInput").disabled=true;
+  $("ansSubmit").disabled=true;
+}
+/* 틀린 단어 자동 제외 — 어떤 퀴즈에서든 2번 연속 맞히면 목록·기록에서 뺀다.
+   중간에 틀리면 연속이 끊겨 처음부터 다시 센다.
+   반환: "removed"(이번에 제외됨) | "first"(연속 1번째) | null */
+function noteWrongResult(it, ok){
+  const k=favKey(it.group,it.day,it.w);
+  if(ok){
+    if(!wrongStore.has(k)) return null;
+    if(wrongOk.has(k)){
+      wrongOk.delete(k);   syncDelete("wrong_ok",k);
+      wrongStore.delete(k); syncDelete("wrong",k);
+      return "removed";
+    }
+    wrongOk.add(k); syncUpsert("wrong_ok",it);
+    return "first";
+  }
+  if(wrongOk.has(k)){ wrongOk.delete(k); syncDelete("wrong_ok",k); }
+  if(!wrongStore.has(k)){ wrongStore.add(k); syncUpsert("wrong",it); }
+  return null;
+}
+function streakNote(r){
+  return r==="removed" ? "🎉 2번 연속 정답! 틀린 단어에서 제외했어요."
+       : r==="first"   ? "🔁 틀린 단어예요. 한 번 더 맞히면 목록에서 빠져요."
+       : "";
+}
+function markCorrect(it){
+  state.quiz.score++;
+  $("quizScore").textContent=`점수 ${state.quiz.score} / ${state.quiz.order.length}`;
+  const note=streakNote(noteWrongResult(it,true));
+  if(note){
+    const f=$("ansFeed");
+    if(!f.classList.contains("hidden"))
+      f.insertAdjacentHTML("beforeend",`<div style="margin-top:9px;font-size:13.5px;font-weight:700">${note}</div>`);
+  }
+  showNext();
+}
+function markWrong(it){
+  state.quiz.wrong.push(it);
+  noteWrongResult(it,false);
+  showNext();
+}
+function showNext(){
+  $("quizNext").classList.remove("hidden");
+  setTimeout(()=>$("quizNext").focus(),30);
+}
+// 받침 유무에 맞는 조사 선택 (예: 능력+은, 재주+는)
+function josa(word,withJong,withoutJong){
+  const t=String(word||"").trim();
+  const c=t.charCodeAt(t.length-1)-0xAC00;
+  const has = (c>=0&&c<11172) ? (c%28)!==0 : /[a-zA-Z0-9]$/.test(t);
+  return t+(has?withJong:withoutJong);
+}
+function esc(t){return String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));}
+
+/* ---- AI 채점 요청 (규칙으로 "정답"이 아닌 경우에만 호출) ---- */
+const aiCache=new Map();          // 같은 답을 두 번 묻지 않는다
+let aiFailStreak=0;               // 연달아 실패하면 이번 접속에서는 더 부르지 않는다
+const AI_MAX_FAILS=2;             // (배포가 안 됐거나 서버가 죽었을 때 매 문제마다 기다리지 않도록)
+/* 우리말 답의 품사를 영어 사전의 품사로 옮긴다.
+   "동면"(체언) 이면 hibernate 가 명사로도 쓰이는지 사전에 물어보면 된다.
+   국어의 용언은 영어의 동사·형용사 양쪽에 걸치므로 둘 다 넣는다. */
+const POS_TO_EN={ "체언":["noun"], "명사형":["noun"], "용언":["verb","adjective"],
+                  "부사":["adverb"], "연결":["adverb","preposition","conjunction"] };
+function answerPosEn(answer){
+  const out=new Set();
+  posSet(answer).forEach(k=>(POS_TO_EN[k]||[]).forEach(x=>out.add(x)));
+  return [...out];
+}
+/* 답과 교재 뜻의 태를 영어로 옮긴다. 사전에 타동사뿐이라고 나오면
+   피동 답("고안되다")은 be devised 의 뜻이므로 오답이다. */
+const VOICE_EN={ "능동":"active", "피동":"passive" };
+function voiceEn(raw){ return VOICE_EN[voiceOf(raw)] || ""; }
+function glossVoiceEn(item){
+  const vs=refVariants(answerText(item)).map(v=>voiceOf(v.raw)).filter(Boolean);
+  return [...new Set(vs.map(v=>VOICE_EN[v]))].filter(Boolean);
+}
+async function judgeWithAI(item,answer,formMismatch){
+  if(!AI_JUDGE_URL || aiFailStreak>=AI_MAX_FAILS) return null;
+  const key=item.w+"|"+normKo(answer);
+  if(aiCache.has(key)) return aiCache.get(key);
+  const ctl=new AbortController();
+  /* 모델이 생각할 시간을 주면(thinkingBudget 512) 판정이 정확해지는 대신
+     2~3초 걸린다. 6초로는 빠듯해서 10초로 둔다. */
+  const timer=setTimeout(()=>ctl.abort(),10000);
+  try{
+    const r=await fetch(AI_JUDGE_URL,{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "Authorization":"Bearer "+SUPABASE_ANON,
+        "apikey":SUPABASE_ANON
+      },
+      body:JSON.stringify({
+        word:parseWord(item.w).base, pos:itemPos(item), pos_locked:posLocked(item),
+        meaning:item.m, alt:item.alt||"", exclude:parseWord(item.w).no.join(", "),
+        answer:String(answer).trim(), form_mismatch:!!formMismatch,
+        answer_pos_en: formMismatch ? answerPosEn(answer) : [],
+        answer_voice: voiceEn(answer), gloss_voice: glossVoiceEn(item)
+      }),
+      signal:ctl.signal
+    });
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok || !["correct","close","wrong","pos"].includes(d.verdict))
+      throw new Error(d.error||("HTTP "+r.status));
+    aiFailStreak=0;
+    aiCache.set(key,d);
+    return d;
+  }catch(e){
+    aiFailStreak++;
+    console.warn("AI 채점 실패 — 규칙 판정을 그대로 씁니다.", e);
+    if(aiFailStreak>=AI_MAX_FAILS)
+      console.warn("AI 채점을 이번 접속에서는 건너뜁니다. admin.html 의 [연결 확인] 으로 상태를 확인하세요.");
+    return null;                  // 실패하면 조용히 규칙 판정으로
+  }finally{ clearTimeout(timer); }
+}
+
+async function submitAnswer(){
+  const q=state.quiz;
+  if(q.mode!=="type" || q.answered) return;
+  const it=q.order[q.i];
+  const raw=$("ansInput").value;
+  const res=gradeAnswer(raw, it, itemsForScope(state.group,"ALL"));
+
+  if(res.verdict==="english"){
+    feedback("maybe","한국어로 입력해 주세요","영어 단어가 아니라 <b>우리말 뜻</b>을 적어야 해요.");
+    $("ansInput").focus();
+    return;                       // 다시 입력할 기회를 줌
+  }
+
+  lockAnswer();
+  const qi=q.i;
+
+  // 사전에 없는 표현일 수 있으므로 애매하거나 틀린 답만 AI에게 한 번 더 물어본다
+  const formFlag = res.posOnly || res.posMismatch;
+  if(AI_JUDGE_URL && (res.verdict==="close" || res.verdict==="wrong" || res.posOnly)){
+    feedback("maybe","🤖 뜻을 확인하는 중…",
+      `내 답: <b>${esc(raw.trim())}</b><br><span style="color:var(--ink-soft);font-size:13.5px">${
+        formFlag ? "사전에 그 품사의 뜻이 있는지" : "사전에 없는 표현인지"} 확인하고 있어요.</span>`);
+    const ai=await judgeWithAI(it,raw,formFlag);
+    if(state.quiz!==q || q.i!==qi) return;        // 그 사이 다른 퀴즈로 옮겨갔으면 중단
+    if(ai){
+      // AI 가 품사/형태 문제라고 하면 학생 판단 없이 바로 오답
+      // 품사 때문에 물어본 건인데 AI 도 애매하다고 하면 오답으로 굳힌다 (자가 판단 금지)
+      if(ai.verdict==="pos" || (formFlag && ai.verdict==="close")){
+        res.verdict="pos"; res.aiReason=ai.reason||""; res.byAI=true;
+        renderVerdict(res,it,raw); return;
+      }
+      res.verdict=ai.verdict;
+      res.aiReason=ai.reason||"";
+      res.byAI=true;
+      if(ai.verdict==="correct") res.other=null;  // AI가 인정했으면 다른 단어 안내는 지운다
+    }
+  }
+  renderVerdict(res,it,raw);
+}
+
+function renderVerdict(res,it,raw){
+  const model=`정답: <b>${esc(it.m)}</b>`;
+  const aiLine = res.aiReason
+    ? `<br><span style="color:var(--ink-soft);font-size:13.5px">🤖 ${esc(res.aiReason)}</span>` : "";
+  // AI가 판정한 경우 글자 유사도 막대는 의미가 없으므로 감춘다
+  const bar = res.byAI ? undefined : res.score;
+
+  if(res.verdict==="correct"){
+    const exact = !res.byAI && res.via!=="alias" && res.score>=1;   // 뜻 그대로 쓴 경우
+    if(res.byAI) saveAiAlias(it,raw);                              // 다음부터는 물어보지 않는다
+    feedback("ok", res.byAI ? (res.posOnly ? "⭕ 정답이에요! (사전에 있는 다른 품사)" : "⭕ 정답이에요! (뜻 확인 완료)") : "⭕ 정답이에요!",
+      exact ? model
+            : `<b>‘${esc(raw.trim())}’</b>도 같은 뜻으로 인정했어요.<br>${model}${aiLine}`,
+      bar);
+    markCorrect(it);
+    return;
+  }
+
+  // 문제에서 빼라고 한 뜻 — AI 에게 묻지 않는다.
+  if(res.verdict==="excluded"){
+    feedback("no","❌ 그 뜻은 빼고 답해 주세요",
+      `문제에 <b>${esc(res.banned)}</b>는 쓰지 말라고 되어 있어요.<br>
+       내 답: <b>${esc(raw.trim())}</b><br>${model}`);
+    markWrong(it);
+    return;
+  }
+
+  // 품사가 다르면 뜻이 통해도 오답. AI 에게 묻지 않고 여기서 끝낸다.
+  if(res.verdict==="pos"){
+    const lbl=neededPosLabel(it);
+    const sample=res.matched||it.m;
+    const line = res.particle
+      ? (res.matched && res.matched!==it.m
+          ? `조사 <b>‘${esc(res.particle)}’</b>를 빼고 <b>‘${esc(res.matched)}’</b>라고 써 주세요.`
+          : `조사 <b>‘${esc(res.particle)}’</b>를 빼고 써 주세요. 뜻만 적으면 됩니다.`)
+      : res.voiceBad
+      ? `<b>${esc(it.w)}</b> 는 <b>‘${esc(sample)}’</b>예요. ${
+          voiceOf(raw)==="피동"
+            ? "당하는 뜻(<b>~되다</b>)이 아니라 <b>~하다</b>로 써 주세요."
+            : "<b>~되다</b>처럼 당하는 뜻으로 써 주세요."}`
+      : lbl
+      ? `<b>${esc(it.w)}</b> 는 <b>${esc(lbl)}</b>예요. ${posHint(res.need)}`
+      : `<b>‘${esc(sample)}’</b> 처럼 같은 형태로 써야 해요.`;
+    feedback("no", res.particle ? "❌ 조사를 빼 주세요"
+                 : res.voiceBad ? "❌ 능동·피동이 달라요"
+                 : (lbl ? "❌ 품사가 달라요" : "❌ 형태가 달라요"),
+      `${line}<br>내 답: <b>${esc(raw.trim())}</b><br>${model}${aiLine}`);
+    markWrong(it);
+    return;
+  }
+
+  if(res.verdict==="close"){
+    const hint = res.other
+      ? `<br><span style="color:var(--ink-soft);font-size:13.5px">참고: 이 답은 <b>${esc(res.other.w)}</b>의 뜻이기도 해요.</span>` : "";
+    const f=feedback("maybe","🤔 비슷한 뜻 같아요",
+      `내 답: <b>${esc(raw.trim())}</b><br>${model}${hint}${aiLine}<br><span style="color:var(--ink-soft);font-size:13.5px">같은 뜻으로 쓴 거라면 정답으로 인정할게요. 스스로 판단해 보세요.</span>`,
+      bar);
+    const btns=document.createElement("div"); btns.className="fb-btns";
+    const yes=document.createElement("button"); yes.className="solid"; yes.textContent="같은 뜻이에요 · 정답 인정";
+    const no=document.createElement("button"); no.textContent="다른 뜻이었어요 · 오답";
+    yes.onclick=()=>{
+      btns.remove();
+      const k=aliasKey(it,normKo(raw));
+      if(!aliasOwn.has(k)){ aliasOwn.add(k); syncAlias("alias",it,raw); }
+      feedback("ok","⭕ 정답으로 인정했어요",
+        `다음부터 <b>‘${esc(raw.trim())}’</b>도 이 단어의 정답으로 인정돼요.<br>${model}`, res.score);
+      markCorrect(it);
+    };
+    no.onclick=()=>{ btns.remove();
+      feedback("no","❌ 오답으로 처리했어요", model, res.score);
+      markWrong(it);
+    };
+    btns.appendChild(yes); btns.appendChild(no); f.appendChild(btns);
+    return;
+  }
+
+  // 오답 / 빈 답
+  let title="❌ 아쉬워요", body=model;
+  if(res.verdict==="empty"){ title="정답을 확인하세요"; }
+  else if(res.other){
+    const j = josa(raw.trim(),"은","는").slice(raw.trim().length);
+    body=`<b>‘${esc(raw.trim())}’</b>${j} <b>${esc(res.other.w)}</b>의 뜻이에요.<br>${model}${aiLine}`;
+  }else{
+    body=`내 답: <b>${esc(raw.trim())}</b><br>${model}${aiLine}`;
+  }
+  const f=feedback("no",title,body,res.verdict==="empty"?undefined:bar);
+  if(res.verdict!=="empty"){
+    const btns=document.createElement("div"); btns.className="fb-btns";
+    const ask=document.createElement("button"); ask.className="ghost";
+    ask.textContent="이 뜻도 맞다고 생각해요 · 선생님께 인정 요청";
+    ask.onclick=()=>{
+      ask.disabled=true; ask.textContent="✓ 선생님께 요청했어요";
+      const k=aliasKey(it,normKo(raw));
+      if(!aliasAsked.has(k)){ aliasAsked.add(k); syncAlias("alias_req",it,raw); }
+    };
+    btns.appendChild(ask); f.appendChild(btns);
+  }
+  markWrong(it);
+}
+$("ansSubmit").onclick=submitAnswer;
+$("ansInput").addEventListener("keydown",e=>{ if(e.key==="Enter"){e.preventDefault(); submitAnswer();} });
+
+function answerQuiz(btn,chosen,correct){
+  const q=state.quiz; if(q.answered)return; q.answered=true;
+  const all=$("quizOpts").querySelectorAll(".opt");
+  all.forEach(b=>{b.disabled=true; if(b.textContent===correct.m)b.classList.add("correct");});
+  let note="";
+  if(chosen.m===correct.m){
+    q.score++;
+    note=streakNote(noteWrongResult(correct,true));
+  }else{
+    btn.classList.add("wrong"); q.wrong.push(correct);
+    noteWrongResult(correct,false);
+  }
+  $("quizScore").textContent=`점수 ${q.score} / ${q.order.length}`+(note?`  ·  ${note}`:"");
+  $("quizNext").classList.remove("hidden");
+}
+$("quizNext").onclick=()=>{
+  const q=state.quiz;
+  if(q.i<q.order.length-1){q.i++;renderQuiz();}
+  else finishQuiz();
+};
+function finishQuiz(){
+  const q=state.quiz;
+  const pct=Math.round(q.score/q.order.length*100);
+  $("resPct").textContent=pct+"%";
+  $("resLbl").textContent=`${q.order.length}문제 중 ${q.score}개 정답`;
+  $("quizBar").style.width="100%";
+  const hasWrong=q.wrong.length>0;
+  $("resWrong").classList.toggle("hidden",!hasWrong);
+  state._lastQuizPool=state.pool;
+  state._lastQuizMode=q.mode;
+  state._lastWrong=q.wrong.slice();
+  show("result");
+}
+$("resRetry").onclick=()=>startQuiz(state._lastQuizPool, state._lastQuizMode);
+$("resWrong").onclick=()=>{
+  if(state._lastWrong&&state._lastWrong.length){
+    const pool=dedupe(state._lastWrong);
+    startQuiz(pool, (state._lastQuizMode==="choice"&&pool.length<CHOICE_COUNT) ? "type" : state._lastQuizMode);
+  }
+};
+$("resHome").onclick=()=>show("mode");
+
+/* ---------- LIST / FAVORITES ---------- */
+/* 이 그룹에서 틀린 단어들 (챕터 무관, 저장된 전체) */
+function wrongItems(){
+  const all=itemsForScope(state.group,"ALL");
+  const byKey={}; all.forEach(it=>byKey[favKey(it.group,it.day,it.w)]=it);
+  return [...wrongStore].map(k=>byKey[k]).filter(Boolean);
+}
+
+function openList(kind){
+  let items, title;
+  if(kind==="fav"){
+    items=itemsForScope(state.group,state.scopeDays).filter(isFav);
+    title="⭐ 즐겨찾기";
+  }else if(kind==="wrong"){
+    items=wrongItems();                       // 틀린 단어는 범위와 무관하게 전부
+    title="🔁 틀린 단어";
+  }else{
+    items=itemsForScope(state.group,state.scopeDays);
+    title="📖 단어장";
+  }
+  $("listTitle").textContent = kind==="wrong" ? `${title} · 전체` : `${title} · ${state.scopeLabel}`;
+  $("listCount").textContent=`${items.length}개`;
+
+  // 즐겨찾기·틀린 단어는 그 목록으로 바로 재시험을 볼 수 있다
+  const acts=$("listActions");
+  const canQuiz=(kind==="fav"||kind==="wrong") && items.length>0;
+  acts.classList.toggle("hidden", !canQuiz);
+  if(canQuiz){
+    const enoughForChoice=items.length>=CHOICE_COUNT;
+    $("listQuizBtn").disabled=!enoughForChoice;
+    $("listQuizBtn").style.opacity=enoughForChoice?"1":".45";
+    $("listHint").textContent=enoughForChoice?"":`객관식은 ${CHOICE_COUNT}개 이상일 때 볼 수 있어요`;
+    $("listQuizBtn").onclick=()=>{ if(enoughForChoice) startQuiz(items,"choice"); };
+    $("listTypeBtn").onclick=()=>startQuiz(items,"type");
+  }
+
+  const body=$("listBody"); body.innerHTML="";
+  if(items.length===0){
+    const msg = kind==="fav" ? "아직 즐겨찾기한 단어가 없어요.<br>플래시카드에서 별표를 눌러보세요."
+              : kind==="wrong" ? "틀린 단어가 없어요.<br>퀴즈에서 틀리면 여기에 쌓입니다."
+              : "이 범위에 단어가 없습니다.";
+    body.innerHTML=`<div class="empty-state"><div class="e-ic">${kind==="fav"?"⭐":kind==="wrong"?"🎉":"📭"}</div>${msg}</div>`;
+  }else{
+    items.forEach(it=>{
+      const row=document.createElement("div"); row.className="vrow";
+      row.innerHTML=`<span class="vw">${esc(it.w)}</span><span class="vp">${esc(it.p||"")}</span><span class="vm">${esc(it.m)}</span>`;
+      if(kind==="wrong"){
+        // 한 번 맞혀 둔 단어는 표시해 준다 (한 번 더 맞히면 자동 제외)
+        if(wrongOk.has(favKey(it.group,it.day,it.w)))
+          row.querySelector(".vm").insertAdjacentHTML("beforeend",
+            ` <span style="font-size:11.5px;color:var(--accent);font-weight:700">✓ 1/2</span>`);
+        // 다 외운 단어는 목록에서 제외한다 (기록에서도 지운다)
+        const del=document.createElement("button");
+        del.style.cssText="border:1px solid var(--line);border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;color:var(--ink-soft);flex:none";
+        del.textContent="제외";
+        del.onclick=()=>{
+          const k=favKey(it.group,it.day,it.w);
+          wrongStore.delete(k); syncDelete("wrong",k);
+          if(wrongOk.has(k)){ wrongOk.delete(k); syncDelete("wrong_ok",k); }
+          openList("wrong");
+        };
+        row.appendChild(del);
+      }else{
+        const star=document.createElement("button");
+        star.className="vstar"+(isFav(it)?" on":""); star.textContent="★";
+        star.onclick=()=>{
+          const k=favKey(it.group,it.day,it.w);
+          if(favorites.has(k)){favorites.delete(k); syncDelete("fav",k);}
+          else {favorites.add(k); syncUpsert("fav",it);}
+          star.classList.toggle("on");
+          if(kind==="fav")openList("fav");
+        };
+        row.appendChild(star);
+      }
+      body.appendChild(row);
+    });
+  }
+  show("list");
+}
+
+/* ---------- LOGIN + SUPABASE SYNC ---------- */
+function setSync(stateName){ // 'ok' | 'busy' | ''
+  const d=document.querySelector(".sync-dot"); if(!d)return;
+  d.classList.remove("ok","busy"); if(stateName)d.classList.add(stateName);
+}
+function makeKey(name,phone){
+  return name.trim().replace(/\s+/g,"") + "_" + phone.trim();
+}
+/* 명단 확인 — 선생님이 등록한 학생인지 서버에 물어본다.
+   명단이 비어 있으면(등록 전) 예전처럼 누구나 입장할 수 있다. */
+async function verifyStudent(name,phone){
+  const fallback={ok:!STRICT_ROSTER, student_key:makeKey(name,phone), name, reason:"offline"};
+  if(!sb) return fallback;
+  try{
+    const {data,error}=await sb.rpc("student_login",{p_name:name,p_phone:phone});
+    if(error) throw error;
+    const r=Array.isArray(data)?data[0]:data;
+    if(!r||typeof r.ok!=="boolean") throw new Error("빈 응답");
+    /* 성적 사이트가 대답을 못 하는 경우(upstream_error)는 "명단에 없다"가 아니다.
+       이때까지 막아 버리면 성적 사이트가 잠깐 멈춘 동안 전교생이 못 들어온다.
+       서버가 죽었을 때와 똑같이 STRICT_ROSTER 설정에 맡긴다. */
+    if(!r.ok && r.reason==="upstream_error") return fallback;
+    return r;
+  }catch(e){
+    console.warn("명단 확인 실패", e);
+    return fallback;   // 서버가 죽어도 수업은 이어지게 (STRICT_ROSTER 로 조절)
+  }
+}
+
+async function doLogin(){
+  const name=$("loginName").value.trim();
+  const phone=$("loginPhone").value.trim();
+  const msg=$("loginMsg");
+  msg.textContent="";
+  if(!name){msg.textContent="이름을 입력해 주세요."; return;}
+  if(!/^\d{4}$/.test(phone)){msg.textContent="PIN 4자리(숫자)를 입력해 주세요."; return;}
+
+  const btn=$("loginBtn"); btn.disabled=true; btn.textContent="확인 중…";
+
+  const check=await verifyStudent(name,phone);
+  if(!check.ok){
+    msg.innerHTML = check.reason==="not_listed"
+      ? "이름 또는 PIN이 올바르지 않아요.<br>성적 사이트와 같은 이름·PIN인지 확인하고, 계속 안 되면 선생님께 말씀해 주세요."
+      : "이름과 PIN 4자리를 확인해 주세요.";
+    btn.disabled=false; btn.textContent="입장하기";
+    $("loginName").focus();
+    return;
+  }
+
+  btn.textContent="불러오는 중…";
+  student.key=check.student_key||makeKey(name,phone);
+  student.name=check.name||name;
+
+  await loadProgress();   // pull this student's data from Supabase
+
+  // header identity
+  const who=$("whoami");
+  who.classList.remove("hidden");
+  who.innerHTML=`<span class="sync-dot ok"></span>${student.name} 님 <span class="logout">로그아웃</span> · <span class="logout" style="color:var(--accent)">📊 점수 확인</span>`;
+  const logoutBtns = who.querySelectorAll(".logout");
+  logoutBtns[0].onclick=logout;
+  logoutBtns[1].onclick=goBack;
+
+  btn.disabled=false; btn.textContent="입장하기";
+  buildHome();
+  show("home");
+}
+function logout(){
+  favorites.clear(); wrongStore.clear(); wrongOk.clear(); aliasOwn.clear(); aliasGlobal.clear(); aliasAsked.clear();
+  student.key=null; student.name=null;
+  $("whoami").classList.add("hidden");
+  $("loginName").value=""; $("loginPhone").value="";
+  localStorage.removeItem("vocab_auth");
+  show("login");
+}
+
+function goBack(){
+  window.location.href="../";
+}
+async function loadProgress(){
+  if(!sb||!student.key)return;
+  try{
+    const {data,error}=await sb.from("progress")
+      .select("kind,word_id").eq("student_key",student.key);
+    if(error)throw error;
+    favorites.clear(); wrongStore.clear(); wrongOk.clear(); aliasOwn.clear();
+    (data||[]).forEach(r=>{
+      if(r.kind==="fav") favorites.add(r.word_id);
+      else if(r.kind==="wrong") wrongStore.add(r.word_id);
+      else if(r.kind==="wrong_ok") wrongOk.add(r.word_id);
+      else if(r.kind==="alias"||r.kind==="alias_ai") aliasOwn.add(r.word_id);
+    });
+  }catch(e){ console.warn("loadProgress 실패", e); }
+  // 선생님이 모든 학생에게 인정해 준 답안
+  try{
+    const {data,error}=await sb.from("progress")
+      .select("word_id").in("student_key",[ALIAS_OWNER,ALIAS_AI_OWNER]).eq("kind","alias");
+    if(error)throw error;
+    aliasGlobal.clear();
+    (data||[]).forEach(r=>aliasGlobal.add(r.word_id));
+  }catch(e){ console.warn("공통 인정 답안 로드 실패", e); }
+}
+/* 주관식 인정 답안 저장
+   kind "alias"     : 학생이 스스로 같은 뜻이라고 인정한 답
+   kind "alias_req" : 선생님께 인정을 요청한 답 (점수에는 영향 없음) */
+async function syncAlias(kind,item,answer,owner,ownerName){
+  if(!sb||!student.key)return;
+  setSync("busy");
+  try{
+    await sb.from("progress").upsert({
+      student_key:owner||student.key, student_name:ownerName||student.name,
+      kind, word_id:aliasKey(item,normKo(answer)),
+      word:String(answer).trim(), grp:item.group, day:item.day,
+      updated_at:new Date().toISOString()
+    }, {onConflict:"student_key,kind,word_id"});
+  }catch(e){ console.warn("alias 저장 실패", e); }
+  setSync("ok");
+}
+/* AI가 인정한 답 저장 — 본인 기록 + (설정 시) 모든 학생 공유 */
+function saveAiAlias(item,answer){
+  const k=aliasKey(item,normKo(answer));
+  if(!aliasOwn.has(k)){ aliasOwn.add(k); syncAlias("alias_ai",item,answer); }
+  if(AI_SHARE_ACCEPTED && !aliasGlobal.has(k)){
+    aliasGlobal.add(k);
+    syncAlias("alias",item,answer,ALIAS_AI_OWNER,"(AI 인정 답안)");
+  }
+}
+async function syncUpsert(kind,item){
+  if(!sb||!student.key)return;
+  setSync("busy");
+  try{
+    await sb.from("progress").upsert({
+      student_key:student.key, student_name:student.name,
+      kind, word_id:favKey(item.group,item.day,item.w||item.word),
+      word:item.w||item.word, grp:item.group, day:item.day,
+      updated_at:new Date().toISOString()
+    }, {onConflict:"student_key,kind,word_id"});
+  }catch(e){ console.warn("upsert 실패", e); }
+  setSync("ok");
+}
+async function syncDelete(kind,wordId){
+  if(!sb||!student.key)return;
+  setSync("busy");
+  try{
+    await sb.from("progress").delete()
+      .eq("student_key",student.key).eq("kind",kind).eq("word_id",wordId);
+  }catch(e){ console.warn("delete 실패", e); }
+  setSync("ok");
+}
+$("loginBtn").onclick=doLogin;
+$("loginPhone").addEventListener("keydown",e=>{ if(e.key==="Enter")doLogin(); });
+$("loginName").addEventListener("keydown",e=>{ if(e.key==="Enter")$("loginPhone").focus(); });
+
+/* ---------- helpers ---------- */
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function dedupe(arr){const seen=new Set();return arr.filter(x=>{const k=x.group+"|"+x.day+"|"+x.w;if(seen.has(k))return false;seen.add(k);return true;});}
+
+/* ---------- auto login from score-system ---------- */
+function tryAutoLogin(){
+  try{
+    const stored=localStorage.getItem("vocab_auth");
+    if(stored){
+      const auth=JSON.parse(stored);
+      if(auth.name && auth.pin){
+        $("loginName").value=auth.name;
+        $("loginPhone").value=auth.pin;
+        setTimeout(doLogin, 100);
+        return true;
+      }
+    }
+  }catch(e){
+    console.warn("Auto login 실패", e);
+  }
+  return false;
+}
+
+/* ---------- init ---------- */
+if(!tryAutoLogin()){
+  show("login");
+  $("loginName").focus();
+}
+</script>
+</body>
+</html>
