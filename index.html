@@ -484,6 +484,36 @@
         color: var(--gray);
         letter-spacing: 0.5px;
       }
+
+      /* ── 성적 / 단어공부 탭 바 ─────────────────────────────────
+         result-section 안쪽 최상단에 있으므로 로그인 전에는 저절로 숨는다
+         (#result-section 이 display:none 이라 별도 처리가 필요 없다). */
+      .tab-bar {
+        display: flex;
+        background: var(--white);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        margin-bottom: 14px;
+      }
+      .tab-btn {
+        flex: 1;
+        padding: 13px 10px;
+        font-family: "Noto Sans KR", sans-serif;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--gray);
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all 0.15s;
+      }
+      .tab-btn.active {
+        color: var(--navy);
+        font-weight: 700;
+        border-bottom-color: var(--gold);
+      }
     </style>
   </head>
   <body>
@@ -536,6 +566,11 @@
       </div>
 
       <div id="result-section">
+        <div class="tab-bar">
+          <button class="tab-btn active">📊 성적</button>
+          <button class="tab-btn" onclick="goVocabStudy()">📚 단어공부</button>
+        </div>
+
         <div class="student-info">
           <div class="student-name" id="result-name"></div>
           <div class="student-class" id="result-class"></div>
@@ -603,6 +638,14 @@
       let chartInstance = null;
       let loginData = null; // parent-login이 반환한 전체 데이터 묶음
       let weekConfigMap = {}; // { weekId: 정규화된 항목 설정 배열 }
+
+      // 단어공부 사이트(vocab-study — 별도 저장소, GitHub Pages).
+      // 주소가 바뀌면 이 한 줄만 고치면 된다.
+      const VOCAB_STUDY_URL =
+        "https://jongchankim-cloud.github.io/vocab-study/";
+      // 단어 사이트로 넘겨줄 PIN. parent-login 응답에는 PIN이 없어서
+      // 로그인 입력값을 여기에 붙잡아 둔다. logout()에서 반드시 비운다.
+      let _loginPin = null;
 
       // ── 주차별 채점 항목 설정 (admin.html과 동일 규약) ──────────
       // 물리 컬럼이 있는 기본 4슬롯의 key 목록. 5번째 이상 항목은 scores.item_scores(jsonb)에
@@ -794,6 +837,9 @@
           }
           loginData = await res.json();
           currentStudent = loginData.student;
+          // 단어공부 탭으로 넘기기 위해 보관 (logout에서 비움).
+          // 검증을 통과한 뒤에만 담는다 — 실패한 로그인의 PIN을 들고 있지 않기 위해.
+          _loginPin = pin;
           await showResult();
         } catch (e) {
           err.textContent = "오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
@@ -1394,11 +1440,43 @@
         }
       }
 
+      /* ── 단어공부 사이트로 이동 ───────────────────────────────
+         이름·PIN을 URL 해시에 실어 보내 학생이 로그인을 두 번 하지 않게 한다.
+         해시(#)를 쓰는 이유: 쿼리(?)와 달리 서버로 전송되지 않고 Referer
+         헤더에도 실리지 않는다. 받는 쪽(vocab-study)이 입장 직후
+         history.replaceState 로 주소창에서 지우고, 타임스탬프가 5분을 넘으면
+         버린다 — 복사해 둔 링크는 재사용되지 않는다.
+         ※ 이동 전에 화면 상태를 일절 건드리지 않는다. result-section을 먼저
+            숨기면 이동이 취소됐을 때 빈 화면이 남고 차트가 0px로 깨진다. */
+      function goVocabStudy() {
+        // 로그인 정보가 없으면 단어 사이트만 연다 (거기서 직접 로그인)
+        if (!currentStudent || !currentStudent.name || !_loginPin) {
+          location.href = VOCAB_STUDY_URL;
+          return;
+        }
+        const payload = JSON.stringify({
+          n: currentStudent.name,
+          p: _loginPin,
+          t: Date.now(),
+        });
+        // 한글 이름이 들어가므로 UTF-8로 바꾼 뒤 base64url로 인코딩한다.
+        // (btoa는 라틴1만 받아서 한글을 그대로 넣으면 예외가 난다)
+        const bytes = new TextEncoder().encode(payload);
+        let bin = "";
+        bytes.forEach((b) => (bin += String.fromCharCode(b)));
+        const token = btoa(bin)
+          .replace(/\+/g, "-")
+          .replace(/\//g, "_")
+          .replace(/=+$/, "");
+        location.href = VOCAB_STUDY_URL + "#sso=" + token;
+      }
+
       function logout() {
         currentStudent = null;
         currentWeeks = [];
         allScores = [];
         loginData = null;
+        _loginPin = null; // 이전 학생 PIN이 메모리에 남지 않게
         window._mockScoreMap = {};
         if (chartInstance) {
           chartInstance.destroy();
