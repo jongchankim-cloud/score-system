@@ -3732,9 +3732,17 @@ function tryAutoLogin(){
     if(stored){
       const auth=JSON.parse(stored);
       if(auth.name && auth.pin){
+        // 로그인 화면 숨기기
+        document.getElementById("screen-login").style.display = "none";
+        // 로딩 상태 표시
+        const loadingDiv = document.createElement("div");
+        loadingDiv.style.cssText = "text-align:center;padding:60px 20px;color:#5a6b7b;font-size:16px;";
+        loadingDiv.innerHTML = `<div style="margin-bottom:20px;">입장 중...</div>`;
+        document.querySelector(".wrap").appendChild(loadingDiv);
+        // 자동 로그인 실행
         $("loginName").value=auth.name;
         $("loginPhone").value=auth.pin;
-        setTimeout(doLogin, 100);
+        setTimeout(doLogin, 300);
         return true;
       }
     }
