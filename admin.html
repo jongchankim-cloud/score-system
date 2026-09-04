@@ -2067,15 +2067,20 @@ async function saveAllScores() {
     const existing = await api(`scores?week_id=eq.${weekId}&select=id,student_id${hasExtra ? ',item_scores' : ''}`);
     const existMap = {};
     const extraMap = {};
-    (existing || []).forEach(e => { existMap[e.student_id] = e.id; extraMap[e.student_id] = e.item_scores; });
+    (existing || []).forEach(e => {
+      const key = `${e.student_id}_${weekId}`;
+      existMap[key] = e.id;
+      extraMap[key] = e.item_scores;
+    });
     const results = await Promise.all(upserts.map(async u => {
       const { _extra, ...body } = u;
+      const key = `${u.student_id}_${weekId}`;
       // jsonb는 컬럼과 달리 통째로 덮어써진다. 기존 값 위에 병합하지 않으면
       // 비활성 항목(= 이번에 화면에 없던 항목)의 점수가 날아간다.
-      if (_extra) body.item_scores = { ...(extraMap[u.student_id] || {}), ..._extra };
-      if (existMap[u.student_id]) {
+      if (_extra) body.item_scores = { ...(extraMap[key] || {}), ..._extra };
+      if (existMap[key]) {
         const { student_id, week_id, ...patchBody } = body;
-        return apiRaw(`scores?id=eq.${existMap[u.student_id]}`, 'PATCH', patchBody);
+        return apiRaw(`scores?id=eq.${existMap[key]}`, 'PATCH', patchBody);
       } else {
         return apiRaw('scores', 'POST', body);
       }
