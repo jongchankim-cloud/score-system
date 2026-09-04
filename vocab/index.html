@@ -3623,6 +3623,10 @@ async function doLogin(){
 
   await loadProgress();   // pull this student's data from Supabase
 
+  // 자동 로그인 시 로딩 메시지 제거
+  const autoLoadDiv = document.querySelector(".auto-login-loading");
+  if(autoLoadDiv) autoLoadDiv.remove();
+
   // header identity
   const who=$("whoami");
   who.classList.remove("hidden");
@@ -3736,6 +3740,7 @@ function tryAutoLogin(){
         document.getElementById("screen-login").style.display = "none";
         // 로딩 상태 표시
         const loadingDiv = document.createElement("div");
+        loadingDiv.className = "auto-login-loading";
         loadingDiv.style.cssText = "text-align:center;padding:60px 20px;color:#5a6b7b;font-size:16px;";
         loadingDiv.innerHTML = `<div style="margin-bottom:20px;">입장 중...</div>`;
         document.querySelector(".wrap").appendChild(loadingDiv);
