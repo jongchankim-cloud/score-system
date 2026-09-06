@@ -1176,7 +1176,7 @@ async function deleteWeek(id) {
 
 // 삭제·이동 후 화면에 옛 명단이 남지 않도록 캐시를 비운다
 function clearAdminCaches() {
-  [studentCache, scoreCache, mockScoreCache, _uncertScoreData]
+  [studentCache, scoreCache, mockScoreCache, _uncertScoreData, _prevEvalCache]
     .forEach(c => c && Object.keys(c).forEach(k => delete c[k]));
 }
 
@@ -1500,6 +1500,44 @@ async function refreshScoreWeekOptions() {
   }
 }
 
+// 과제 평가는 주차마다 새로 쓰는 게 아니라 학생별로 이어서 관리한다.
+// 이번 주차 칸이 비어 있으면 그 학생의 가장 최근 이전 주차(같은 반) 평가를 미리 채워 보여주고,
+// 저장하면 이번 주차 행에 그대로 기록된다 — 주차별 스냅샷은 남기면서 화면은 늘 최신 누적본이다.
+const _prevEvalCache = {}; // weekId → { student_id: 이전 주차 평가 }
+// 이어오기는 "아직 채점 안 된 새 주차"에만 적용한다. 예전 주차에서 평가를 비워둔 학생 칸까지
+// 채우면, 그 주차를 재저장할 때 과거 기록이 바뀌어 버린다 (사용자 요청: 기존 기록은 건드리지 않기).
+function rowHasScores(sc) {
+  if (!sc) return false;
+  if (ITEM_KEYS.some(k => sc[k] !== null && sc[k] !== undefined && sc[k] !== '')) return true;
+  const bag = sc.item_scores;
+  return !!bag && Object.values(bag).some(v => v !== null && v !== undefined && v !== '');
+}
+function carriedEvalFor(sc, carried, studentId) {
+  if (sc && sc.homework_eval) return '';
+  if (rowHasScores(sc)) return '';
+  return carried[studentId] || '';
+}
+async function fetchCarriedEvals(classId, weekId) {
+  if (_prevEvalCache[weekId]) return _prevEvalCache[weekId];
+  const map = {};
+  const prevWeeks = await api(`weeks?class_id=eq.${classId}&id=lt.${weekId}&select=id`) || [];
+  if (prevWeeks.length) {
+    const ids = prevWeeks.map(w => w.id).join(',');
+    const rows = await api(`scores?week_id=in.(${ids})&select=student_id,week_id,homework_eval`) || [];
+    const bestWeek = {};
+    rows.forEach(r => {
+      const txt = (r.homework_eval || '').trim();
+      if (!txt) return;
+      if (!(r.student_id in bestWeek) || r.week_id > bestWeek[r.student_id]) {
+        bestWeek[r.student_id] = r.week_id;
+        map[r.student_id] = txt;
+      }
+    });
+  }
+  _prevEvalCache[weekId] = map;
+  return map;
+}
+
 async function loadScoreInputs() {
   const classId = document.getElementById('score-class').value;
   const weekId = document.getElementById('score-week').value;
@@ -1534,6 +1572,7 @@ async function loadScoreInputs() {
 
   if (scoreCache[weekId]) {
     currentNoHomework = hasNoHomework(scoreCache[weekId]);
+    await fetchCarriedEvals(classId, weekId);
     renderScoreInputs(classId, weekId, scoreCache[weekId]);
     return;
   }
@@ -1541,7 +1580,10 @@ async function loadScoreInputs() {
   if (!studentCache[classId]) {
     studentCache[classId] = await api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`) || [];
   }
-  const scores = await api(`scores?week_id=eq.${weekId}&select=*`) || [];
+  const [scores] = await Promise.all([
+    api(`scores?week_id=eq.${weekId}&select=*`).then(r => r || []),
+    fetchCarriedEvals(classId, weekId)
+  ]);
   scoreCache[weekId] = {};
   scores.forEach(s => { scoreCache[weekId][s.student_id] = s; });
   currentNoHomework = hasNoHomework(scoreCache[weekId]);
@@ -1980,6 +2022,7 @@ function renderScoreInputs(classId, weekId, scoreMap) {
   document.getElementById('score-input-title').textContent = `${className} — ${weekLabel}`;
   const items = activeItems();
   renderScoreHeader();
+  const carried = _prevEvalCache[weekId] || {};
   container.innerHTML = students.map(st => {
     const sc = scoreMap[st.id] || {};
     // 5번째 이상 항목은 물리 컬럼이 없어 item_scores에 있으므로 itemVal로 읽는다
@@ -2001,7 +2044,7 @@ function renderScoreInputs(classId, weekId, scoreMap) {
       <input type="checkbox" class="inp-attend" ${sc.attendance === false ? '' : 'checked'} title="출석" onchange="scoreDirty=true">
       ${itemInputs}
       <input type="number" class="inp-hw" value="${sc.homework_rate ?? ''}" min="0" max="100" placeholder="" oninput="scoreDirty=true">
-      <textarea class="inp-eval" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.homework_eval ?? ''}</textarea>
+      <textarea class="inp-eval"${carriedEvalFor(sc, carried, st.id) ? ' title="이전 주차 평가를 이어왔어요 (저장하면 이번 주차에 기록)"' : ''} oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.homework_eval || carriedEvalFor(sc, carried, st.id)}</textarea>
       <textarea class="inp-hwcert" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.hw_cert ?? ''}</textarea>
       <input type="checkbox" class="inp-clinic-target" ${sc.clinic_target ? 'checked' : ''} title="클리닉 대상" onchange="scoreDirty=true">
       <input type="checkbox" class="inp-clinic-attend" ${sc.clinic_attend ? 'checked' : ''} title="클리닉 참석" onchange="scoreDirty=true">
@@ -2087,7 +2130,7 @@ async function saveAllScores() {
     }));
     const failed = results.filter(r => !r.ok);
     if (failed.length > 0) { showToast(`❌ ${failed.length}건 저장 실패`); return; }
-    delete scoreCache[weekId];
+    delete scoreCache[weekId]; delete _prevEvalCache[weekId];
     scoreDirty = false;
     refreshGroupInfo();  // 저장된 점수를 반영해 그룹 평균 갱신
     showToast('✅ 점수가 저장됐어요!');
@@ -2251,7 +2294,7 @@ async function saveUncertGrid() {
       }));
 
       // 점수 입력 탭 캐시 갱신
-      delete scoreCache[weekId];
+      delete scoreCache[weekId]; delete _prevEvalCache[weekId];
       // 미인증 캐시도 갱신
       delete _uncertScoreData[weekId];
     }
@@ -2466,7 +2509,7 @@ async function confirmMoveStudent() {
     await api(`students?id=eq.${_moveStudentId}`, 'PATCH', { class_id: toClassId });
 
     // 캐시 무효화 (안 하면 새로고침 전까지 옛 명단이 보임)
-    [studentCache, scoreCache, mockScoreCache, _uncertScoreData]
+    [studentCache, scoreCache, mockScoreCache, _uncertScoreData, _prevEvalCache]
       .forEach(c => Object.keys(c).forEach(k => delete c[k]));
 
     const tail = (orphans.length + conflicts.length)
@@ -2756,6 +2799,7 @@ async function loadClinicSmsTargets() {
 
   const scoreMap = {};
   (scores || []).forEach(s => { scoreMap[s.student_id] = s; });
+  const carried = await fetchCarriedEvals(classId, weekId);
 
   // 클리닉 대상이면서 참석하지 않은 학생
   const targets = (students || []).filter(st => {
@@ -2769,7 +2813,7 @@ async function loadClinicSmsTargets() {
     student_phone: st.student_phone || '',
     clinic_memo: (scoreMap[st.id] && scoreMap[st.id].clinic_memo) || '',
     homework_rate: (scoreMap[st.id] ? scoreMap[st.id].homework_rate : null),
-    homework_eval: (scoreMap[st.id] && scoreMap[st.id].homework_eval) || '',
+    homework_eval: (scoreMap[st.id] && scoreMap[st.id].homework_eval) || carriedEvalFor(scoreMap[st.id], carried, st.id),
     hw_cert: (scoreMap[st.id] && scoreMap[st.id].hw_cert) || ''
   }));
 
@@ -2897,7 +2941,7 @@ async function saveClinicGrid() {
     if (failed.length > 0) { showToast(`❌ ${failed.length}건 저장 실패`); return; }
 
     // 다른 탭 캐시 무효화 (공용 반영)
-    delete scoreCache[weekId];
+    delete scoreCache[weekId]; delete _prevEvalCache[weekId];
     if (typeof _uncertScoreData === 'object') delete _uncertScoreData[weekId];
 
     showToast('✅ 저장됐어요! (점수입력·미인증 탭에도 반영)');
