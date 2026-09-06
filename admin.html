@@ -3200,12 +3200,12 @@ async function loadClinicSchedule() {
         + g.unassigned.map(u => escapeHtml(u.name) + hwTag(u) + itemTag(u) + (u.memo ? ` <span style="color:var(--gray);font-size:11px">(${escapeHtml(u.memo.length > 20 ? u.memo.slice(0, 20) + '…' : u.memo)})</span>` : ''))
           .join(', ') + `</p>`;
     }
-    // 재시험지 수요: 요일 × 항목. 같은 학생이 같은 요일에 두 칸에 있어도 한 번만 센다.
-    // 요일이 두 개인 학생은 두 요일 모두 준비해야 하므로 각각 센다. 요일 없는 학생은 '요일 미정' 행.
+    // 재시험지 수요: 요일 × 항목. 학생 한 명은 한 번만 온다는 전제로 시험지도 한 번만 센다 —
+    // 요일이 두 개 적힌 학생은 메모에 먼저 적힌 요일에만 센다. 요일 없는 학생은 '요일 미정' 행.
     if (g.itemOrder.length) {
       const counted = new Set(), tally = {};
       const bump = (day, items) => items.forEach(ab => { tally[day] = tally[day] || {}; tally[day][ab] = (tally[day][ab] || 0) + 1; });
-      g.entries.forEach(e => { const k = e.day + '|' + e.name; if (counted.has(k)) return; counted.add(k); bump(e.day, e.items || []); });
+      g.entries.forEach(e => { if (counted.has(e.name)) return; counted.add(e.name); bump(e.day, e.items || []); });
       g.unassigned.forEach(u => bump('요일 미정', u.items || []));
       const rows = [..._CLINIC_DAY_ORDER.filter(d => tally[d]), ...(tally['요일 미정'] ? ['요일 미정'] : [])];
       if (rows.length) {
