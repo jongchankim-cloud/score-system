@@ -1570,12 +1570,8 @@ async function loadScoreInputs() {
   toggleGroupEdit('week', false);  // 주차가 바뀌면 편집 중이던 그룹 선택은 닫는다
   refreshGroupInfo();      // 그룹 평균은 느려도 되므로 await 하지 않음
 
-  if (scoreCache[weekId]) {
-    currentNoHomework = hasNoHomework(scoreCache[weekId]);
-    await fetchCarriedEvals(classId, weekId);
-    renderScoreInputs(classId, weekId, scoreCache[weekId]);
-    return;
-  }
+  // 캐시가 있어도 항상 DB를 새로 읽는다. 예전엔 한 번 연 주차를 캐시로 다시 그렸는데, 그 사이
+  // 다른 사람이 입력한 과제%·평가·메모가 화면에 없는 채로 '전체 저장'되어 지워진 사고가 있었다(8.31 주차).
   container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
   if (!studentCache[classId]) {
     studentCache[classId] = await api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`) || [];
@@ -2066,6 +2062,31 @@ async function saveWeekMemo() {
   showToast('✅ 과제 내용이 저장됐어요.');
 }
 
+// 저장 직전, 화면은 비어 있는데 DB에는 값이 있는 칸을 찾는다. 다른 사람·다른 탭이 그 사이에
+// 입력한 값을 빈 칸으로 덮어쓰는 사고(8.31 주차 과제·메모 소실)를 막기 위한 마지막 관문.
+// rows: DB에서 방금 읽은 행들, screen: { student_id → { field: 화면값 } }, fields: { field: 라벨 }
+function findBlankOverwrites(rows, screen, fields, nameOf) {
+  const out = [];
+  (rows || []).forEach(r => {
+    const sc = screen[r.student_id];
+    if (!sc) return;
+    const lost = Object.keys(fields).filter(f => {
+      const db = r[f], ui = sc[f];
+      const dbHas = db !== null && db !== undefined && String(db).trim() !== '';
+      const uiBlank = ui === null || ui === undefined || String(ui).trim() === '';
+      return dbHas && uiBlank;
+    });
+    if (lost.length) out.push({ name: nameOf(r.student_id), fields: lost.map(f => fields[f]) });
+  });
+  return out;
+}
+function confirmBlankOverwrite(conflicts) {
+  if (!conflicts.length) return true;
+  const lines = conflicts.slice(0, 8).map(c => `· ${c.name}: ${c.fields.join(', ')}`).join('\n');
+  const more = conflicts.length > 8 ? `\n… 외 ${conflicts.length - 8}명` : '';
+  return confirm(`⚠️ 화면에는 비어 있지만 DB에는 값이 있는 칸이 ${conflicts.length}명 있습니다.\n다른 선생님이 그 사이 입력했을 수 있어요.\n\n${lines}${more}\n\n[확인] 빈 값으로 덮어쓰기   [취소] 저장 중단하고 최신 데이터 다시 불러오기`);
+}
+
 async function saveAllScores() {
   const weekId = parseInt(document.getElementById('score-week').value);
   const rows = document.querySelectorAll('#score-inputs-container .score-input-row');
@@ -2100,7 +2121,19 @@ async function saveAllScores() {
     // 5번째 이상 항목이 하나도 없으면 item_scores를 조회에도 요청에도 싣지 않는다.
     // (컬럼 추가 전 배포에서 기존 동작이 1비트도 달라지지 않게 하는 안전장치)
     const hasExtra = upserts.some(u => u._extra);
-    const existing = await api(`scores?week_id=eq.${weekId}&select=id,student_id${hasExtra ? ',item_scores' : ''}`);
+    const existing = await api(`scores?week_id=eq.${weekId}&select=id,student_id,homework_rate,homework_eval,clinic_memo${hasExtra ? ',item_scores' : ''}`);
+    {
+      const screen = {};
+      upserts.forEach(u => { screen[u.student_id] = { homework_rate: u.homework_rate, homework_eval: u.homework_eval, clinic_memo: u.clinic_memo }; });
+      const nameOf = id => document.querySelector(`#score-inputs-container .score-input-row[data-student-id="${id}"]`)?.dataset.studentName || id;
+      const conflicts = findBlankOverwrites(existing, screen, { homework_rate: '과제%', homework_eval: '과제평가', clinic_memo: '클리닉메모' }, nameOf);
+      if (!confirmBlankOverwrite(conflicts)) {
+        showToast('저장을 중단하고 최신 데이터를 다시 불러왔어요.', 3500);
+        scoreDirty = false;
+        loadScoreInputs();
+        return;
+      }
+    }
     const existMap = {};
     const extraMap = {};
     (existing || []).forEach(e => {
@@ -2273,7 +2306,19 @@ async function saveUncertGrid() {
 
   try {
     for (const weekId of Object.keys(byWeek)) {
-      const existing = await api(`scores?week_id=eq.${weekId}&select=id,student_id`);
+      const existing = await api(`scores?week_id=eq.${weekId}&select=id,student_id,homework_rate`);
+      {
+        const screen = {};
+        byWeek[weekId].forEach(u => { screen[u.student_id] = { homework_rate: u.homework_rate }; });
+        const nameOf = id => (_uncertStudents.find(st => st.id === id) || {}).name || id;
+        const conflicts = findBlankOverwrites(existing, screen, { homework_rate: '과제%' }, nameOf);
+        if (!confirmBlankOverwrite(conflicts)) {
+          showToast('저장을 중단하고 최신 데이터를 다시 불러왔어요.', 3500);
+          Object.keys(_uncertScoreData).forEach(k => delete _uncertScoreData[k]);
+          renderUncertGrid();
+          return;
+        }
+      }
       const existMap = {};
       (existing || []).forEach(e => { existMap[e.student_id] = e.id; });
 
@@ -2910,7 +2955,18 @@ async function saveClinicGrid() {
   }));
 
   try {
-    const existing = await api(`scores?week_id=eq.${weekId}&select=id,student_id`);
+    const existing = await api(`scores?week_id=eq.${weekId}&select=id,student_id,homework_eval,clinic_memo`);
+    {
+      const screen = {};
+      updates.forEach(u => { screen[u.student_id] = { homework_eval: u.homework_eval, clinic_memo: u.clinic_memo }; });
+      const nameOf = id => (window._clinicSmsTargets || []).find(t => t.id === id)?.name || id;
+      const conflicts = findBlankOverwrites(existing, screen, { homework_eval: '과제평가', clinic_memo: '클리닉메모' }, nameOf);
+      if (!confirmBlankOverwrite(conflicts)) {
+        showToast('저장을 중단하고 최신 데이터를 다시 불러왔어요.', 3500);
+        loadClinicSmsTargets();
+        return;
+      }
+    }
     const existMap = {};
     (existing || []).forEach(e => { existMap[e.student_id] = e.id; });
 
