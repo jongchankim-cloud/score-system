@@ -2092,8 +2092,8 @@ function renderScoreInputs(classId, weekId, scoreMap) {
       <span class="total-cell">${total}</span>
       <input type="checkbox" class="inp-attend" ${sc.attendance === false ? '' : 'checked'} title="출석" onchange="scoreDirty=true">
       ${itemInputs}
-      <input type="number" class="inp-hw" value="${sc.homework_rate ?? carriedRateFor(sc, carried, st.id)}"${(carriedRateFor(sc, carried, st.id) !== '') ? ' title="이전 주차 과제%를 이어왔어요 (저장하면 이번 주차에 기록)"' : ''} min="0" max="100" placeholder="" oninput="scoreDirty=true">
-      <textarea class="inp-eval"${carriedEvalFor(sc, carried, st.id) ? ' title="이전 주차 평가를 이어왔어요 (저장하면 이번 주차에 기록)"' : ''} oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.homework_eval || carriedEvalFor(sc, carried, st.id)}</textarea>
+      <input type="number" class="inp-hw" value="${sc.homework_rate ?? carriedRateFor(sc, carried, st.id)}" title="${carriedRateFor(sc, carried, st.id) !== '' ? '이전 주차 과제%를 이어왔어요 (저장하면 이번 주차에 기록)' : (sc.homework_rate !== null && sc.homework_rate !== undefined ? '이번 주차에 저장된 값' : '')}" min="0" max="100" placeholder="" oninput="scoreDirty=true;this.title='이번 주차에 입력한 값 (저장 전)'">
+      <textarea class="inp-eval" title="${carriedEvalFor(sc, carried, st.id) ? '이전 주차 평가를 이어왔어요 (저장하면 이번 주차에 기록)' : (sc.homework_eval ? '이번 주차에 저장된 값' : '')}" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true;this.title='이번 주차에 입력한 값 (저장 전)'">${sc.homework_eval || carriedEvalFor(sc, carried, st.id)}</textarea>
       <textarea class="inp-clinic-memo" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.clinic_memo ?? ''}</textarea>
     </div>`;
   }).join('');
@@ -2220,6 +2220,10 @@ async function saveAllScores() {
     if (failed.length > 0) { showToast(`❌ ${failed.length}건 저장 실패`); return; }
     delete scoreCache[weekId]; delete _prevEvalCache[weekId];
     scoreDirty = false;
+    // 이어왔던 과제평가·과제%는 이제 이번 주차에 기록됐으므로 툴팁을 바꾼다
+    document.querySelectorAll('#score-inputs-container .inp-eval, #score-inputs-container .inp-hw').forEach(el => {
+      el.title = String(el.value).trim() !== '' ? '이번 주차에 저장된 값' : '';
+    });
     refreshGroupInfo();  // 저장된 점수를 반영해 그룹 평균 갱신
     showToast('✅ 점수가 저장됐어요!');
   } catch(e) { showToast('❌ 오류 발생: ' + e.message); }
