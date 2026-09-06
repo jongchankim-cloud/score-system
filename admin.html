@@ -217,6 +217,7 @@
     <button class="tab-btn" onclick="switchTab('tab-uncert')">미인증 관리</button>
     <button class="tab-btn" onclick="switchTab('tab-clinic-sms')">클리닉 미참석 문자 발송</button>
     <button class="tab-btn" onclick="switchTab('tab-clinic-schedule')">클리닉 배정표</button>
+    <button class="tab-btn" onclick="switchTab('tab-history')">변경 이력</button>
     <button class="tab-btn" onclick="switchTab('tab-mock')">모의고사</button>
     <button class="tab-btn" onclick="switchTab('tab-week')">주차 관리</button>
     <button class="tab-btn" onclick="switchTab('tab-student')">학생 관리</button>
@@ -847,6 +848,34 @@
     </div>
   </div>
 
+  <!-- 탭13: 변경 이력 · 되돌리기 -->
+  <div id="tab-history" class="tab-content">
+    <div class="section-card">
+      <div class="section-head"><h3>변경 이력 · 되돌리기</h3></div>
+      <div class="section-body">
+        <p style="font-size:12px;color:var(--gray);margin:0 0 14px;line-height:1.7">점수·과제%·과제평가·클리닉 메모가 <strong>언제 어떻게 바뀌었는지</strong> 보여주고, 잘못 덮어써진 값을 이전 값으로 되돌립니다.<br>되돌리기도 이력에 남으므로 실수해도 다시 되돌릴 수 있습니다. (이력은 2026-09-06부터 쌓입니다)</p>
+        <div class="form-row">
+          <div class="form-group">
+            <label>반 선택</label>
+            <select id="history-class" onchange="loadHistoryWeeks()"><option value="">반을 선택하세요</option></select>
+          </div>
+          <div class="form-group">
+            <label>주차 선택</label>
+            <select id="history-week" onchange="loadHistory()"><option value="">주차를 선택하세요</option></select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-card" id="history-card" style="display:none">
+      <div class="section-head">
+        <h3 id="history-title">변경 이력</h3>
+        <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="loadHistory()">새로고침</button>
+      </div>
+      <div class="section-body" style="overflow-x:auto"><div id="history-list"></div></div>
+    </div>
+  </div>
+
 </div>
 
 <!-- 반 이동 모달 -->
@@ -971,7 +1000,7 @@ async function adminLogin() {
 }
 
 let classes = [];
-const CLASS_SELECT_IDS = ['score-class','week-list-class','new-class','student-list-class','mock-score-class','mock-list-class','sms-class','uncert-class','student-sms-class','absent-class','clinic-sms-class','score-sms-class'];
+const CLASS_SELECT_IDS = ['score-class','week-list-class','new-class','student-list-class','mock-score-class','mock-list-class','sms-class','uncert-class','student-sms-class','absent-class','clinic-sms-class','score-sms-class','history-class'];
 
 // 숫자 입력칸(type=number)은 포커스된 채 마우스 휠을 굴리면 브라우저가 값을 올리내려
 // 방금 입력한 점수가 눈치채지 못한 사이에 바뀐다. 동적으로 생성되는 칸까지 전부 막기 위해
@@ -3289,6 +3318,191 @@ async function loadClinicSchedule() {
     }
     return html + '</div>';
   }).join('');
+}
+
+// ── 변경 이력 · 되돌리기 ──────────────────────────────
+// DB 트리거가 scores 행의 UPDATE/DELETE 직전 값을 data_history에 남긴다(2026-09-06 도입).
+// 여기서는 그 이력을 주차 단위로 보여주고, 잘못 덮어써진 값을 이전 값으로 되돌린다.
+// 되돌리기도 보통의 PATCH라 다시 이력에 남는다 — 실수해도 한 번 더 되돌릴 수 있다.
+const _HISTORY_FIELDS = {
+  homework_rate: '과제%', homework_eval: '과제평가', clinic_memo: '클리닉메모', hw_cert: '잔여인증',
+  attendance: '출석', no_homework: '과제없음', retest_pass: '재시험통과',
+  word_score: '항목1', reading_score: '항목2', mc_score: '항목3', item4_score: '항목4', item_scores: '추가항목'
+};
+let _historyEntries = [], _historyStudents = {}, _historyWeeks = [];
+
+async function loadHistoryWeeks() {
+  const classId = document.getElementById('history-class').value;
+  const sel = document.getElementById('history-week');
+  sel.innerHTML = '<option value="">주차를 선택하세요</option>';
+  document.getElementById('history-card').style.display = 'none';
+  if (!classId) return;
+  _historyWeeks = await api(`weeks?class_id=eq.${classId}&order=id.desc&select=id,label,test_date,item_config`) || [];
+  _historyWeeks.forEach(w => { const opt = document.createElement('option'); opt.value = w.id; opt.textContent = w.label || w.test_date; sel.appendChild(opt); });
+  if (_historyWeeks.length) { sel.value = _historyWeeks[0].id; loadHistory(); }
+}
+
+// 항목1~4는 그 주차의 항목 설정 이름(단어/해석/…)으로 바꿔 보여준다
+function historyFieldLabels() {
+  const labels = { ..._HISTORY_FIELDS };
+  const weekId = document.getElementById('history-week').value;
+  const w = _historyWeeks.find(x => x.id == weekId);
+  if (w) normalizeItemConfig(w.item_config).forEach(it => { if (it.label) labels[it.key] = it.label; });
+  return labels;
+}
+function fmtHistVal(v) {
+  if (v === null || v === undefined || v === '') return '(비어 있음)';
+  if (v === true) return '예';
+  if (v === false) return '아니요';
+  if (typeof v === 'object') return JSON.stringify(v);
+  return String(v);
+}
+function fmtHistTime(iso) {
+  const d = new Date(iso);
+  return `${d.getMonth() + 1}.${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+// 이력 한 건에서 실제로 바뀐 칸만 뽑는다: [{ key, label, before, after }]
+function historyDiff(e) {
+  const labels = historyFieldLabels();
+  const out = [];
+  Object.keys(labels).forEach(k => {
+    const b = e.old_row ? e.old_row[k] : undefined;
+    const a = e.new_row ? e.new_row[k] : undefined;
+    if (e.op === 'DELETE') {
+      if (b !== null && b !== undefined && b !== '' && b !== false) out.push({ key: k, label: labels[k], before: b, after: undefined });
+      return;
+    }
+    if (JSON.stringify(b ?? null) !== JSON.stringify(a ?? null)) out.push({ key: k, label: labels[k], before: b, after: a });
+  });
+  return out;
+}
+
+async function loadHistory() {
+  const classId = document.getElementById('history-class').value;
+  const weekId = document.getElementById('history-week').value;
+  if (!classId || !weekId) return;
+  const card = document.getElementById('history-card');
+  const listEl = document.getElementById('history-list');
+  card.style.display = 'block';
+  listEl.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
+
+  const [students, entries] = await Promise.all([
+    api(`students?class_id=eq.${classId}&select=id,name`),
+    // old_row 안의 week_id로 거른다 (PostgREST의 jsonb ->> 필터). 최신순, 최대 500건
+    api(`data_history?table_name=eq.scores&old_row->>week_id=eq.${weekId}&order=changed_at.desc,id.desc&limit=500&select=id,row_id,op,old_row,new_row,changed_at`)
+  ]);
+  _historyStudents = {};
+  (students || []).forEach(st => { _historyStudents[st.id] = st.name; });
+  _historyEntries = entries || [];
+
+  const weekSel = document.getElementById('history-week');
+  const weekLabel = weekSel.options[weekSel.selectedIndex]?.text || '';
+  const className = classes.find(c => c.id == classId)?.name || '';
+  const meaningful = _historyEntries.filter(e => historyDiff(e).length);
+  document.getElementById('history-title').textContent = `${className} ${weekLabel} — 변경 ${meaningful.length}건`;
+
+  if (!meaningful.length) {
+    listEl.innerHTML = '<p style="font-size:13px;color:var(--gray)">이 주차에는 기록된 변경이 없습니다.</p>';
+    return;
+  }
+  const btn = 'padding:4px 8px;font-size:11px;border-radius:6px;border:1px solid var(--border);background:var(--light-gray);color:var(--navy);cursor:pointer;white-space:nowrap';
+  listEl.innerHTML = `<table class="data-table">
+    <thead><tr><th style="white-space:nowrap">시각</th><th style="white-space:nowrap">학생</th><th>바뀐 내용 (이전 → 이후)</th><th style="white-space:nowrap">되돌리기</th></tr></thead>
+    <tbody>${meaningful.map(e => {
+      const name = _historyStudents[e.old_row?.student_id] || `학생#${e.old_row?.student_id ?? '?'}`;
+      const diff = historyDiff(e);
+      const lines = e.op === 'DELETE'
+        ? `<span style="color:var(--red);font-weight:600">행 삭제됨</span> — ` + diff.map(d => `${escapeHtml(d.label)}: ${escapeHtml(fmtHistVal(d.before))}`).join(', ')
+        : diff.map(d => `<div><strong>${escapeHtml(d.label)}</strong>: ${escapeHtml(fmtHistVal(d.before))} <span style="color:var(--gray)">→</span> ${escapeHtml(fmtHistVal(d.after))}</div>`).join('');
+      return `<tr>
+        <td style="white-space:nowrap;font-size:12px">${escapeHtml(fmtHistTime(e.changed_at))}</td>
+        <td style="white-space:nowrap"><strong>${escapeHtml(name)}</strong></td>
+        <td style="font-size:12px;line-height:1.6">${lines}</td>
+        <td style="white-space:nowrap">
+          <button type="button" style="${btn}" onclick="restoreHistoryEntry(${e.id})">이 학생만</button>
+          <button type="button" style="${btn};margin-left:4px" onclick="restoreHistoryUpTo(${e.id})" title="이 시각 직전 상태로 이 주차의 모든 학생을 되돌립니다">이 시각 이전으로 전체</button>
+        </td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+}
+
+// 되돌린 뒤 다른 탭이 옛 화면을 그리지 않게 캐시를 비운다
+function historyInvalidate(weekId) {
+  delete scoreCache[weekId]; delete _prevEvalCache[weekId];
+  if (typeof _uncertScoreData === 'object') delete _uncertScoreData[weekId];
+}
+// 삭제된 행 복원용: old_row에서 다시 INSERT할 수 없는 컬럼을 뺀다
+function historyRowForInsert(row) {
+  const { id, total_score, created_at, ...rest } = row || {};
+  return rest;
+}
+
+// 이력 한 건의 '이전 값'으로 그 학생만 되돌린다 (바뀐 칸만 PATCH)
+async function restoreHistoryEntry(entryId) {
+  const e = _historyEntries.find(x => x.id === entryId);
+  if (!e) return;
+  const name = _historyStudents[e.old_row?.student_id] || '학생';
+  const weekId = document.getElementById('history-week').value;
+  const diff = historyDiff(e);
+  try {
+    if (e.op === 'DELETE') {
+      if (!confirm(`${name}의 삭제된 행을 되살릴까요?\n(${fmtHistTime(e.changed_at)} 삭제 당시 값으로 복원)`)) return;
+      const r = await apiRaw('scores', 'POST', historyRowForInsert(e.old_row));
+      if (!r.ok) { showToast('❌ 복원 실패'); return; }
+    } else {
+      if (!diff.length) { showToast('되돌릴 변경이 없습니다.'); return; }
+      const lines = diff.map(d => `· ${d.label}: ${fmtHistVal(d.after)} → ${fmtHistVal(d.before)}`).join('\n');
+      if (!confirm(`${name}의 값을 ${fmtHistTime(e.changed_at)} 직전으로 되돌릴까요?\n\n${lines}`)) return;
+      const body = {};
+      diff.forEach(d => { body[d.key] = e.old_row[d.key] ?? null; });
+      const r = await apiRaw(`scores?id=eq.${e.row_id}`, 'PATCH', body);
+      if (!r.ok) { showToast('❌ 되돌리기 실패'); return; }
+    }
+    historyInvalidate(weekId);
+    showToast(`✅ ${name}의 값을 되돌렸어요!`);
+    loadHistory();
+  } catch (err) { showToast('❌ 오류: ' + err.message); }
+}
+
+// 기준 시각(T) 직전 상태로 이 주차의 모든 학생을 되돌린다.
+// 각 행마다 T 이후 첫 변경의 old_row가 곧 T 시점의 값이다. T 이후 변경이 없는 행은 그대로 둔다.
+async function restoreHistoryUpTo(entryId) {
+  const anchor = _historyEntries.find(x => x.id === entryId);
+  if (!anchor) return;
+  const weekId = document.getElementById('history-week').value;
+  const T = anchor.changed_at;
+  const asc = _historyEntries.slice().sort((a, b) => (a.changed_at < b.changed_at ? -1 : a.changed_at > b.changed_at ? 1 : a.id - b.id));
+  const stateAtT = {}; // row_id → { entry }
+  asc.forEach(e => { if (e.changed_at >= T && !stateAtT[e.row_id]) stateAtT[e.row_id] = e; });
+
+  const labels = historyFieldLabels();
+  const current = await api(`scores?week_id=eq.${weekId}&select=*`) || [];
+  const curById = {}; current.forEach(r => { curById[r.id] = r; });
+  const plan = []; // { name, rowId, body } 또는 { name, insert }
+  Object.values(stateAtT).forEach(e => {
+    const name = _historyStudents[e.old_row?.student_id] || `학생#${e.old_row?.student_id}`;
+    if (e.op === 'DELETE' || !curById[e.row_id]) {
+      if (!current.some(r => r.student_id === e.old_row?.student_id)) plan.push({ name, insert: historyRowForInsert(e.old_row), labels: ['행 복원'] });
+      return;
+    }
+    const cur = curById[e.row_id], body = {}, changed = [];
+    Object.keys(labels).forEach(k => {
+      if (JSON.stringify(cur[k] ?? null) !== JSON.stringify(e.old_row[k] ?? null)) { body[k] = e.old_row[k] ?? null; changed.push(labels[k]); }
+    });
+    if (changed.length) plan.push({ name, rowId: e.row_id, body, labels: changed });
+  });
+  if (!plan.length) { showToast('되돌릴 변경이 없습니다. 이미 그 시점의 값입니다.'); return; }
+  const lines = plan.slice(0, 10).map(p => `· ${p.name}: ${p.labels.join(', ')}`).join('\n') + (plan.length > 10 ? `\n… 외 ${plan.length - 10}명` : '');
+  if (!confirm(`${fmtHistTime(T)} 직전 상태로 ${plan.length}명을 되돌릴까요?\n\n${lines}\n\n(되돌리기도 이력에 남아 다시 되돌릴 수 있습니다)`)) return;
+  try {
+    const results = await Promise.all(plan.map(p => p.insert
+      ? apiRaw('scores', 'POST', p.insert)
+      : apiRaw(`scores?id=eq.${p.rowId}`, 'PATCH', p.body)));
+    const failed = results.filter(r => !r.ok).length;
+    historyInvalidate(weekId);
+    if (failed) showToast(`❌ ${failed}건 되돌리기 실패`); else showToast(`✅ ${plan.length}명을 되돌렸어요!`);
+    loadHistory();
+  } catch (err) { showToast('❌ 오류: ' + err.message); }
 }
 
 // ── 반 관리
