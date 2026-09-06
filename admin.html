@@ -1504,6 +1504,19 @@ async function refreshScoreWeekOptions() {
 // 이번 주차 칸이 비어 있으면 그 학생의 가장 최근 이전 주차(같은 반) 평가를 미리 채워 보여주고,
 // 저장하면 이번 주차 행에 그대로 기록된다 — 주차별 스냅샷은 남기면서 화면은 늘 최신 누적본이다.
 const _prevEvalCache = {}; // weekId → { student_id: 이전 주차 평가 }
+// 이어오기는 "아직 채점 안 된 새 주차"에만 적용한다. 예전 주차에서 평가를 비워둔 학생 칸까지
+// 채우면, 그 주차를 재저장할 때 과거 기록이 바뀌어 버린다 (사용자 요청: 기존 기록은 건드리지 않기).
+function rowHasScores(sc) {
+  if (!sc) return false;
+  if (ITEM_KEYS.some(k => sc[k] !== null && sc[k] !== undefined && sc[k] !== '')) return true;
+  const bag = sc.item_scores;
+  return !!bag && Object.values(bag).some(v => v !== null && v !== undefined && v !== '');
+}
+function carriedEvalFor(sc, carried, studentId) {
+  if (sc && sc.homework_eval) return '';
+  if (rowHasScores(sc)) return '';
+  return carried[studentId] || '';
+}
 async function fetchCarriedEvals(classId, weekId) {
   if (_prevEvalCache[weekId]) return _prevEvalCache[weekId];
   const map = {};
@@ -2031,7 +2044,7 @@ function renderScoreInputs(classId, weekId, scoreMap) {
       <input type="checkbox" class="inp-attend" ${sc.attendance === false ? '' : 'checked'} title="출석" onchange="scoreDirty=true">
       ${itemInputs}
       <input type="number" class="inp-hw" value="${sc.homework_rate ?? ''}" min="0" max="100" placeholder="" oninput="scoreDirty=true">
-      <textarea class="inp-eval"${(!sc.homework_eval && carried[st.id]) ? ' title="이전 주차 평가를 이어왔어요 (저장하면 이번 주차에 기록)"' : ''} oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.homework_eval || carried[st.id] || ''}</textarea>
+      <textarea class="inp-eval"${carriedEvalFor(sc, carried, st.id) ? ' title="이전 주차 평가를 이어왔어요 (저장하면 이번 주차에 기록)"' : ''} oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.homework_eval || carriedEvalFor(sc, carried, st.id)}</textarea>
       <textarea class="inp-hwcert" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.hw_cert ?? ''}</textarea>
       <input type="checkbox" class="inp-clinic-target" ${sc.clinic_target ? 'checked' : ''} title="클리닉 대상" onchange="scoreDirty=true">
       <input type="checkbox" class="inp-clinic-attend" ${sc.clinic_attend ? 'checked' : ''} title="클리닉 참석" onchange="scoreDirty=true">
@@ -2800,7 +2813,7 @@ async function loadClinicSmsTargets() {
     student_phone: st.student_phone || '',
     clinic_memo: (scoreMap[st.id] && scoreMap[st.id].clinic_memo) || '',
     homework_rate: (scoreMap[st.id] ? scoreMap[st.id].homework_rate : null),
-    homework_eval: (scoreMap[st.id] && scoreMap[st.id].homework_eval) || carried[st.id] || '',
+    homework_eval: (scoreMap[st.id] && scoreMap[st.id].homework_eval) || carriedEvalFor(scoreMap[st.id], carried, st.id),
     hw_cert: (scoreMap[st.id] && scoreMap[st.id].hw_cert) || ''
   }));
 
