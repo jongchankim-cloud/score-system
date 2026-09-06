@@ -2955,6 +2955,9 @@ async function saveClinicGrid() {
 // "월요일 3시, 서술형 제외"...). 요일·시간을 읽을 수 있는 만큼만 격자에 배치하고,
 // 요일을 못 읽은 메모는 명단으로 내려 보낸다. 잘못된 칸에 넣느니 명단이 안전하다.
 const _CLINIC_DAY_ORDER = ['월','화','수','목','금','토','일'];
+// 재시험지 종류가 반마다 다른 학년은 수요 집계를 반별로 나눈다 (고1: 수요일 상반/하반 시험지가 다름).
+// 고2는 한 종류라 학년 합계 하나로 낸다.
+const _CLINIC_TALLY_SPLIT_BY_CLASS = { '고1': true };
 
 // 메모 → [{ day, min(분, 시간 못 읽으면 null), label, note }] 배열.
 // min: 1~8시는 오후로 본다(클리닉이 오전 9시 전에 열리지 않는다는 운영 전제).
@@ -3125,13 +3128,14 @@ async function loadClinicSchedule() {
 
     const parsed = parseClinicMemo(memo);
     if (parsed.length) {
-      parsed.forEach(e => g.entries.push({ ...e, name: st.name, hw, items: retestItems }));
+      const clsName = cls ? cls.name : '';
+      parsed.forEach(e => g.entries.push({ ...e, name: st.name, hw, items: retestItems, cls: clsName }));
     } else if (sc.clinic_target === true) {
-      g.unassigned.push({ name: st.name, memo, hw, items: retestItems });
+      g.unassigned.push({ name: st.name, memo, hw, items: retestItems, cls: cls ? cls.name : '' });
     } else if (!/통과/.test(memo)) {
       // 대상 체크는 없지만 메모가 있는 학생: "올/전체 통과"는 클리닉과 무관하므로 제외하고,
       // "결석회차 영상보고 과제해주세요" 같은 나머지는 미기재 명단에 올린다
-      g.unassigned.push({ name: st.name, memo, hw, items: retestItems });
+      g.unassigned.push({ name: st.name, memo, hw, items: retestItems, cls: cls ? cls.name : '' });
     } else {
       // '통과' 메모라도 과제 인증 기한이 적혀 있으면 기한 명단에는 올린다
       const due = clinicHwDeadline(memo);
@@ -3202,23 +3206,34 @@ async function loadClinicSchedule() {
     }
     // 재시험지 수요: 요일 × 항목. 학생 한 명은 한 번만 온다는 전제로 시험지도 한 번만 센다 —
     // 요일이 두 개 적힌 학생은 메모에 먼저 적힌 요일에만 센다. 요일 없는 학생은 '요일 미정' 행.
-    if (g.itemOrder.length) {
+    // 시험지 종류가 반마다 다른 학년(_CLINIC_TALLY_SPLIT_BY_CLASS)은 반별로 표를 따로 낸다.
+    const renderTally = (entries, unassigned, title) => {
       const counted = new Set(), tally = {};
       const bump = (day, items) => items.forEach(ab => { tally[day] = tally[day] || {}; tally[day][ab] = (tally[day][ab] || 0) + 1; });
-      g.entries.forEach(e => { if (counted.has(e.name)) return; counted.add(e.name); bump(e.day, e.items || []); });
-      g.unassigned.forEach(u => bump('요일 미정', u.items || []));
+      entries.forEach(e => { if (counted.has(e.name)) return; counted.add(e.name); bump(e.day, e.items || []); });
+      unassigned.forEach(u => bump('요일 미정', u.items || []));
       const rows = [..._CLINIC_DAY_ORDER.filter(d => tally[d]), ...(tally['요일 미정'] ? ['요일 미정'] : [])];
-      if (rows.length) {
-        const colSum = ab => rows.reduce((n, d) => n + (tally[d][ab] || 0), 0);
-        // 한 장도 필요 없는 항목(예: 기본 설정으로만 켜진 항목)은 열에서 뺀다
-        const cols = g.itemOrder.filter(o => colSum(o.abbr) > 0);
-        const rowSum = d => cols.reduce((n, o) => n + (tally[d][o.abbr] || 0), 0);
-        html += `<p style="font-size:12px;color:var(--navy);margin:14px 0 6px"><strong>재시험지 수요</strong> <span style="color:var(--gray);font-size:11px">(장 · 재시험 통과 항목 제외)</span></p>
+      if (!rows.length) return '';
+      const colSum = ab => rows.reduce((n, d) => n + (tally[d][ab] || 0), 0);
+      // 한 장도 필요 없는 항목(예: 기본 설정으로만 켜진 항목)은 열에서 뺀다
+      const cols = g.itemOrder.filter(o => colSum(o.abbr) > 0);
+      if (!cols.length) return '';
+      const rowSum = d => cols.reduce((n, o) => n + (tally[d][o.abbr] || 0), 0);
+      return `<p style="font-size:12px;color:var(--navy);margin:14px 0 6px"><strong>재시험지 수요${title ? ' — ' + escapeHtml(title) : ''}</strong> <span style="color:var(--gray);font-size:11px">(장 · 재시험 통과 항목 제외)</span></p>
         <div style="overflow-x:auto"><table class="data-table" style="max-width:520px">
           <thead><tr><th style="white-space:nowrap">요일</th>${cols.map(o => `<th title="${escapeHtml(o.label)}" style="white-space:nowrap">${escapeHtml(o.abbr)}</th>`).join('')}<th>합계</th></tr></thead>
           <tbody>${rows.map(d => `<tr><td style="white-space:nowrap"><strong>${escapeHtml(d)}${d === '요일 미정' ? '' : '요일'}</strong></td>${cols.map(o => `<td>${tally[d][o.abbr] || ''}</td>`).join('')}<td><strong>${rowSum(d)}</strong></td></tr>`).join('')}
           <tr><td><strong>합계</strong></td>${cols.map(o => `<td><strong>${colSum(o.abbr) || ''}</strong></td>`).join('')}<td><strong>${rows.reduce((n, d) => n + rowSum(d), 0)}</strong></td></tr></tbody>
         </table></div>`;
+    };
+    if (g.itemOrder.length) {
+      if (_CLINIC_TALLY_SPLIT_BY_CLASS[grade]) {
+        const clsNames = [...new Set([...g.entries, ...g.unassigned].map(x => x.cls || ''))].sort();
+        clsNames.forEach(cn => {
+          html += renderTally(g.entries.filter(e => (e.cls || '') === cn), g.unassigned.filter(u => (u.cls || '') === cn), cn || '반 미지정');
+        });
+      } else {
+        html += renderTally(g.entries, g.unassigned, '');
       }
     }
     return html + '</div>';
