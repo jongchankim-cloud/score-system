@@ -73,7 +73,7 @@
   .badge-active { background:var(--green-light); color:var(--green); }
   .badge-inactive { background:var(--red-light); color:var(--red); }
   /* min-width:max-content — 항목 수가 늘어나면 칸이 찌그러지는 대신 부모(overflow-x:auto)가 가로 스크롤되게 한다 */
-  .score-input-row { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 110px 90px 46px 46px minmax(150px,1fr); gap:6px; align-items:center; padding:8px 0; border-bottom:1px solid var(--light-gray); min-width:max-content; }
+  .score-input-row { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 110px 90px minmax(150px,1fr); gap:6px; align-items:center; padding:8px 0; border-bottom:1px solid var(--light-gray); min-width:max-content; }
   .score-input-row .total-cell { font-size:15px; font-weight:700; color:var(--navy); text-align:center; }
   .score-input-row:last-child { border-bottom:none; }
   .score-input-row .student-name { font-size:13px; font-weight:500; color:var(--navy); line-height:1.4; word-break:break-all; padding-right:4px; }
@@ -85,7 +85,7 @@
   .score-input-row input[type=number] { -moz-appearance:textfield; appearance:textfield; }
   .score-input-row textarea { padding:6px 8px; border:1.5px solid var(--border); border-radius:6px; font-size:12px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); outline:none; width:100%; transition:border-color 0.2s; resize:none; overflow:hidden; min-height:34px; line-height:1.5; }
   .score-input-row textarea:focus { border-color:var(--gold); background:var(--white); }
-  .score-header { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 110px 90px 46px 46px minmax(150px,1fr); gap:6px; padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; min-width:max-content; }
+  .score-header { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 110px 90px minmax(150px,1fr); gap:6px; padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; min-width:max-content; }
   /* 반 이동 — 주차 매칭 표 */
   .move-row { display:grid; grid-template-columns:1fr 16px 1.4fr; gap:6px; align-items:center; padding:5px 0; border-bottom:1px solid var(--border); }
   .move-row:last-child { border-bottom:none; }
@@ -2008,8 +2008,6 @@ function renderScoreHeader() {
     `<span style="text-align:center">과제<br><small style="font-weight:400">%</small></span>` +
     `<span style="text-align:center">과제평가</span>` +
     `<span style="text-align:center">잔여과제<br>인증</span>` +
-    `<span style="text-align:center">클리닉<br>대상</span>` +
-    `<span style="text-align:center">클리닉<br>참석</span>` +
     `<span style="text-align:center">클리닉메모</span>`;
 }
 
@@ -2046,8 +2044,6 @@ function renderScoreInputs(classId, weekId, scoreMap) {
       <input type="number" class="inp-hw" value="${sc.homework_rate ?? ''}" min="0" max="100" placeholder="" oninput="scoreDirty=true">
       <textarea class="inp-eval"${carriedEvalFor(sc, carried, st.id) ? ' title="이전 주차 평가를 이어왔어요 (저장하면 이번 주차에 기록)"' : ''} oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.homework_eval || carriedEvalFor(sc, carried, st.id)}</textarea>
       <textarea class="inp-hwcert" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.hw_cert ?? ''}</textarea>
-      <input type="checkbox" class="inp-clinic-target" ${sc.clinic_target ? 'checked' : ''} title="클리닉 대상" onchange="scoreDirty=true">
-      <input type="checkbox" class="inp-clinic-attend" ${sc.clinic_attend ? 'checked' : ''} title="클리닉 참석" onchange="scoreDirty=true">
       <textarea class="inp-clinic-memo" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.clinic_memo ?? ''}</textarea>
     </div>`;
   }).join('');
@@ -2089,8 +2085,7 @@ async function saveAllScores() {
       homework_eval: row.querySelector('.inp-eval').value.trim(),
       hw_cert: row.querySelector('.inp-hwcert').value.trim(),
       attendance: row.querySelector('.inp-attend').checked,
-      clinic_target: row.querySelector('.inp-clinic-target').checked,
-      clinic_attend: row.querySelector('.inp-clinic-attend').checked,
+      // 클리닉 대상/참석 체크는 화면에서 뺐다(2026-09). 컬럼은 남아 있고 payload에서 제외해 기존 값은 보존.
       clinic_memo: row.querySelector('.inp-clinic-memo').value.trim()
     };
     const extra = {};
@@ -2801,12 +2796,9 @@ async function loadClinicSmsTargets() {
   (scores || []).forEach(s => { scoreMap[s.student_id] = s; });
   const carried = await fetchCarriedEvals(classId, weekId);
 
-  // 클리닉 대상이면서 참석하지 않은 학생
-  const targets = (students || []).filter(st => {
-    const sc = scoreMap[st.id];
-    if (!sc) return false;
-    return sc.clinic_target === true && sc.clinic_attend !== true;
-  }).map(st => ({
+  // 반 전체 학생을 띄우고, 보낼 학생은 조교가 체크해서 고른다.
+  // (예전엔 점수 탭의 '클리닉 대상/참석' 체크로 걸렀지만 그 체크박스는 2026-09에 없앴다)
+  const targets = (students || []).map(st => ({
     id: st.id,
     name: st.name,
     phone: st.phone || '',
@@ -2826,10 +2818,10 @@ async function loadClinicSmsTargets() {
   const listEl = document.getElementById('clinic-sms-list');
 
   card.style.display = 'block';
-  titleEl.textContent = `클리닉 미참석 — ${targets.length}명 (${className} ${weekLabel})`;
+  titleEl.textContent = `${className} ${weekLabel} — 반 전체 ${targets.length}명 · 보낼 학생을 체크하세요`;
 
   if (!targets.length) {
-    listEl.innerHTML = '<p style="font-size:13px;color:var(--gray)">클리닉 미참석 학생이 없습니다. 🎉</p>';
+    listEl.innerHTML = '<p style="font-size:13px;color:var(--gray)">이 반에 학생이 없습니다.</p>';
     window._clinicSmsTargets = [];
     window._clinicSmsWeekLabel = weekLabel;
     return;
@@ -2839,11 +2831,11 @@ async function loadClinicSmsTargets() {
   const phoneLabel = isParent ? '학부모 연락처' : '학생 연락처';
 
   listEl.innerHTML = `<table class="data-table">
-    <thead><tr><th style="width:36px"><input type="checkbox" id="check-all-clinic-sms" checked onchange="toggleAllClinicSms(this.checked)"></th><th style="white-space:nowrap">이름</th><th>${phoneLabel}</th><th>과제(%)</th><th>과제평가</th><th>잔여인증</th><th>클리닉 메모</th><th style="white-space:nowrap">상태</th></tr></thead>
+    <thead><tr><th style="width:36px"><input type="checkbox" id="check-all-clinic-sms" onchange="toggleAllClinicSms(this.checked)"></th><th style="white-space:nowrap">이름</th><th>${phoneLabel}</th><th>과제(%)</th><th>과제평가</th><th>잔여인증</th><th>클리닉 메모</th><th style="white-space:nowrap">상태</th></tr></thead>
     <tbody>${targets.map((t, i) => {
       const phone = isParent ? t.phone : t.student_phone;
       return `<tr data-student-id="${t.id}">
-        <td><input type="checkbox" class="clinic-sms-check" data-idx="${i}" ${phone ? 'checked' : ''} ${!phone ? 'disabled' : ''}></td>
+        <td><input type="checkbox" class="clinic-sms-check" data-idx="${i}" ${!phone ? 'disabled' : ''}></td>
         <td style="white-space:nowrap"><strong>${t.name}</strong></td>
         <td style="font-size:12px;font-family:monospace">${phone || '번호없음'}</td>
         <td>${(t.homework_rate !== null && t.homework_rate !== undefined) ? t.homework_rate + '%' : '미기재'}</td>
@@ -2930,7 +2922,9 @@ async function saveClinicGrid() {
     const existMap = {};
     (existing || []).forEach(e => { existMap[e.student_id] = e.id; });
 
-    const results = await Promise.all(updates.map(async u => {
+    // 반 전체가 표에 뜨므로, 아직 점수 행이 없고 세 칸이 모두 빈 학생은 건너뛴다 (빈 행 양산 방지)
+    const toSave = updates.filter(u => existMap[u.student_id] || u.homework_eval || u.hw_cert || u.clinic_memo);
+    const results = await Promise.all(toSave.map(async u => {
       if (existMap[u.student_id]) {
         return apiRaw(`scores?id=eq.${existMap[u.student_id]}`, 'PATCH', { homework_eval: u.homework_eval, hw_cert: u.hw_cert, clinic_memo: u.clinic_memo });
       } else {
