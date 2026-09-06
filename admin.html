@@ -3123,13 +3123,12 @@ async function loadClinicSchedule() {
     const retestItems = scored
       .filter(x => isBelowCut(x.value, x.cut) && pass[x.key] !== true)
       .map(x => abbrOf[x.key]);
-    // 남은 재시험이 없는 학생(미달이 없었든, 미달 항목을 전부 재시험 통과했든)의 과제 기한은
-    // 기한 명단에 올린다. 미달 자체가 없던 학생은 기존처럼 배정표에서 뺀다.
-    let duePushed = false;
+    // 남은 재시험이 없는 학생(미달이 없었든, 미달 항목을 전부 재시험 통과했든)은 배정표에서
+    // 뺀다 — 재시험을 다 통과했으면 클리닉에 올 이유가 없다. 과제 기한만 있으면 기한 명단에 올린다.
     if (hasCut && scored.length && retestItems.length === 0) {
       const due = clinicHwDeadline(memo);
-      if (due) { g.hwDue.push({ name: st.name, hw, due }); duePushed = true; }
-      if (!scored.some(x => isBelowCut(x.value, x.cut))) return;
+      if (due) g.hwDue.push({ name: st.name, hw, due });
+      return;
     }
 
     const parsed = parseClinicMemo(memo);
@@ -3142,7 +3141,7 @@ async function loadClinicSchedule() {
       // 대상 체크는 없지만 메모가 있는 학생: "올/전체 통과"는 클리닉과 무관하므로 제외하고,
       // "결석회차 영상보고 과제해주세요" 같은 나머지는 미기재 명단에 올린다
       g.unassigned.push({ name: st.name, memo, hw, items: retestItems, cls: cls ? cls.name : '' });
-    } else if (!duePushed) {
+    } else {
       // '통과' 메모라도 과제 인증 기한이 적혀 있으면 기한 명단에는 올린다
       const due = clinicHwDeadline(memo);
       if (due) g.hwDue.push({ name: st.name, hw, due });
