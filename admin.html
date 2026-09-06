@@ -1552,24 +1552,51 @@ function carriedRateFor(sc, carried, studentId) {
   const r = carried[studentId] && carried[studentId].rate;
   return (r === null || r === undefined) ? '' : r;
 }
+// 과제평가·과제% 칸의 마우스 안내문.
+// 이어온 값을 그대로 저장하면 DB에는 이번 주차 값으로 남지만 내용은 이전 주차와 같다.
+// 그 경우 "이전 주차와 같은 값이 저장돼 있다"고 따로 알려서 이어온 것인지 구분할 수 있게 한다.
+function savedValueTitle(kind, val, prev) {
+  const isEval = kind === 'eval';
+  const v = isEval ? String(val ?? '').trim() : val;
+  if (v === '' || v === null || v === undefined) return '';
+  prev = prev || {};
+  const same = isEval ? (!!prev.eval && v === prev.eval)
+                      : (prev.rate !== null && prev.rate !== undefined && Number(v) === Number(prev.rate));
+  if (same) {
+    const lb = isEval ? prev.evalLabel : prev.rateLabel;
+    return `이전 주차${lb ? '(' + lb + ')' : ''} ${isEval ? '과제평가' : '과제%'}와 같은 값이 이번 주차에 저장돼 있어요`;
+  }
+  return '이번 주차에 저장된 값';
+}
+function carryTitle(kind, sc, carried, studentId) {
+  const isEval = kind === 'eval';
+  const prev = carried[studentId] || {};
+  const carriedVal = isEval ? carriedEvalFor(sc, carried, studentId) : carriedRateFor(sc, carried, studentId);
+  if (carriedVal !== '') {
+    const lb = isEval ? prev.evalLabel : prev.rateLabel;
+    return `이전 주차${lb ? '(' + lb + ')' : ''} ${isEval ? '과제평가' : '과제%'}를 이어왔어요 (저장하면 이번 주차에 기록)`;
+  }
+  return savedValueTitle(kind, isEval ? (sc && sc.homework_eval) : (sc ? sc.homework_rate : null), prev);
+}
 async function fetchCarriedEvals(classId, weekId) {
   if (_prevEvalCache[weekId]) return _prevEvalCache[weekId];
   const map = {};
-  const prevWeeks = await api(`weeks?class_id=eq.${classId}&id=lt.${weekId}&select=id`) || [];
+  const prevWeeks = await api(`weeks?class_id=eq.${classId}&id=lt.${weekId}&select=id,label`) || [];
   if (prevWeeks.length) {
     const ids = prevWeeks.map(w => w.id).join(',');
+    const labelOf = {}; prevWeeks.forEach(w => { labelOf[w.id] = w.label || ''; });
     const rows = await api(`scores?week_id=in.(${ids})&select=student_id,week_id,homework_eval,homework_rate`) || [];
     const bestEvalWeek = {}, bestRateWeek = {};
     rows.forEach(r => {
       const txt = (r.homework_eval || '').trim();
       if (txt && (!(r.student_id in bestEvalWeek) || r.week_id > bestEvalWeek[r.student_id])) {
         bestEvalWeek[r.student_id] = r.week_id;
-        map[r.student_id] = { ...(map[r.student_id] || {}), eval: txt };
+        map[r.student_id] = { ...(map[r.student_id] || {}), eval: txt, evalLabel: labelOf[r.week_id] };
       }
       if (r.homework_rate !== null && r.homework_rate !== undefined
           && (!(r.student_id in bestRateWeek) || r.week_id > bestRateWeek[r.student_id])) {
         bestRateWeek[r.student_id] = r.week_id;
-        map[r.student_id] = { ...(map[r.student_id] || {}), rate: r.homework_rate };
+        map[r.student_id] = { ...(map[r.student_id] || {}), rate: r.homework_rate, rateLabel: labelOf[r.week_id] };
       }
     });
   }
@@ -2092,8 +2119,8 @@ function renderScoreInputs(classId, weekId, scoreMap) {
       <span class="total-cell">${total}</span>
       <input type="checkbox" class="inp-attend" ${sc.attendance === false ? '' : 'checked'} title="출석" onchange="scoreDirty=true">
       ${itemInputs}
-      <input type="number" class="inp-hw" value="${sc.homework_rate ?? carriedRateFor(sc, carried, st.id)}" title="${carriedRateFor(sc, carried, st.id) !== '' ? '이전 주차 과제%를 이어왔어요 (저장하면 이번 주차에 기록)' : (sc.homework_rate !== null && sc.homework_rate !== undefined ? '이번 주차에 저장된 값' : '')}" min="0" max="100" placeholder="" oninput="scoreDirty=true;this.title='이번 주차에 입력한 값 (저장 전)'">
-      <textarea class="inp-eval" title="${carriedEvalFor(sc, carried, st.id) ? '이전 주차 평가를 이어왔어요 (저장하면 이번 주차에 기록)' : (sc.homework_eval ? '이번 주차에 저장된 값' : '')}" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true;this.title='이번 주차에 입력한 값 (저장 전)'">${sc.homework_eval || carriedEvalFor(sc, carried, st.id)}</textarea>
+      <input type="number" class="inp-hw" value="${sc.homework_rate ?? carriedRateFor(sc, carried, st.id)}" title="${escapeAttr(carryTitle('rate', sc, carried, st.id))}" min="0" max="100" placeholder="" oninput="scoreDirty=true;this.title='이번 주차에 입력한 값 (저장 전)'">
+      <textarea class="inp-eval" title="${escapeAttr(carryTitle('eval', sc, carried, st.id))}" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true;this.title='이번 주차에 입력한 값 (저장 전)'">${sc.homework_eval || carriedEvalFor(sc, carried, st.id)}</textarea>
       <textarea class="inp-clinic-memo" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.clinic_memo ?? ''}</textarea>
     </div>`;
   }).join('');
@@ -2218,11 +2245,16 @@ async function saveAllScores() {
     }));
     const failed = results.filter(r => !r.ok);
     if (failed.length > 0) { showToast(`❌ ${failed.length}건 저장 실패`); return; }
+    const carriedNow = _prevEvalCache[weekId] || {};
     delete scoreCache[weekId]; delete _prevEvalCache[weekId];
     scoreDirty = false;
     // 이어왔던 과제평가·과제%는 이제 이번 주차에 기록됐으므로 툴팁을 바꾼다
-    document.querySelectorAll('#score-inputs-container .inp-eval, #score-inputs-container .inp-hw').forEach(el => {
-      el.title = String(el.value).trim() !== '' ? '이번 주차에 저장된 값' : '';
+    // (이전 주차와 같은 값 그대로 저장했으면 그 사실도 함께 표시)
+    document.querySelectorAll('#score-inputs-container .score-input-row').forEach(row => {
+      const prev = carriedNow[row.dataset.studentId];
+      const ev = row.querySelector('.inp-eval'), hw = row.querySelector('.inp-hw');
+      if (ev) ev.title = savedValueTitle('eval', ev.value, prev);
+      if (hw) hw.title = savedValueTitle('rate', hw.value, prev);
     });
     refreshGroupInfo();  // 저장된 점수를 반영해 그룹 평균 갱신
     showToast('✅ 점수가 저장됐어요!');
