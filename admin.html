@@ -1584,7 +1584,12 @@ async function loadScoreInputs() {
   const card = document.getElementById('score-input-card');
   const container = document.getElementById('score-inputs-container');
   card.style.display = 'block';
+  // 주차를 바꾸는 즉시 이전 주차 행을 지운다. 불러오기가 실패해도 옛 행이 남아
+  // 다른 주차에 저장되는 일이 없어야 한다.
+  container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
+  container.dataset.weekId = '';
 
+  try {
   // 주차 메모 + 항목 설정 불러오기
   const weekData = await api(`weeks?id=eq.${weekId}&select=memo,item_config,group_id`);
   const memoEl = document.getElementById('week-memo');
@@ -1611,15 +1616,19 @@ async function loadScoreInputs() {
   ]);
   // 응답이 배열이 아니면(네트워크 오류·서버 오류로 값이 안 온 상태) 표를 그리지 않는다.
   // 예전엔 이때 빈 표가 떠서, 그대로 '전체 저장'하면 모든 칸이 빈 값으로 덮어써졌다.
-  if (!Array.isArray(scores)) {
-    container.innerHTML = '<p style="font-size:13px;color:var(--red);padding:12px 0">❌ 점수를 불러오지 못했어요. 페이지를 새로고침한 뒤 다시 열어주세요.<br><span style="color:var(--gray);font-size:12px">빈 화면이 그대로 저장되는 사고를 막기 위해 표를 그리지 않았습니다.</span></p>';
-    showToast('❌ 점수 불러오기 실패 — 새로고침 후 다시 시도해주세요.', 4000);
-    return;
-  }
+  if (!Array.isArray(scores)) throw new Error('scores_not_loaded');
   scoreCache[weekId] = {};
   scores.forEach(s => { scoreCache[weekId][s.student_id] = s; });
   currentNoHomework = hasNoHomework(scoreCache[weekId]);
   renderScoreInputs(classId, weekId, scoreCache[weekId]);
+  } catch (e) {
+    // 네트워크 끊김·서버 오류 등 어떤 이유로든 값이 안 왔으면 표를 그리지 않는다.
+    // 예전엔 빈 표(또는 이전 주차 표)가 남아, 그대로 '전체 저장'하면 모든 칸이 빈 값으로 덮어써졌다.
+    container.innerHTML = '<p style="font-size:13px;color:var(--red);padding:12px 0">❌ 점수를 불러오지 못했어요. 인터넷 연결을 확인하고 페이지를 새로고침한 뒤 다시 열어주세요.<br><span style="color:var(--gray);font-size:12px">빈 화면이 그대로 저장되는 사고를 막기 위해 표를 그리지 않았습니다.</span></p>';
+    container.dataset.weekId = '';
+    showToast('❌ 점수 불러오기 실패 — 새로고침 후 다시 시도해주세요.', 4000);
+    if (e && e.message === 'unauthorized') throw e;
+  }
 }
 
 // 저장된 점수 행 중 하나라도 '과제 없음'이면 그 주차는 과제 없음으로 본다
@@ -2049,6 +2058,7 @@ function renderScoreInputs(classId, weekId, scoreMap) {
   const weekSel = document.getElementById('score-week');
   const weekLabel = weekSel.options[weekSel.selectedIndex]?.text || '';
   document.getElementById('score-input-title').textContent = `${className} — ${weekLabel}`;
+  container.dataset.weekId = String(weekId); // 이 표가 어느 주차 것인지 — 저장 때 선택된 주차와 대조
   const items = activeItems();
   renderScoreHeader();
   const carried = _prevEvalCache[weekId] || {};
@@ -2127,6 +2137,11 @@ async function saveAllScores() {
   const weekId = parseInt(document.getElementById('score-week').value);
   const rows = document.querySelectorAll('#score-inputs-container .score-input-row');
   if (!rows.length) return;
+  // 화면에 그려진 주차와 선택된 주차가 다르면(불러오기 실패 뒤 옛 표가 남은 경우) 저장하지 않는다
+  if (document.getElementById('score-inputs-container').dataset.weekId !== String(weekId)) {
+    showToast('❌ 화면의 표와 선택된 주차가 달라 저장을 중단했어요. 주차를 다시 선택해주세요.', 4000);
+    return;
+  }
   if (!confirmRangeIssues(collectRangeIssues('#score-inputs-container .score-input-row', '.inp-item', activeItems()))) return;
   // 활성 항목의 점수 컬럼만 저장 대상에 포함. 비활성 항목은 PATCH에서 제외 → 기존 값 보존.
   // 5번째 이상 항목은 물리 컬럼이 없으므로 _extra에 모았다가 item_scores(jsonb)로 보낸다.
