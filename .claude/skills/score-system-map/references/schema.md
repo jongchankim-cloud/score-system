@@ -54,6 +54,31 @@
 ## memos
 조교 메모. `id, author, content, created_at` — 다른 테이블과 무관한 독립 게시판.
 
+## data_history (변경 이력) — 2026-09 도입
+
+`scores`·`students`·`weeks`·`mock_scores`·`mock_exams`·`classes` 행이 **UPDATE 또는 DELETE** 될 때, DB 트리거(`log_row_history`)가
+직전 행을 통째로 여기에 남긴다. 8.31 주차의 과제%·과제평가·클리닉 메모가 옛 화면 저장으로 통째로 지워진 사고 이후 도입.
+
+`id, table_name, row_id, op('UPDATE'|'DELETE'), old_row(jsonb), new_row(jsonb, DELETE면 NULL), changed_at`
+
+- 값이 하나도 안 바뀐 UPDATE는 기록하지 않는다 (같은 화면 반복 저장으로 이력이 불지 않도록).
+- RLS 켜짐 + anon/authenticated 권한 없음 → 프론트(admin-api 경유 포함)에서는 보이지 않고, Supabase 대시보드/SQL(service_role)로만 조회한다.
+- **복구 절차 (예: 어떤 주차의 과제 칸이 빈 값으로 덮어써졌을 때):**
+  ```sql
+  -- 1) 사고 시각 직전의 값을 찾는다 (week_id, 시각은 상황에 맞게)
+  select row_id, old_row->>'homework_eval', old_row->>'clinic_memo', changed_at
+  from data_history where table_name='scores' and (old_row->>'week_id')::int = 76
+  order by changed_at desc;
+  -- 2) 해당 이력의 old_row로 되돌린다 (컬럼별로 명시)
+  update scores s set homework_rate = (h.old_row->>'homework_rate')::int,
+                      homework_eval = h.old_row->>'homework_eval',
+                      clinic_memo   = h.old_row->>'clinic_memo'
+  from data_history h where h.table_name='scores' and h.row_id = s.id and h.id = <이력 id>;
+  ```
+  되돌리는 UPDATE 자체도 이력에 남으므로 잘못 되돌려도 다시 되돌릴 수 있다.
+- 이력은 삭제하지 않는다. 용량이 문제 되면 `changed_at`이 오래된 것부터 지운다 (Free 플랜 500MB 기준 수년치 여유).
+- Supabase Free 플랜이라 플랫폼 백업은 없다. 이 이력이 유일한 되돌리기 수단이다.
+
 ## item_config JSON 규약
 
 ```json
