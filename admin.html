@@ -2958,6 +2958,9 @@ const _CLINIC_DAY_ORDER = ['월','화','수','목','금','토','일'];
 // 재시험지 종류가 반마다 다른 학년은 수요 집계를 반별로 나눈다 (고1: 수요일 상반/하반 시험지가 다름).
 // 고2는 한 종류라 학년 합계 하나로 낸다.
 const _CLINIC_TALLY_SPLIT_BY_CLASS = { '고1': true };
+// 반별로 나누되 같은 시험지를 쓰는 반은 한 표로 합친다: { '합쳐질 반': '기준 반' }
+// (고1 토요일반은 수요일 상반 시험지를 쓴다 — 2026-09 운영 요청)
+const _CLINIC_TALLY_CLASS_GROUP = { '고1 토요일': '고1 수요일 상반' };
 
 // 메모 → [{ day, min(분, 시간 못 읽으면 null), label, note }] 배열.
 // min: 1~8시는 오후로 본다(클리닉이 오전 9시 전에 열리지 않는다는 운영 전제).
@@ -3228,9 +3231,13 @@ async function loadClinicSchedule() {
     };
     if (g.itemOrder.length) {
       if (_CLINIC_TALLY_SPLIT_BY_CLASS[grade]) {
+        const groupOf = cn => _CLINIC_TALLY_CLASS_GROUP[cn] || cn;
         const clsNames = [...new Set([...g.entries, ...g.unassigned].map(x => x.cls || ''))].sort();
-        clsNames.forEach(cn => {
-          html += renderTally(g.entries.filter(e => (e.cls || '') === cn), g.unassigned.filter(u => (u.cls || '') === cn), cn || '반 미지정');
+        [...new Set(clsNames.map(groupOf))].forEach(grp => {
+          const members = clsNames.filter(cn => groupOf(cn) === grp);
+          const extra = members.filter(m => m !== grp);
+          const title = (grp || '반 미지정') + (extra.length ? ` (+ ${extra.join(', ')})` : '');
+          html += renderTally(g.entries.filter(e => members.includes(e.cls || '')), g.unassigned.filter(u => members.includes(u.cls || '')), title);
         });
       } else {
         html += renderTally(g.entries, g.unassigned, '');
