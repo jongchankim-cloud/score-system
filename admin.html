@@ -73,7 +73,7 @@
   .badge-active { background:var(--green-light); color:var(--green); }
   .badge-inactive { background:var(--red-light); color:var(--red); }
   /* min-width:max-content — 항목 수가 늘어나면 칸이 찌그러지는 대신 부모(overflow-x:auto)가 가로 스크롤되게 한다 */
-  .score-input-row { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 110px 90px 46px 46px minmax(150px,1fr); gap:6px; align-items:center; padding:8px 0; border-bottom:1px solid var(--light-gray); min-width:max-content; }
+  .score-input-row { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 110px minmax(150px,1fr); gap:6px; align-items:center; padding:8px 0; border-bottom:1px solid var(--light-gray); min-width:max-content; }
   .score-input-row .total-cell { font-size:15px; font-weight:700; color:var(--navy); text-align:center; }
   .score-input-row:last-child { border-bottom:none; }
   .score-input-row .student-name { font-size:13px; font-weight:500; color:var(--navy); line-height:1.4; word-break:break-all; padding-right:4px; }
@@ -85,7 +85,7 @@
   .score-input-row input[type=number] { -moz-appearance:textfield; appearance:textfield; }
   .score-input-row textarea { padding:6px 8px; border:1.5px solid var(--border); border-radius:6px; font-size:12px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); outline:none; width:100%; transition:border-color 0.2s; resize:none; overflow:hidden; min-height:34px; line-height:1.5; }
   .score-input-row textarea:focus { border-color:var(--gold); background:var(--white); }
-  .score-header { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 110px 90px 46px 46px minmax(150px,1fr); gap:6px; padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; min-width:max-content; }
+  .score-header { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 110px minmax(150px,1fr); gap:6px; padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; min-width:max-content; }
   /* 반 이동 — 주차 매칭 표 */
   .move-row { display:grid; grid-template-columns:1fr 16px 1.4fr; gap:6px; align-items:center; padding:5px 0; border-bottom:1px solid var(--border); }
   .move-row:last-child { border-bottom:none; }
@@ -2007,9 +2007,6 @@ function renderScoreHeader() {
     items.map(it => `<span style="text-align:center">${escapeHtml(it.label) || '-'}<br><small style="font-weight:400">/${it.max ?? ''}</small></span>`).join('') +
     `<span style="text-align:center">과제<br><small style="font-weight:400">%</small></span>` +
     `<span style="text-align:center">과제평가</span>` +
-    `<span style="text-align:center">잔여과제<br>인증</span>` +
-    `<span style="text-align:center">클리닉<br>대상</span>` +
-    `<span style="text-align:center">클리닉<br>참석</span>` +
     `<span style="text-align:center">클리닉메모</span>`;
 }
 
@@ -2045,9 +2042,6 @@ function renderScoreInputs(classId, weekId, scoreMap) {
       ${itemInputs}
       <input type="number" class="inp-hw" value="${sc.homework_rate ?? ''}" min="0" max="100" placeholder="" oninput="scoreDirty=true">
       <textarea class="inp-eval"${carriedEvalFor(sc, carried, st.id) ? ' title="이전 주차 평가를 이어왔어요 (저장하면 이번 주차에 기록)"' : ''} oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.homework_eval || carriedEvalFor(sc, carried, st.id)}</textarea>
-      <textarea class="inp-hwcert" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.hw_cert ?? ''}</textarea>
-      <input type="checkbox" class="inp-clinic-target" ${sc.clinic_target ? 'checked' : ''} title="클리닉 대상" onchange="scoreDirty=true">
-      <input type="checkbox" class="inp-clinic-attend" ${sc.clinic_attend ? 'checked' : ''} title="클리닉 참석" onchange="scoreDirty=true">
       <textarea class="inp-clinic-memo" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';scoreDirty=true">${sc.clinic_memo ?? ''}</textarea>
     </div>`;
   }).join('');
@@ -2087,10 +2081,9 @@ async function saveAllScores() {
       no_homework: currentNoHomework,
       homework_rate: (!currentNoHomework && row.querySelector('.inp-hw').value !== '') ? parseInt(row.querySelector('.inp-hw').value) : null,
       homework_eval: row.querySelector('.inp-eval').value.trim(),
-      hw_cert: row.querySelector('.inp-hwcert').value.trim(),
+      // 잔여과제 인증(hw_cert)은 화면에서 뺐다(2026-09). 컬럼은 남아 있고 payload에서 제외해 기존 값은 보존.
       attendance: row.querySelector('.inp-attend').checked,
-      clinic_target: row.querySelector('.inp-clinic-target').checked,
-      clinic_attend: row.querySelector('.inp-clinic-attend').checked,
+      // 클리닉 대상/참석 체크는 화면에서 뺐다(2026-09). 컬럼은 남아 있고 payload에서 제외해 기존 값은 보존.
       clinic_memo: row.querySelector('.inp-clinic-memo').value.trim()
     };
     const extra = {};
@@ -2191,15 +2184,15 @@ async function renderUncertGrid() {
     }
   }));
 
-  // 미인증 학생 필터: 보여주는 주차 중 하나라도 미인증(잔여과제인증 100 아님 + (과제평가 있거나 수행률 79%이하))이 있는 학생
+  // 미인증 학생 필터: 보여주는 주차 중 하나라도 (과제평가 있거나 수행률 79%이하)인 학생.
+  // 잔여과제 인증(hw_cert) 연동은 2026-09에 뺐다 — 인증 완료 여부는 이제 수행률로 판단한다.
   const uncertStudents = _uncertStudents.filter(st => {
     return visibleWeeks.some(w => {
       const sc = _uncertScoreData[w.id][st.id];
       if (!sc) return false;
       const hasMemo = sc.homework_eval && sc.homework_eval.trim() !== '';
       const lowHw = sc.homework_rate === null || sc.homework_rate <= 79;
-      const certified = sc.hw_cert && sc.hw_cert.trim() === '100';
-      return (hasMemo || lowHw) && !certified;
+      return hasMemo || lowHw;
     });
   });
 
@@ -2212,21 +2205,21 @@ async function renderUncertGrid() {
     return;
   }
 
-  // 그리드 컬럼: 이름(70px) + 주차마다 [과제%(50px) 잔여인증(110px)]
-  const colTemplate = `70px ${visibleWeeks.map(() => '50px 110px').join(' ')}`;
+  // 그리드 컬럼: 이름(70px) + 주차마다 과제%(70px)
+  const colTemplate = `70px ${visibleWeeks.map(() => '70px').join(' ')}`;
 
   // 헤더
   let html = `<div style="display:grid;grid-template-columns:${colTemplate};gap:6px;padding:6px 0 8px;font-size:11px;color:var(--gray);font-weight:600;border-bottom:2px solid var(--border);margin-bottom:4px;min-width:max-content">`;
   html += `<span>이름</span>`;
   visibleWeeks.forEach(w => {
-    html += `<span style="text-align:center;grid-column:span 2;border-left:1px solid var(--border)">${w.label || w.test_date}</span>`;
+    html += `<span style="text-align:center;border-left:1px solid var(--border)">${w.label || w.test_date}</span>`;
   });
   html += `</div>`;
-  // 서브헤더 (과제% / 잔여인증)
+  // 서브헤더 (과제%)
   html += `<div style="display:grid;grid-template-columns:${colTemplate};gap:6px;padding:0 0 6px;font-size:10px;color:var(--gray);font-weight:500;border-bottom:1px solid var(--border);margin-bottom:4px;min-width:max-content">`;
   html += `<span></span>`;
   visibleWeeks.forEach(() => {
-    html += `<span style="text-align:center;border-left:1px solid var(--border)">과제%</span><span style="text-align:center">잔여인증</span>`;
+    html += `<span style="text-align:center;border-left:1px solid var(--border)">과제%</span>`;
   });
   html += `</div>`;
 
@@ -2238,7 +2231,6 @@ async function renderUncertGrid() {
       const sc = _uncertScoreData[w.id][st.id] || {};
       const hwVal = sc.homework_rate !== null && sc.homework_rate !== undefined ? sc.homework_rate : '';
       row += `<input type="number" class="uncert-hw" data-week-id="${w.id}" value="${hwVal}" min="0" max="100" style="padding:6px 4px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;text-align:center;outline:none;width:100%;border-left:1px solid var(--border)">`;
-      row += `<input type="text" class="uncert-cert" data-week-id="${w.id}" value="${sc.hw_cert || ''}" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;outline:none;width:100%">`;
     });
     row += `</div>`;
     return row;
@@ -2265,17 +2257,15 @@ async function saveUncertGrid() {
   const rows = document.querySelectorAll('#uncert-grid [data-student-id]');
   if (!rows.length) return;
 
-  // 주차별로 업데이트 묶기: { weekId: [ {student_id, hw_cert, homework_rate} ] }
+  // 주차별로 업데이트 묶기: { weekId: [ {student_id, homework_rate} ] }
   const byWeek = {};
   rows.forEach(row => {
     const studentId = parseInt(row.dataset.studentId);
-    row.querySelectorAll('.uncert-cert').forEach(certInp => {
-      const weekId = parseInt(certInp.dataset.weekId);
-      const hwInp = row.querySelector(`.uncert-hw[data-week-id="${weekId}"]`);
+    row.querySelectorAll('.uncert-hw').forEach(hwInp => {
+      const weekId = parseInt(hwInp.dataset.weekId);
       if (!byWeek[weekId]) byWeek[weekId] = [];
       byWeek[weekId].push({
         student_id: studentId,
-        hw_cert: certInp.value.trim(),
         homework_rate: hwInp.value !== '' ? parseInt(hwInp.value) : null
       });
     });
@@ -2289,7 +2279,7 @@ async function saveUncertGrid() {
 
       await Promise.all(byWeek[weekId].map(async u => {
         if (existMap[u.student_id]) {
-          return apiRaw(`scores?id=eq.${existMap[u.student_id]}`, 'PATCH', { hw_cert: u.hw_cert, homework_rate: u.homework_rate });
+          return apiRaw(`scores?id=eq.${existMap[u.student_id]}`, 'PATCH', { homework_rate: u.homework_rate });
         }
       }));
 
@@ -2801,20 +2791,16 @@ async function loadClinicSmsTargets() {
   (scores || []).forEach(s => { scoreMap[s.student_id] = s; });
   const carried = await fetchCarriedEvals(classId, weekId);
 
-  // 클리닉 대상이면서 참석하지 않은 학생
-  const targets = (students || []).filter(st => {
-    const sc = scoreMap[st.id];
-    if (!sc) return false;
-    return sc.clinic_target === true && sc.clinic_attend !== true;
-  }).map(st => ({
+  // 반 전체 학생을 띄우고, 보낼 학생은 조교가 체크해서 고른다.
+  // (예전엔 점수 탭의 '클리닉 대상/참석' 체크로 걸렀지만 그 체크박스는 2026-09에 없앴다)
+  const targets = (students || []).map(st => ({
     id: st.id,
     name: st.name,
     phone: st.phone || '',
     student_phone: st.student_phone || '',
     clinic_memo: (scoreMap[st.id] && scoreMap[st.id].clinic_memo) || '',
     homework_rate: (scoreMap[st.id] ? scoreMap[st.id].homework_rate : null),
-    homework_eval: (scoreMap[st.id] && scoreMap[st.id].homework_eval) || carriedEvalFor(scoreMap[st.id], carried, st.id),
-    hw_cert: (scoreMap[st.id] && scoreMap[st.id].hw_cert) || ''
+    homework_eval: (scoreMap[st.id] && scoreMap[st.id].homework_eval) || carriedEvalFor(scoreMap[st.id], carried, st.id)
   }));
 
   const weekSel = document.getElementById('clinic-sms-week');
@@ -2826,10 +2812,10 @@ async function loadClinicSmsTargets() {
   const listEl = document.getElementById('clinic-sms-list');
 
   card.style.display = 'block';
-  titleEl.textContent = `클리닉 미참석 — ${targets.length}명 (${className} ${weekLabel})`;
+  titleEl.textContent = `${className} ${weekLabel} — 반 전체 ${targets.length}명 · 보낼 학생을 체크하세요`;
 
   if (!targets.length) {
-    listEl.innerHTML = '<p style="font-size:13px;color:var(--gray)">클리닉 미참석 학생이 없습니다. 🎉</p>';
+    listEl.innerHTML = '<p style="font-size:13px;color:var(--gray)">이 반에 학생이 없습니다.</p>';
     window._clinicSmsTargets = [];
     window._clinicSmsWeekLabel = weekLabel;
     return;
@@ -2839,16 +2825,15 @@ async function loadClinicSmsTargets() {
   const phoneLabel = isParent ? '학부모 연락처' : '학생 연락처';
 
   listEl.innerHTML = `<table class="data-table">
-    <thead><tr><th style="width:36px"><input type="checkbox" id="check-all-clinic-sms" checked onchange="toggleAllClinicSms(this.checked)"></th><th style="white-space:nowrap">이름</th><th>${phoneLabel}</th><th>과제(%)</th><th>과제평가</th><th>잔여인증</th><th>클리닉 메모</th><th style="white-space:nowrap">상태</th></tr></thead>
+    <thead><tr><th style="width:36px"><input type="checkbox" id="check-all-clinic-sms" onchange="toggleAllClinicSms(this.checked)"></th><th style="white-space:nowrap">이름</th><th>${phoneLabel}</th><th>과제(%)</th><th>과제평가</th><th>클리닉 메모</th><th style="white-space:nowrap">상태</th></tr></thead>
     <tbody>${targets.map((t, i) => {
       const phone = isParent ? t.phone : t.student_phone;
       return `<tr data-student-id="${t.id}">
-        <td><input type="checkbox" class="clinic-sms-check" data-idx="${i}" ${phone ? 'checked' : ''} ${!phone ? 'disabled' : ''}></td>
+        <td><input type="checkbox" class="clinic-sms-check" data-idx="${i}" ${!phone ? 'disabled' : ''}></td>
         <td style="white-space:nowrap"><strong>${t.name}</strong></td>
         <td style="font-size:12px;font-family:monospace">${phone || '번호없음'}</td>
         <td>${(t.homework_rate !== null && t.homework_rate !== undefined) ? t.homework_rate + '%' : '미기재'}</td>
         <td><input type="text" class="clinic-eval" value="${attrEsc(t.homework_eval)}" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;outline:none;width:100%;min-width:120px"></td>
-        <td><input type="text" class="clinic-cert" value="${attrEsc(t.hw_cert)}" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;outline:none;width:100%;min-width:70px"></td>
         <td><input type="text" class="clinic-memo" value="${attrEsc(t.clinic_memo)}" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;outline:none;width:100%;min-width:110px"></td>
         <td style="white-space:nowrap"><span class="badge ${phone ? 'badge-active' : 'badge-inactive'}">${phone ? '발송가능' : '번호없음'}</span></td>
       </tr>`;
@@ -2911,7 +2896,7 @@ function attrEsc(str) {
   return (str || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// 클리닉 탭에서 과제평가·잔여인증·클리닉 메모를 공용 scores에 저장
+// 클리닉 탭에서 과제평가·클리닉 메모를 공용 scores에 저장 (잔여인증 열은 2026-09에 제거)
 async function saveClinicGrid() {
   const weekId = window._clinicSmsWeekId;
   if (!weekId) { showToast('주차를 먼저 선택해주세요.'); return; }
@@ -2921,7 +2906,6 @@ async function saveClinicGrid() {
   const updates = Array.from(rows).map(row => ({
     student_id: parseInt(row.dataset.studentId),
     homework_eval: row.querySelector('.clinic-eval').value.trim(),
-    hw_cert: row.querySelector('.clinic-cert').value.trim(),
     clinic_memo: row.querySelector('.clinic-memo').value.trim()
   }));
 
@@ -2930,11 +2914,13 @@ async function saveClinicGrid() {
     const existMap = {};
     (existing || []).forEach(e => { existMap[e.student_id] = e.id; });
 
-    const results = await Promise.all(updates.map(async u => {
+    // 반 전체가 표에 뜨므로, 아직 점수 행이 없고 세 칸이 모두 빈 학생은 건너뛴다 (빈 행 양산 방지)
+    const toSave = updates.filter(u => existMap[u.student_id] || u.homework_eval || u.clinic_memo);
+    const results = await Promise.all(toSave.map(async u => {
       if (existMap[u.student_id]) {
-        return apiRaw(`scores?id=eq.${existMap[u.student_id]}`, 'PATCH', { homework_eval: u.homework_eval, hw_cert: u.hw_cert, clinic_memo: u.clinic_memo });
+        return apiRaw(`scores?id=eq.${existMap[u.student_id]}`, 'PATCH', { homework_eval: u.homework_eval, clinic_memo: u.clinic_memo });
       } else {
-        return apiRaw('scores', 'POST', { student_id: u.student_id, week_id: parseInt(weekId), homework_eval: u.homework_eval, hw_cert: u.hw_cert, clinic_memo: u.clinic_memo });
+        return apiRaw('scores', 'POST', { student_id: u.student_id, week_id: parseInt(weekId), homework_eval: u.homework_eval, clinic_memo: u.clinic_memo });
       }
     }));
     const failed = results.filter(r => !r.ok);
@@ -3123,13 +3109,12 @@ async function loadClinicSchedule() {
     const retestItems = scored
       .filter(x => isBelowCut(x.value, x.cut) && pass[x.key] !== true)
       .map(x => abbrOf[x.key]);
-    // 남은 재시험이 없는 학생(미달이 없었든, 미달 항목을 전부 재시험 통과했든)의 과제 기한은
-    // 기한 명단에 올린다. 미달 자체가 없던 학생은 기존처럼 배정표에서 뺀다.
-    let duePushed = false;
+    // 남은 재시험이 없는 학생(미달이 없었든, 미달 항목을 전부 재시험 통과했든)은 배정표에서
+    // 뺀다 — 재시험을 다 통과했으면 클리닉에 올 이유가 없다. 과제 기한만 있으면 기한 명단에 올린다.
     if (hasCut && scored.length && retestItems.length === 0) {
       const due = clinicHwDeadline(memo);
-      if (due) { g.hwDue.push({ name: st.name, hw, due }); duePushed = true; }
-      if (!scored.some(x => isBelowCut(x.value, x.cut))) return;
+      if (due) g.hwDue.push({ name: st.name, hw, due });
+      return;
     }
 
     const parsed = parseClinicMemo(memo);
@@ -3142,7 +3127,7 @@ async function loadClinicSchedule() {
       // 대상 체크는 없지만 메모가 있는 학생: "올/전체 통과"는 클리닉과 무관하므로 제외하고,
       // "결석회차 영상보고 과제해주세요" 같은 나머지는 미기재 명단에 올린다
       g.unassigned.push({ name: st.name, memo, hw, items: retestItems, cls: cls ? cls.name : '' });
-    } else if (!duePushed) {
+    } else {
       // '통과' 메모라도 과제 인증 기한이 적혀 있으면 기한 명단에는 올린다
       const due = clinicHwDeadline(memo);
       if (due) g.hwDue.push({ name: st.name, hw, due });
