@@ -73,7 +73,9 @@
   .badge-active { background:var(--green-light); color:var(--green); }
   .badge-inactive { background:var(--red-light); color:var(--red); }
   /* min-width:max-content — 항목 수가 늘어나면 칸이 찌그러지는 대신 부모(overflow-x:auto)가 가로 스크롤되게 한다 */
-  .score-input-row { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 110px minmax(150px,1fr); gap:6px; align-items:center; padding:8px 0; border-bottom:1px solid var(--light-gray); min-width:max-content; }
+  /* 과제평가 칸(110px→275px): 'p13, p27, p118-127x, 복습노트 지문이해검증x'처럼 긴 평가가 서너 줄로 접혀
+     한눈에 안 들어온다는 요청으로 2.5배 넓혔다. 늘어난 폭은 위 가로 스크롤이 흡수한다. */
+  .score-input-row { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 275px minmax(150px,1fr); gap:6px; align-items:center; padding:8px 0; border-bottom:1px solid var(--light-gray); min-width:max-content; }
   .score-input-row .total-cell { font-size:15px; font-weight:700; color:var(--navy); text-align:center; }
   .score-input-row:last-child { border-bottom:none; }
   .score-input-row .student-name { font-size:13px; font-weight:500; color:var(--navy); line-height:1.4; word-break:break-all; padding-right:4px; }
@@ -85,7 +87,7 @@
   .score-input-row input[type=number] { -moz-appearance:textfield; appearance:textfield; }
   .score-input-row textarea { padding:6px 8px; border:1.5px solid var(--border); border-radius:6px; font-size:12px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); outline:none; width:100%; transition:border-color 0.2s; resize:none; overflow:hidden; min-height:34px; line-height:1.5; }
   .score-input-row textarea:focus { border-color:var(--gold); background:var(--white); }
-  .score-header { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 110px minmax(150px,1fr); gap:6px; padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; min-width:max-content; }
+  .score-header { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 275px minmax(150px,1fr); gap:6px; padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; min-width:max-content; }
   /* 반 이동 — 주차 매칭 표 */
   .move-row { display:grid; grid-template-columns:1fr 16px 1.4fr; gap:6px; align-items:center; padding:5px 0; border-bottom:1px solid var(--border); }
   .move-row:last-child { border-bottom:none; }
@@ -187,7 +189,7 @@
   .spinner-sm { width:20px; height:20px; border:2px solid var(--border); border-top-color:var(--gold); border-radius:50%; animation:spin 0.7s linear infinite; display:inline-block; vertical-align:middle; margin-right:8px; }
   @keyframes spin { to { transform:rotate(360deg); } }
   @media(max-width:480px) {
-    .score-input-row, .score-header { grid-template-columns:60px 44px 36px repeat(var(--item-count,3),50px) 50px 90px 80px 36px 36px 80px; gap:4px; }
+    .score-input-row, .score-header { grid-template-columns:60px 44px 36px repeat(var(--item-count,3),50px) 50px 225px 80px 36px 36px 80px; gap:4px; }
     .score-input-row input, .score-input-row textarea { padding:6px 4px; font-size:12px; }
   }
 </style>
