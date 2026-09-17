@@ -50,8 +50,9 @@
   .tab-content { display:none; padding:16px; max-width:900px; margin:0 auto; }
   #tab-student { max-width:1200px; }
   /* 채점 항목이 늘어나면 맨 오른쪽 클리닉메모 칸부터 찌그러진다.
-     가로 표를 쓰는 두 탭만 폭 상한을 풀고 좌우 여백을 줄여 입력칸 공간을 확보한다. */
-  #tab-score, #tab-mock { max-width:none; padding:16px 8px; }
+     가로 표를 쓰는 탭만 폭 상한을 풀고 좌우 여백을 줄여 입력칸 공간을 확보한다.
+     (배정표는 요일 × 시간 열이 늘어나 같은 문제를 겪어 2026-09 추가) */
+  #tab-score, #tab-mock, #tab-clinic-schedule { max-width:none; padding:16px 8px; }
   .tab-content.active { display:block; }
   .section-card { background:var(--white); border-radius:14px; box-shadow:var(--shadow); margin-bottom:16px; overflow:hidden; }
   .section-head { padding:14px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
@@ -69,6 +70,10 @@
   .data-table td { font-size:13px; color:var(--navy); padding:12px 10px; border-bottom:1px solid var(--light-gray); vertical-align:middle; }
   .data-table tr:last-child td { border-bottom:none; }
   .data-table tr:hover td { background:var(--cream); }
+  /* 클리닉 배정표 격자. .data-table의 width:100%는 부모 폭에 맞춰지므로 감싼 overflow-x:auto가
+     영영 스크롤되지 않고 칸만 찌그러진다. 여기서만 max-content로 바꿔 가로 스크롤을 살린다. */
+  .clinic-grid { width:auto; min-width:max-content; }
+  .clinic-grid td { vertical-align:top; }
   .badge { display:inline-block; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:600; }
   .badge-active { background:var(--green-light); color:var(--green); }
   .badge-inactive { background:var(--red-light); color:var(--red); }
@@ -3280,13 +3285,13 @@ async function loadClinicSchedule() {
     const parsed = parseClinicMemo(memo);
     if (parsed.length) {
       const clsName = cls ? cls.name : '';
-      parsed.forEach(e => g.entries.push({ ...e, name: st.name, hw, items: retestItems, cls: clsName }));
+      parsed.forEach(e => g.entries.push({ ...e, id: st.id, name: st.name, hw, items: retestItems, cls: clsName }));
     } else if (sc.clinic_target === true) {
-      g.unassigned.push({ name: st.name, memo, hw, items: retestItems, cls: cls ? cls.name : '' });
+      g.unassigned.push({ id: st.id, name: st.name, memo, hw, items: retestItems, cls: cls ? cls.name : '' });
     } else if (!/통과/.test(memo)) {
       // 대상 체크는 없지만 메모가 있는 학생: "올/전체 통과"는 클리닉과 무관하므로 제외하고,
       // "결석회차 영상보고 과제해주세요" 같은 나머지는 미기재 명단에 올린다
-      g.unassigned.push({ name: st.name, memo, hw, items: retestItems, cls: cls ? cls.name : '' });
+      g.unassigned.push({ id: st.id, name: st.name, memo, hw, items: retestItems, cls: cls ? cls.name : '' });
     } else {
       // '통과' 메모라도 과제 인증 기한이 적혀 있으면 기한 명단에는 올린다
       const due = clinicHwDeadline(memo);
@@ -3333,7 +3338,8 @@ async function loadClinicSchedule() {
       .map(e => escapeHtml(e.name) + hwTag(e) + itemTag(e) + (e.note ? ` <span style="color:var(--gray);font-size:11px">(${escapeHtml(e.note)})</span>` : ''))
       .join(', ');
     const weekInfo = Object.entries(g.weekOf).map(([c, w]) => `${escapeHtml(c)}: ${escapeHtml(w)}`).join(' · ');
-    const total = new Set(g.entries.map(e => e.name)).size + g.unassigned.length;
+    // 중복 제거 키는 이름이 아니라 student_id다 — 같은 학년 다른 반 동명이인이 한 명으로 합쳐졌다(2026-09)
+    const total = new Set(g.entries.map(e => e.id)).size + g.unassigned.length;
     // (과제 기한 명단은 재시험 대상이 아니므로 인원 수에 넣지 않는다)
 
     let html = `<div style="margin-bottom:28px">
@@ -3343,7 +3349,7 @@ async function loadClinicSchedule() {
       html += `<p style="font-size:12px;color:var(--orange);margin:0 0 8px">⚠️ ${escapeHtml(sc.name)}은 이번 주차가 아직 없어 포함하지 않았습니다. (마지막 클리닉 기록: ${escapeHtml(sc.label)})</p>`;
     });
     if (days.length) {
-      html += `<div style="overflow-x:auto"><table class="data-table">
+      html += `<div style="overflow-x:auto"><table class="data-table clinic-grid">
         <thead><tr><th style="white-space:nowrap">요일</th>${colKeys.map(k => `<th style="white-space:nowrap">${escapeHtml(clinicColLabel(k))}</th>`).join('')}</tr></thead>
         <tbody>${days.map(d => `<tr><td style="white-space:nowrap"><strong>${d}요일</strong></td>${colKeys.map(k => `<td>${cell(d, k)}</td>`).join('')}</tr>`).join('')}</tbody>
       </table></div>`;
@@ -3361,7 +3367,8 @@ async function loadClinicSchedule() {
     const renderTally = (entries, unassigned, title) => {
       const counted = new Set(), tally = {};
       const bump = (day, items) => items.forEach(ab => { tally[day] = tally[day] || {}; tally[day][ab] = (tally[day][ab] || 0) + 1; });
-      entries.forEach(e => { if (counted.has(e.name)) return; counted.add(e.name); bump(e.day, e.items || []); });
+      // 동명이인을 한 명으로 세면 시험지를 한 장 덜 뽑게 된다 — 반드시 student_id로 센다(2026-09)
+      entries.forEach(e => { if (counted.has(e.id)) return; counted.add(e.id); bump(e.day, e.items || []); });
       unassigned.forEach(u => bump('요일 미정', u.items || []));
       const rows = [..._CLINIC_DAY_ORDER.filter(d => tally[d]), ...(tally['요일 미정'] ? ['요일 미정'] : [])];
       if (!rows.length) return '';
