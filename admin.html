@@ -3209,41 +3209,111 @@ const _CLINIC_TALLY_CLASS_GROUP = { '고1 토요일': '고1 수요일 상반' };
 // min: 1~8시는 오후로 본다(클리닉이 오전 9시 전에 열리지 않는다는 운영 전제).
 // min은 배정표 칸 키라 30분 단위로 내린다. 2:45처럼 30분 단위가 아닌 시각은 2시 반 칸에 넣고
 // 실제 시각을 exact('2:45')에 남긴다 — 예전엔 분을 버려 2:45가 2시 칸에 떴다(2026-09).
+// 요일은 바로 뒤에 오는 시각과 짝짓는다: "월요일 3시, 수요일 4시" → 월 3시·수 4시
+// (예전엔 구절의 첫 시각을 모든 요일에 붙여 수요일이 3시 칸에 떴다). "토,일 5시"는 둘 다 5시.
+// 변경 문구("A에서 B로", "A → B", "A 말고/대신 B", "B (A에서 변경)", "A 취소")는 A를 버린다.
+// B에 요일이나 시각이 빠졌으면 A 것을 물려받는다("수요일 4시에서 5시로" → 수 5시).
+// 변경 문구가 없으면 적힌 일정을 모두 배정한다 — 두 요일 모두 오는 학생도 있다(2026-09).
 function parseClinicMemo(memo) {
   const entries = [];
+  const dayAlt = '(월|화|수|목|금|토|일)요일|(^|[\\s,().>→])(월|화|수|목|금|토|일)(?=$|[\\s,().0-9])';
   (memo || '').split(/[\n\/·.]+/).forEach(seg => {
     seg = seg.trim();
     if (!seg) return;
-    const days = [];
+    // 구절을 요일·시각·변경 표시 토큰으로 쪼개 적힌 순서대로 늘어놓는다.
     // "일요일" 같은 완전형, 또는 "일 5시"·"토,일"처럼 구분자에 둘러싸인 한 글자 요일만 인정.
     // ("내일"·"일찍"의 '일'을 요일로 오인하지 않도록 앞뒤 글자를 본다)
-    const dayRe = /(월|화|수|목|금|토|일)요일|(^|[\s,().])(월|화|수|목|금|토|일)(?=$|[\s,().0-9])/g;
+    const toks = [];
+    const dayRe = new RegExp(dayAlt, 'g');
     let m;
     while ((m = dayRe.exec(seg)) !== null) {
-      const d = m[1] || m[3];
-      if (!days.includes(d)) days.push(d);
+      const at = m.index + (m[2] || '').length;
+      toks.push({ type: 'day', day: m[1] || m[3], at, end: dayRe.lastIndex });
     }
-    if (!days.length) return;
-    const t = seg.match(/(\d{1,2})\s*:\s*(\d{2})/) || seg.match(/(\d{1,2})\s*시\s*(?:(반)|(\d{1,2})\s*분)?/);
-    let min = null, note = '', exact = null;
-    if (t) {
-      const h = parseInt(t[1]);
-      const hh = h >= 1 && h <= 8 ? h + 12 : h;
-      const mm = t[2] === '반' ? 30 : parseInt(t[2] || t[3] || '0'); // t[2]: "2:45"의 분 또는 '반', t[3]: "2시 45분"의 분
-      min = hh * 60 + (mm >= 30 && mm < 60 ? 30 : 0);
-      if (mm % 30 && mm < 60) exact = (hh > 12 ? hh - 12 : hh) + ':' + String(mm).padStart(2, '0');
-      const q = seg.match(/(이후|이전|전까지|까지|일찍|전후)/);
-      if (q) note = q[1];
-    } else if (/하교|학교 ?끝/.test(seg)) {
-      min = 'after_school';
-    } else if (/과제|인증/.test(seg)) {
-      return; // 과제 마감 안내 속 요일("과제는 토요일까지 인증")을 클리닉 일정으로 오인하지 않는다
-    } else {
-      // 요일은 있는데 시간이 없다 — "시간 미정" 칸에 남은 문구를 그대로 보여준다
-      note = seg.replace(/(월|화|수|목|금|토|일)요일|(^|[\s,().])(월|화|수|목|금|토|일)(?=$|[\s,().0-9])/g, '$2')
-        .replace(/^[\s,.·()]+/, '').trim(); // 요일을 지운 자리에 남는 쉼표·공백 정리
+    if (!toks.length) return;
+    const timeRe = /(\d{1,2})\s*:\s*(\d{2})|(\d{1,2})\s*시\s*(?:(반)|(\d{1,2})\s*분)?/g;
+    while ((m = timeRe.exec(seg)) !== null) {
+      // m[2]: "2:45"의 분, m[4]: '반', m[5]: "2시 45분"의 분
+      const mm = m[4] ? 30 : parseInt(m[2] || m[5] || '0');
+      toks.push({ type: 'time', h: parseInt(m[1] || m[3]), mm, at: m.index, end: timeRe.lastIndex });
     }
-    days.forEach(day => entries.push({ day, min, note, exact }));
+    const hasTime = toks.some(t => t.type === 'time');
+    const markRe = /에서|→|->|=>|⇒|말고|대신|취소/g;
+    while ((m = markRe.exec(seg)) !== null) {
+      toks.push({ type: m[0] === '취소' ? 'cancel' : 'change', word: m[0], at: m.index, end: markRe.lastIndex });
+    }
+    toks.sort((a, b) => a.at - b.at);
+
+    // 토큰을 "요일 묶음 + 그 뒤 시각" 단위(group)로 묶는다. 시각이 나오면 묶음이 닫힌다.
+    const groups = [];
+    let cur = null, from = null, prevEnd = 0;
+    const open = at => { cur = { days: [], time: null, at, from }; from = null; groups.push(cur); };
+    toks.forEach(t => {
+      if (t.type === 'day') {
+        if (!cur || cur.time || cur.closed) open(t.at);
+        if (!cur.days.includes(t.day)) cur.days.push(t.day);
+      } else if (t.type === 'time') {
+        if (!cur || cur.time || cur.closed) open(t.at);
+        cur.time = t;
+      } else if (cur && !cur.closed) {
+        if (t.type === 'cancel') {
+          cur.dropped = cur.closed = true;
+        } else {
+          // 화살표가 아닌 표시는 일정 바로 뒤에 붙어 있을 때만 변경으로 본다("학원에서"는 무시).
+          // '에서'는 뒤에 "…로"가 와야 변경이다 — "4시에서 6시 사이"는 변경이 아니다.
+          const glued = /^\s*(?:은|는|이|가)?\s*$/.test(seg.slice(prevEnd, t.at));
+          const isChange = /→|->|=>|⇒/.test(t.word) ||
+            (glued && (t.word !== '에서' || /(?:요일|시|반|분|\d|[월화수목금토일])\s*(?:으로|로)/.test(seg.slice(t.end))));
+          if (isChange) { cur.dropped = cur.closed = true; from = cur; }
+          // "목요일 4시 (수요일에서 변경)"처럼 바뀌기 전 일정을 뒤에 덧붙인 경우 — 그 일정만 버린다
+          else if (glued && t.word === '에서' && /^\s*(?:변경|바뀜|바꿈|옮김|이동)/.test(seg.slice(t.end))) cur.dropped = cur.closed = true;
+        }
+      }
+      if (t.type === 'day' || t.type === 'time') prevEnd = t.end;
+    });
+    // 묶음마다 자기 문구 구간(span)을 잡는다 — '이후'·'하교' 같은 말이 어느 일정 것인지 보려고.
+    // 요일 없이 시각만 있는 묶음("4시에서 6시까지"의 6시)은 경계로 치지 않는다.
+    const heads = groups.filter(g => g.days.length || g.from);
+    groups.forEach(g => {
+      const i = heads.indexOf(g), next = heads.find(h => h.at > g.at);
+      g.span = seg.slice(i > 0 ? g.at : 0, next ? next.at : seg.length);
+    });
+
+    const seen = new Set();
+    let lastTime = null;
+    groups.forEach(g => {
+      // 변경 뒤 일정에 요일이나 시각이 빠졌으면 바뀌기 전 일정 것을 물려받는다
+      if (g.from) {
+        if (!g.days.length) g.days = g.from.days.slice();
+        if (!g.time) g.time = g.from.time;
+      }
+      let min = null, note = '', exact = null;
+      if (!g.time && hasTime && !/하교|학교 ?끝/.test(g.span)) g.time = lastTime; // "수요일 4시, 목요일" → 목도 4시 (예전 동작 유지)
+      if (g.time) lastTime = g.time;
+      if (g.dropped || !g.days.length) return;
+      if (g.time) {
+        const { h, mm } = g.time;
+        const hh = h >= 1 && h <= 8 ? h + 12 : h;
+        min = hh * 60 + (mm >= 30 && mm < 60 ? 30 : 0);
+        if (mm % 30 && mm < 60) exact = (hh > 12 ? hh - 12 : hh) + ':' + String(mm).padStart(2, '0');
+        const q = g.span.match(/(이후|이전|전까지|까지|일찍|전후)/);
+        if (q) note = q[1];
+      } else if (/하교|학교 ?끝/.test(hasTime ? g.span : seg)) {
+        min = 'after_school';
+      } else if (/과제|인증/.test(seg)) {
+        return; // 과제 마감 안내 속 요일("과제는 토요일까지 인증")을 클리닉 일정으로 오인하지 않는다
+      } else {
+        // 요일은 있는데 시간이 없다 — "시간 미정" 칸에 남은 문구를 그대로 보여준다
+        const rest = g.from ? g.span : seg;
+        note = rest.replace(new RegExp(dayAlt, 'g'), '$2')
+          .replace(/^[\s,.·()]+/, '').replace(/^(?:으로|로)\s*/, '').trim(); // 요일을 지운 자리에 남는 쉼표·공백 정리
+      }
+      g.days.forEach(day => {
+        if (seen.has(day + '|' + min)) return;
+        seen.add(day + '|' + min);
+        entries.push({ day, min, note, exact });
+      });
+    });
   });
   return entries;
 }
