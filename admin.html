@@ -91,6 +91,8 @@
   .clinic-chip { display:block; white-space:nowrap; padding:2px 0; line-height:1.6; }
   .clinic-hw { color:var(--gray); font-size:11px; margin-left:3px; }
   .clinic-note { color:var(--gray); font-size:11px; margin-left:3px; }
+  /* 30분 단위가 아닌 실제 시각(2:45). 칸은 앞쪽 30분에 넣으므로 칸 이름과 다르다는 걸 눈에 띄게 한다 */
+  .clinic-exact { color:var(--orange); font-size:11px; font-weight:700; margin-left:3px; }
   /* 재시험 남은 항목 배지. 예전엔 [단·해] 대괄호 묶음이라 이름과 구분이 안 됐다 */
   .clinic-item { display:inline-block; min-width:17px; margin-left:3px; padding:0 4px; border-radius:4px;
     background:var(--red-light); color:var(--red); border:1px solid #f5c6c2;
@@ -3199,8 +3201,10 @@ const _CLINIC_TALLY_SPLIT_BY_CLASS = { '고1': true, '고2': true };
 // (고1 토요일반은 수요일 상반 시험지를 쓴다 — 2026-09 운영 요청)
 const _CLINIC_TALLY_CLASS_GROUP = { '고1 토요일': '고1 수요일 상반' };
 
-// 메모 → [{ day, min(분, 시간 못 읽으면 null), label, note }] 배열.
+// 메모 → [{ day, min(분, 시간 못 읽으면 null), note, exact }] 배열.
 // min: 1~8시는 오후로 본다(클리닉이 오전 9시 전에 열리지 않는다는 운영 전제).
+// min은 배정표 칸 키라 30분 단위로 내린다. 2:45처럼 30분 단위가 아닌 시각은 2시 반 칸에 넣고
+// 실제 시각을 exact('2:45')에 남긴다 — 예전엔 분을 버려 2:45가 2시 칸에 떴다(2026-09).
 function parseClinicMemo(memo) {
   const entries = [];
   (memo || '').split(/[\n\/·.]+/).forEach(seg => {
@@ -3216,12 +3220,14 @@ function parseClinicMemo(memo) {
       if (!days.includes(d)) days.push(d);
     }
     if (!days.length) return;
-    const t = seg.match(/(\d{1,2})\s*:\s*(\d{2})/) || seg.match(/(\d{1,2})\s*시\s*(반)?/);
-    let min = null, note = '';
+    const t = seg.match(/(\d{1,2})\s*:\s*(\d{2})/) || seg.match(/(\d{1,2})\s*시\s*(?:(반)|(\d{1,2})\s*분)?/);
+    let min = null, note = '', exact = null;
     if (t) {
       const h = parseInt(t[1]);
-      const halfMin = t[2] === '반' ? 30 : (t[2] ? parseInt(t[2]) : 0);
-      min = (h >= 1 && h <= 8 ? h + 12 : h) * 60 + (halfMin === 30 ? 30 : 0);
+      const hh = h >= 1 && h <= 8 ? h + 12 : h;
+      const mm = t[2] === '반' ? 30 : parseInt(t[2] || t[3] || '0'); // t[2]: "2:45"의 분 또는 '반', t[3]: "2시 45분"의 분
+      min = hh * 60 + (mm >= 30 && mm < 60 ? 30 : 0);
+      if (mm % 30 && mm < 60) exact = (hh > 12 ? hh - 12 : hh) + ':' + String(mm).padStart(2, '0');
       const q = seg.match(/(이후|이전|전까지|까지|일찍|전후)/);
       if (q) note = q[1];
     } else if (/하교|학교 ?끝/.test(seg)) {
@@ -3233,7 +3239,7 @@ function parseClinicMemo(memo) {
       note = seg.replace(/(월|화|수|목|금|토|일)요일|(^|[\s,().])(월|화|수|목|금|토|일)(?=$|[\s,().0-9])/g, '$2')
         .replace(/^[\s,.·()]+/, '').trim(); // 요일을 지운 자리에 남는 쉼표·공백 정리
     }
-    days.forEach(day => entries.push({ day, min, note }));
+    days.forEach(day => entries.push({ day, min, note, exact }));
   });
   return entries;
 }
@@ -3328,7 +3334,8 @@ function previewClinicMemoEdit() {
     return;
   }
   box.innerHTML = '메모에서 읽은 일정: ' + parsed.map(e => {
-    const where = e.min === null ? `${e.day}요일 · <strong>시간 미정</strong> 명단` : `${e.day}요일 ${clinicColLabel(e.min)}`;
+    const where = e.min === null ? `${e.day}요일 · <strong>시간 미정</strong> 명단`
+      : `${e.day}요일 ${clinicColLabel(e.min)}` + (e.exact ? ` 칸 <span style="color:var(--orange)">(실제 ${escapeHtml(e.exact)})</span>` : '');
     return where + (e.note ? ` <span style="color:var(--gray)">(${escapeHtml(e.note)})</span>` : '');
   }).join(', ');
 }
@@ -3564,8 +3571,9 @@ async function loadClinicSchedule(force = true) {
     const itemTag = e => (e.items || []).map(ab =>
       `<span class="clinic-item" title="${attrEsc((abbrLabel[ab] || ab) + ' 재시험 남음')}">${escapeHtml(ab)}</span>`).join('');
     const noteTag = e => e.note ? `<span class="clinic-note">(${escapeHtml(e.note)})</span>` : '';
+    const exactTag = e => e.exact ? `<span class="clinic-exact" title="메모에 적힌 실제 시각">${escapeHtml(e.exact)}</span>` : '';
     // 학생 하나를 block 칩으로 감싼다 — 몰린 칸이 가로로 늘어나지 않고 아래로 쌓이는 근거
-    const chip = e => `<span class="clinic-chip">${clinicNameLink(e.sid, e.name)}${hwTag(e)}${itemTag(e)}${noteTag(e)}</span>`;
+    const chip = e => `<span class="clinic-chip">${clinicNameLink(e.sid, e.name)}${exactTag(e)}${hwTag(e)}${itemTag(e)}${noteTag(e)}</span>`;
     const cell = (day, key) => timed
       .filter(e => e.day === day && e.min === key)
       .map(chip).join('');
@@ -3589,6 +3597,7 @@ async function loadClinicSchedule(force = true) {
     const legend = `<p class="clinic-legend"><span class="clinic-hw" style="margin-left:0">00%</span> 과제 수행률`
       + (usedAbbrs.length ? ' &nbsp;·&nbsp; 재시험 남은 항목 — ' + usedAbbrs.map(o =>
           `<span class="clinic-item" style="margin-left:0">${escapeHtml(o.abbr)}</span> ${escapeHtml(o.label)}`).join(' &nbsp; ') : '')
+      + (timed.some(e => e.exact) ? ` &nbsp;·&nbsp; <span class="clinic-exact" style="margin-left:0">2:45</span> 30분 단위가 아닌 시각 (앞쪽 30분 칸에 표시)` : '')
       + `</p>`;
 
     let html = `<div class="clinic-card" data-clinic-grade="${attrEsc(grade)}">
