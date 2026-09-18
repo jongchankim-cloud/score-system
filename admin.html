@@ -81,9 +81,9 @@
      .data-table의 행 단위 hover는 요일 전체가 물들어 오히려 방해되므로 여기서만 끈다. */
   .clinic-grid th + th, .clinic-grid td + td { border-left:1px solid var(--border); }
   .data-table.clinic-grid tr:hover td { background:transparent; }
-  /* '시간 미정' 열은 요일만 정해진 학생이다. 확정 배정처럼 보이지 않게 빗금 배경으로 구분한다.
+  /* '시간 미정' 열은 요일만 정해진 학생이다. 호버 색상보다 연한 배경으로 구분한다.
      위 행 hover 규칙과 특이도(0,3,2)가 같으므로 반드시 그 뒤에 둔다. */
-  .data-table.clinic-grid tr td.clinic-untimed { background:repeating-linear-gradient(135deg, var(--white) 0 6px, var(--light-gray) 6px 8px); }
+  .data-table.clinic-grid tr td.clinic-untimed { background:#f6f4f1; }
   .clinic-grid th.clinic-untimed { color:var(--gray); }
   /* 칸 하이라이트는 위 행 규칙(0,3,2)보다 특이도가 높아야 이긴다 — td:hover만으로는 (0,3,1)이라 진다.
      색도 --cream은 흰 배경과 거의 같아 안 보이므로 한 단계 진한 --light-gray를 쓴다. */
@@ -3597,7 +3597,7 @@ async function loadClinicSchedule(force = true) {
       + (usedAbbrs.length ? ' &nbsp;·&nbsp; 재시험 남은 항목 — ' + usedAbbrs.map(o =>
           `<span class="clinic-item" style="margin-left:0">${escapeHtml(o.abbr)}</span> ${escapeHtml(o.label)}`).join(' &nbsp; ') : '')
       + (timed.some(e => e.exact) ? ` &nbsp;·&nbsp; <span class="clinic-exact" style="margin-left:0">2:45</span> 30분 단위가 아닌 시각 (앞쪽 30분 칸에 표시)` : '')
-      + (untimed.length ? ` &nbsp;·&nbsp; 빗금 칸 '시간 미정'은 요일만 정해지고 시간은 아직 안 정해진 학생` : '')
+      + (untimed.length ? ` &nbsp;·&nbsp; 연한 배경 '시간 미정' 칸은 요일만 정해지고 시간은 아직 안 정해진 학생` : '')
       + `</p>`;
 
     let html = `<div class="clinic-card" data-clinic-grade="${attrEsc(grade)}">
