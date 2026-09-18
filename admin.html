@@ -81,6 +81,10 @@
      .data-table의 행 단위 hover는 요일 전체가 물들어 오히려 방해되므로 여기서만 끈다. */
   .clinic-grid th + th, .clinic-grid td + td { border-left:1px solid var(--border); }
   .data-table.clinic-grid tr:hover td { background:transparent; }
+  /* '시간 미정' 열은 요일만 정해진 학생이다. 확정 배정처럼 보이지 않게 빗금 배경으로 구분한다.
+     위 행 hover 규칙과 특이도(0,3,2)가 같으므로 반드시 그 뒤에 둔다. */
+  .data-table.clinic-grid tr td.clinic-untimed { background:repeating-linear-gradient(135deg, var(--white) 0 6px, var(--light-gray) 6px 8px); }
+  .clinic-grid th.clinic-untimed { color:var(--gray); }
   /* 칸 하이라이트는 위 행 규칙(0,3,2)보다 특이도가 높아야 이긴다 — td:hover만으로는 (0,3,1)이라 진다.
      색도 --cream은 흰 배경과 거의 같아 안 보이므로 한 단계 진한 --light-gray를 쓴다. */
   .data-table.clinic-grid tr:hover td:hover { background:var(--light-gray); }
@@ -109,7 +113,7 @@
   .clinic-card { border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:22px; background:var(--white); }
   .clinic-card-head { font-size:14px; font-weight:700; color:var(--navy); margin:0 0 4px; }
   .clinic-card-head span { font-weight:500; color:var(--gray); font-size:12px; }
-  /* 카드 안 구역 — 확정 배정 / 명단 / 재시험지 수요 */
+  /* 카드 안 구역 — 요일별 배정 / 명단 / 재시험지 수요 */
   .clinic-sec { border-top:1px solid var(--border); margin-top:14px; padding-top:12px; }
   .clinic-sec.first { border-top:none; margin-top:10px; padding-top:0; }
   .clinic-sec-title { font-size:12px; font-weight:700; color:var(--navy); margin:0 0 8px; }
@@ -820,7 +824,7 @@
         <!-- 모의고사는 주간 테스트와 문구가 달라 양식을 따로 둔다. 모의고사를 고르면 위 주차 양식 대신 보인다. -->
         <div class="form-row" id="score-sms-mock-tpl-row" style="margin-bottom:14px;display:none">
           <div class="form-group">
-            <label>모의고사 성적 문자 양식 (자동 저장 · <code>{이름}</code> <code>{시험명}</code> <code>{점수}</code> <code>{총점}</code> <code>{평균}</code> <code>{재시험}</code>)</label>
+            <label>모의고사 성적 문자 양식 (자동 저장 · <code>{이름}</code> <code>{시험명}</code> <code>{점수}</code> <code>{총점}</code> <code>{평균}</code> <code>{석차}</code> <code>{재시험}</code>)</label>
             <textarea id="score-sms-mock-template" rows="8" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7"
               oninput="onScoreSmsTemplateChange()"></textarea>
           </div>
@@ -901,7 +905,7 @@
         <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="loadClinicSchedule()">새로고침</button>
       </div>
       <div class="section-body">
-        <p style="font-size:12px;color:var(--gray);margin:0 0 14px;line-height:1.7">반마다 <strong>클리닉 메모나 클리닉 대상 체크가 있는 가장 최근 주차</strong>를 기준으로, 메모를 읽어 요일·시간별로 배치합니다. 대상 체크가 없어도 메모에 요일이 적혀 있으면 표에 올라가고, 이름 뒤 괄호는 그 주차 과제 수행률입니다. 전 항목 커트라인을 통과해 재시험 표기가 없는 학생과 '통과' 메모, 보성여고 반은 제외되고, 학년 최신 주차보다 한 주 이상 뒤처진 반은 사유와 함께 제외 표시됩니다.<br>요일은 있지만 시간이 적히지 않은 학생은 표 아래 <strong>시간 미정</strong> 명단에, 요일을 찾지 못한 학생은 <strong>요일·시간 미기재</strong> 명단에 나옵니다.<br><strong>학생 이름을 누르면 그 자리에서 클리닉 메모를 고칠 수 있고</strong>, 저장하면 표가 바로 다시 그려집니다.</p>
+        <p style="font-size:12px;color:var(--gray);margin:0 0 14px;line-height:1.7">반마다 <strong>클리닉 메모나 클리닉 대상 체크가 있는 가장 최근 주차</strong>를 기준으로, 메모를 읽어 요일·시간별로 배치합니다. 대상 체크가 없어도 메모에 요일이 적혀 있으면 표에 올라가고, 이름 뒤 괄호는 그 주차 과제 수행률입니다. 전 항목 커트라인을 통과해 재시험 표기가 없는 학생과 '통과' 메모, 보성여고 반은 제외되고, 학년 최신 주차보다 한 주 이상 뒤처진 반은 사유와 함께 제외 표시됩니다.<br>요일은 있지만 시간이 적히지 않은 학생은 그 요일 행 맨 끝의 빗금 친 <strong>시간 미정</strong> 칸에, 요일을 찾지 못한 학생은 표 아래 <strong>요일·시간 미기재</strong> 명단에 나옵니다.<br><strong>학생 이름을 누르면 그 자리에서 클리닉 메모를 고칠 수 있고</strong>, 저장하면 표가 바로 다시 그려집니다.</p>
         <div id="clinic-grade-chips" style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px"></div>
         <div id="clinic-schedule-body"><p style="font-size:13px;color:var(--gray)">탭을 열면 자동으로 불러옵니다.</p></div>
       </div>
@@ -3334,7 +3338,7 @@ function previewClinicMemoEdit() {
     return;
   }
   box.innerHTML = '메모에서 읽은 일정: ' + parsed.map(e => {
-    const where = e.min === null ? `${e.day}요일 · <strong>시간 미정</strong> 명단`
+    const where = e.min === null ? `${e.day}요일 <strong>시간 미정</strong> 칸`
       : `${e.day}요일 ${clinicColLabel(e.min)}` + (e.exact ? ` 칸 <span style="color:var(--orange)">(실제 ${escapeHtml(e.exact)})</span>` : '');
     return where + (e.note ? ` <span style="color:var(--gray)">(${escapeHtml(e.note)})</span>` : '');
   }).join(', ');
@@ -3553,17 +3557,19 @@ async function loadClinicSchedule(force = true) {
 
   box.innerHTML = grades.map(grade => {
     const g = gradeData[grade];
-    // 격자에는 시간이 정해진 일정만 올린다. 요일만 있고 시간이 없는 일정은 요일 칸에 섞이면
-    // 확정 배정처럼 보이므로 표 아래 '시간 미정' 명단으로 뺀다 (2026-09 운영 요청).
+    // 요일만 있고 시간이 없는 일정은 그 요일 행의 맨 끝 '시간 미정' 열에 넣는다 — 요일별 인원을
+    // 한 줄에서 보기 위해서다. 확정 배정처럼 보이지 않게 열 전체를 빗금으로 구분한다(.clinic-untimed).
+    // (9/17에 표 아래 명단으로 뺐다가 9/18 운영 요청으로 다시 요일 행에 넣음)
     const timed = g.entries.filter(e => e.min !== null);
     const untimed = g.entries.filter(e => e.min === null);
-    // 열: 등장한 시간만, 이른 시간부터. '하교 후'는 맨 뒤
+    // 열: 등장한 시간만, 이른 시간부터. '하교 후' → '시간 미정'은 맨 뒤
     const colKeys = [...new Set(timed.map(e => e.min))]
       .sort((a, b) => {
         const rank = v => v === 'after_school' ? 1e8 : v;
         return rank(a) - rank(b);
       });
-    const days = _CLINIC_DAY_ORDER.filter(d => timed.some(e => e.day === d));
+    if (untimed.length) colKeys.push(null);
+    const days = _CLINIC_DAY_ORDER.filter(d => g.entries.some(e => e.day === d));
     // 약칭 → 항목 원래 이름. 배지에 title로 달아 '단'이 무엇인지 짚어볼 수 있게 한다
     const abbrLabel = {};
     g.itemOrder.forEach(o => { if (!(o.abbr in abbrLabel)) abbrLabel[o.abbr] = o.label; });
@@ -3574,17 +3580,10 @@ async function loadClinicSchedule(force = true) {
     const exactTag = e => e.exact ? `<span class="clinic-exact" title="메모에 적힌 실제 시각">${escapeHtml(e.exact)}</span>` : '';
     // 학생 하나를 block 칩으로 감싼다 — 몰린 칸이 가로로 늘어나지 않고 아래로 쌓이는 근거
     const chip = e => `<span class="clinic-chip">${clinicNameLink(e.sid, e.name)}${exactTag(e)}${hwTag(e)}${itemTag(e)}${noteTag(e)}</span>`;
-    const cell = (day, key) => timed
+    // 요일을 여러 개 적은 학생("수 / 목 시간 미정")은 해당 요일 행마다 나온다 — 시간 있는 일정과 같은 규칙
+    const cell = (day, key) => g.entries
       .filter(e => e.day === day && e.min === key)
       .map(chip).join('');
-    // 시간 미정 명단: 한 학생이 요일을 여러 개 적었으면("수 / 목") 한 줄로 묶는다
-    const untimedByStudent = [];
-    untimed.forEach(e => {
-      let u = untimedByStudent.find(x => x.id === e.id);
-      if (!u) { u = { ...e, days: [], notes: [] }; untimedByStudent.push(u); }
-      if (!u.days.includes(e.day)) u.days.push(e.day);
-      if (e.note && !u.notes.includes(e.note)) u.notes.push(e.note);
-    });
     const weekInfo = Object.entries(g.weekOf).map(([c, w]) => `${escapeHtml(c)}: ${escapeHtml(w)}`).join(' · ');
     // 중복 제거 키는 이름이 아니라 student_id다 — 같은 학년 다른 반 동명이인이 한 명으로 합쳐졌다(2026-09)
     const total = new Set(g.entries.map(e => e.id)).size + g.unassigned.length;
@@ -3598,6 +3597,7 @@ async function loadClinicSchedule(force = true) {
       + (usedAbbrs.length ? ' &nbsp;·&nbsp; 재시험 남은 항목 — ' + usedAbbrs.map(o =>
           `<span class="clinic-item" style="margin-left:0">${escapeHtml(o.abbr)}</span> ${escapeHtml(o.label)}`).join(' &nbsp; ') : '')
       + (timed.some(e => e.exact) ? ` &nbsp;·&nbsp; <span class="clinic-exact" style="margin-left:0">2:45</span> 30분 단위가 아닌 시각 (앞쪽 30분 칸에 표시)` : '')
+      + (untimed.length ? ` &nbsp;·&nbsp; 빗금 칸 '시간 미정'은 요일만 정해지고 시간은 아직 안 정해진 학생` : '')
       + `</p>`;
 
     let html = `<div class="clinic-card" data-clinic-grade="${attrEsc(grade)}">
@@ -3606,26 +3606,20 @@ async function loadClinicSchedule(force = true) {
     (staleByGrade[grade] || []).forEach(sc => {
       html += `<p style="font-size:12px;color:var(--orange);margin:0 0 8px">⚠️ ${escapeHtml(sc.name)}은 이번 주차가 아직 없어 포함하지 않았습니다. (마지막 클리닉 기록: ${escapeHtml(sc.label)})</p>`;
     });
-    html += `<div class="clinic-sec first"><p class="clinic-sec-title">▸ 확정 배정</p>`;
+    html += `<div class="clinic-sec first"><p class="clinic-sec-title">▸ 요일별 배정</p>`;
     if (days.length) {
+      const untimedCls = k => k === null ? ' class="clinic-untimed"' : '';
       html += `<div style="overflow-x:auto"><table class="data-table clinic-grid">
-        <thead><tr><th style="white-space:nowrap">요일</th>${colKeys.map(k => `<th style="white-space:nowrap">${escapeHtml(clinicColLabel(k))}</th>`).join('')}</tr></thead>
-        <tbody>${days.map(d => `<tr><td style="white-space:nowrap"><strong>${d}요일</strong></td>${colKeys.map(k => `<td>${cell(d, k)}</td>`).join('')}</tr>`).join('')}</tbody>
+        <thead><tr><th style="white-space:nowrap">요일</th>${colKeys.map(k => `<th${untimedCls(k)} style="white-space:nowrap">${escapeHtml(clinicColLabel(k))}</th>`).join('')}</tr></thead>
+        <tbody>${days.map(d => `<tr><td style="white-space:nowrap"><strong>${d}요일</strong></td>${colKeys.map(k => `<td${untimedCls(k)}>${cell(d, k)}</td>`).join('')}</tr>`).join('')}</tbody>
       </table></div>`;
     } else {
-      html += `<p style="font-size:13px;color:var(--gray)">${untimed.length ? '시간까지 정해진 클리닉 일정이 없습니다.' : '요일을 읽을 수 있는 클리닉 메모가 없습니다.'}</p>`;
+      html += `<p style="font-size:13px;color:var(--gray)">요일을 읽을 수 있는 클리닉 메모가 없습니다.</p>`;
     }
     html += legend + `</div>`;
-    // ▸ 명단 — 시간 미정·미기재가 둘 다 없으면 구역을 통째로 생략한다
-    const hasLists = untimedByStudent.length || g.unassigned.length;
+    // ▸ 명단 — 요일·시간 미기재가 없으면 구역을 통째로 생략한다
+    const hasLists = g.unassigned.length;
     if (hasLists) html += `<div class="clinic-sec"><p class="clinic-sec-title">▸ 명단</p>`;
-    if (untimedByStudent.length) {
-      html += `<p style="font-size:12px;color:var(--navy);margin:10px 0 0;line-height:1.8"><strong>시간 미정 (${untimedByStudent.length}명):</strong> `
-        + untimedByStudent.map(u => clinicNameLink(u.sid, u.name) + hwTag(u) + itemTag(u)
-            + ` <span style="font-size:11px">${u.days.map(d => d + '요일').join('·')}</span>`
-            + (u.notes.length ? ` <span style="color:var(--gray);font-size:11px">(${escapeHtml(u.notes.join(', '))})</span>` : ''))
-          .join(', ') + `</p>`;
-    }
     if (g.unassigned.length) {
       html += `<p style="font-size:12px;color:var(--navy);margin:10px 0 0;line-height:1.8"><strong>요일·시간 미기재 (${g.unassigned.length}명):</strong> `
         + g.unassigned.map(u => clinicNameLink(u.sid, u.name) + hwTag(u) + itemTag(u) + (u.memo ? ` <span style="color:var(--gray);font-size:11px">(${escapeHtml(u.memo.length > 20 ? u.memo.slice(0, 20) + '…' : u.memo)})</span>` : ''))
@@ -4130,8 +4124,7 @@ async function sendAllSms() {
 // ── 성적 문자 발송 ────────────────────────────────────
 // 주차 성적 + 재시험 결과 + 클리닉 일정을 학부모께 한 통으로 보낸다.
 // 보낼 학생을 직접 골라 발송하고, 점수 기록이 하나도 없는 학생은 '미응시'로 분류한다.
-// 같은 드롭다운에서 모의고사를 고르면 모의고사 성적(항목 점수·총점·비교 그룹 평균)을 보낸다.
-// 석차는 문자로 보내지 않는다(학부모 화면에서만 보여준다 — 운영 결정).
+// 같은 드롭다운에서 모의고사를 고르면 모의고사 성적(항목 점수·총점·비교 그룹 평균·석차)을 보낸다.
 // 양식과 클리닉 공통 문구는 브라우저에 저장돼 매주 다시 쓰지 않아도 된다.
 const SCORE_SMS_STORE = 'scoreSms.v1';
 // 양식은 조교가 어느 PC에서 열든 같아야 하므로 DB(app_settings)에 둔다.
@@ -4185,6 +4178,7 @@ const DEFAULT_MOCK_SMS_TEMPLATE = `[용산대성N학원 영어과]
 {점수}
 총점 {총점}
 평균 {평균}점
+석차 {석차}등
 {재시험}
 감사합니다.`;
 const DEFAULT_MOCK_SMS_ABSENT_TEMPLATE = `[용산대성N학원 영어과]
@@ -4198,7 +4192,7 @@ function scoreSmsTplSpec() {
     ? { tplId: 'score-sms-mock-template', absId: 'score-sms-mock-absent-template',
         tplDefault: DEFAULT_MOCK_SMS_TEMPLATE, absDefault: DEFAULT_MOCK_SMS_ABSENT_TEMPLATE,
         baseTpl: 'mockTemplate', baseAbs: 'mockAbsentTemplate', name: '모의고사 ',
-        tplVars: '<code>{이름}</code> <code>{시험명}</code> <code>{점수}</code> <code>{총점}</code> <code>{평균}</code> <code>{재시험}</code>',
+        tplVars: '<code>{이름}</code> <code>{시험명}</code> <code>{점수}</code> <code>{총점}</code> <code>{평균}</code> <code>{석차}</code> <code>{재시험}</code>',
         absVars: '<code>{이름}</code> <code>{시험명}</code>' }
     : { tplId: 'score-sms-template', absId: 'score-sms-absent-template',
         tplDefault: DEFAULT_SCORE_SMS_TEMPLATE, absDefault: DEFAULT_SCORE_SMS_ABSENT_TEMPLATE,
@@ -4215,7 +4209,7 @@ function applyScoreSmsModeUI() {
   show('score-sms-clinic-default-group', !_scoreSmsIsMock);
   const hint = document.getElementById('score-sms-tpl-hint');
   if (hint) hint.innerHTML = _scoreSmsIsMock
-    ? '양식에서 <code>{재시험}</code>·<code>{평균}</code>처럼 내용이 없는 항목이 들어간 줄은 자동으로 사라집니다. 석차는 문자로 보내지 않습니다.'
+    ? '양식에서 <code>{재시험}</code>·<code>{평균}</code>·<code>{석차}</code>처럼 내용이 없는 항목이 들어간 줄은 자동으로 사라집니다.'
     : '양식에서 <code>{재시험}</code>·<code>{클리닉}</code>처럼 내용이 없는 항목이 들어간 줄은 자동으로 사라집니다.';
 }
 
@@ -4563,8 +4557,9 @@ function mockSmsHasScore(row) {
 }
 
 // 모의고사 성적 문자 대상.
-// 평균은 학부모 화면과 같은 모집단(같은 group_id의 시험 전체, 없으면 이 시험만)과
+// 평균·석차는 학부모 화면과 같은 모집단(같은 group_id의 시험 전체, 없으면 이 시험만)과
 // 같은 합계 규칙(mockRowTotal, 소수 첫째 자리)으로 낸다 — refreshMockGroupInfo와 동일.
+// 석차도 학부모 화면(index.html)과 같다: 총점 내림차순, 동점은 같은 등수.
 async function buildMockSmsTargets(classId, examId) {
   const exam = (window._scoreSmsExams || []).find(e => e.id === examId);
   const items = normalizeItemConfig(exam?.item_config, DEFAULT_MOCK_ITEM_CONFIG).filter(it => it.active);
@@ -4580,7 +4575,8 @@ async function buildMockSmsTargets(classId, examId) {
   const groupExams = Array.isArray(groupRes) && groupRes.length ? groupRes : [{ id: examId, item_config: exam?.item_config }];
 
   // 평균을 못 불러와도 성적 문자는 볼 수 있어야 한다. 대신 경고로 알린다(renderScoreSmsNotice).
-  let avg = null, avgFailed = false, sample = 0;
+  // 석차도 같은 모집단에서 내므로 평균과 함께 실패한다.
+  let avg = null, avgFailed = false, sample = 0, sortedTotals = [];
   try {
     const needsExtra = items.some(it => !MOCK_ITEM_KEYS.includes(it.key))
       || groupNeedsExtraItems(groupExams, DEFAULT_MOCK_ITEM_CONFIG, MOCK_ITEM_KEYS);
@@ -4589,6 +4585,7 @@ async function buildMockSmsTargets(classId, examId) {
     if (!Array.isArray(rows)) throw new Error('bad response');
     const totals = rows.map(r => mockRowTotal(r, items)).filter(v => v !== null);
     sample = totals.length;
+    sortedTotals = totals.slice().sort((a, b) => b - a);
     if (totals.length) avg = (totals.reduce((a, b) => a + b, 0) / totals.length).toFixed(1);
   } catch (e) { avgFailed = true; }
 
@@ -4613,6 +4610,7 @@ async function buildMockSmsTargets(classId, examId) {
     const below = scored.filter(x => isBelowCut(x.value, x.cut));
     const cutCount = scored.filter(x => x.cut !== null && x.cut !== undefined).length;
     const total = hasScore ? mockRowTotal(sc, items) : null;
+    const rank = total === null ? 0 : sortedTotals.indexOf(total) + 1;   // 0 = 모집단을 못 불러옴
     // 항목이 하나뿐이고 판정도 없으면 '점수' 줄이 총점과 똑같아지므로 뺀다 (학부모 화면과 같은 기준)
     const showItems = scored.length && (items.length > 1 || cutCount > 0);
     return {
@@ -4629,6 +4627,7 @@ async function buildMockSmsTargets(classId, examId) {
         : '',
       cutCount,
       totalText: total === null ? '' : `${fmtSmsNum(total)}/${fmtSmsNum(items.filter(hasMax).reduce((a, x) => a + x.max, 0))}`,
+      rankText: rank ? String(rank) : '',
       retestTargets: below.filter(x => pass[x.key] !== true).map(x => x.label || '항목'),
       retestPassed: below.filter(x => pass[x.key] === true).map(x => x.label || '항목'),
       clinicMemo: ''
@@ -4659,6 +4658,7 @@ function composeScoreSms(t) {
       이름: t.name, 시험명: weekLabel,
       점수: t.scoreText, 총점: t.totalText,
       평균: avg === null || avg === undefined ? '' : avg,
+      석차: t.rankText,
       재시험: retestText()
     });
   }
@@ -4714,7 +4714,9 @@ function renderMockSmsNotice(box, targets) {
   if (!tpl.includes('{평균}')) warns.push('양식에 <code>{평균}</code>이 없어 평균이 발송되지 않습니다.');
   else if (info.avgFailed) warns.push('평균을 불러오지 못해 평균 줄이 빠집니다. 반이나 시험을 다시 선택해 보세요.');
   else if (info.avg === null) warns.push('이 시험에 입력된 점수가 없어 평균 줄이 빠집니다.');
-  if (!info.hasGroup) warns.push('이 모의고사는 비교 그룹이 없어 이 반 학생만으로 평균을 냅니다. (모의고사 탭 → 비교 그룹 수정)');
+  if (!tpl.includes('{석차}')) warns.push('양식에 <code>{석차}</code>가 없어 석차가 발송되지 않습니다.');
+  else if (info.avgFailed) warns.push('석차를 계산하지 못해 석차 줄이 빠집니다. 반이나 시험을 다시 선택해 보세요.');
+  if (!info.hasGroup) warns.push('이 모의고사는 비교 그룹이 없어 이 반 학생만으로 평균·석차를 냅니다. (모의고사 탭 → 비교 그룹 수정)');
   const notTarget = targets.filter(t => t.notTarget).length;
   if (notTarget) warns.push(`${notTarget}명은 점수도 미응시 표시도 없어 '대상 아님'으로 분류했습니다. 시험을 봤다면 모의고사 탭에서 점수를 먼저 입력하세요.`);
 
