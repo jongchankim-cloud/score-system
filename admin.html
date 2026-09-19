@@ -270,6 +270,7 @@
   <div class="tab-bar">
     <button class="tab-btn active" onclick="switchTab('tab-score')">점수 입력</button>
     <button class="tab-btn" onclick="switchTab('tab-score-sms')">성적 문자 발송</button>
+    <button type="button" class="tab-btn" id="tab-counsel-btn" onclick="switchTab('tab-counsel')">상담 준비</button>
     <button class="tab-btn" onclick="switchTab('tab-absent-sms')">테스트 미응시 문자 발송</button>
     <button class="tab-btn" onclick="switchTab('tab-sms')">학부모 문자 발송</button>
     <button class="tab-btn" onclick="switchTab('tab-uncert')">미인증 관리</button>
@@ -846,6 +847,83 @@
     </div>
   </div>
 
+  <!-- 탭13: 상담 준비 (AI 초안) -->
+  <div id="tab-counsel" class="tab-content">
+    <div class="section-card">
+      <div class="section-head"><h3>상담 준비 — 학생 · 기간 선택</h3></div>
+      <div class="section-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label>반 선택</label>
+            <select id="counsel-class-select" onchange="onCounselClassChange()">
+              <option value="">반을 선택하세요</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>학생 선택</label>
+            <select id="counsel-student-select" onchange="onCounselStudentChange()">
+              <option value="">학생을 선택하세요</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>기간 (최근 주차 수)</label>
+            <input type="number" id="counsel-weeks-input" value="4" min="1" max="12"
+              style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;outline:none">
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <button type="button" class="btn btn-primary btn-sm" id="counsel-generate-btn" onclick="onCounselGenerateClick()">초안 생성</button>
+          <p style="font-size:11px;color:var(--gray);margin:0;flex:1;min-width:240px">
+            주차 날짜에는 연도가 없어서 기간을 날짜로 자를 수 없습니다. 최근 주차 수로 고릅니다.
+            AI 초안은 <strong>발송되지 않습니다</strong> — 검토·복사용입니다.
+          </p>
+        </div>
+        <div id="counsel-status" style="display:none;margin-top:12px;padding:10px 12px;background:var(--light-gray);border-radius:8px;font-size:12px;color:var(--navy)">
+          <span id="counsel-status-text">생성 중...</span>
+        </div>
+        <div id="counsel-notice"></div>
+      </div>
+    </div>
+
+    <div class="section-card" id="counsel-result" style="display:none">
+      <div class="section-head">
+        <h3 id="counsel-student-name">상담 초안</h3>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span id="counsel-save-status" style="font-size:11px;font-weight:600;color:var(--gray)"></span>
+          <button type="button" class="btn btn-sm" id="counsel-copy-btn" style="background:var(--light-gray);color:var(--navy)" onclick="copyCounselDraft()">복사</button>
+          <button type="button" class="btn btn-primary btn-sm" id="counsel-save-btn" onclick="onCounselSaveClick()">저장</button>
+        </div>
+      </div>
+      <div class="section-body">
+        <div class="form-group" style="margin-bottom:14px">
+          <label>조회된 사실 (초안의 근거 · 저장 시 함께 남습니다)</label>
+          <pre id="counsel-facts" style="margin:0;padding:12px;background:var(--light-gray);border-radius:8px;font-size:11px;line-height:1.6;color:var(--navy);overflow-x:auto;white-space:pre-wrap;word-break:break-all;max-height:320px"></pre>
+        </div>
+        <div class="form-row" style="margin-bottom:14px">
+          <div class="form-group">
+            <label>AI 초안 (원문 · 수정해도 저장되지 않습니다)</label>
+            <textarea id="counsel-ai-draft" rows="6" readonly
+              style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7;background:var(--cream);color:var(--navy)"></textarea>
+          </div>
+          <div class="form-group">
+            <label>교사 검토본 (실제로 쓸 문구 · 비우면 AI 초안 그대로 저장됩니다)</label>
+            <textarea id="counsel-edited-draft" rows="6" placeholder="필요하면 고쳐 쓰세요"
+              style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7"></textarea>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:14px">
+          <label>검토 메모 (학부모에게 가지 않는 내부 기록)</label>
+          <input type="text" id="counsel-teacher-notes" placeholder="예) 어머니와 통화 후 보낼 예정"
+            style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;outline:none">
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--navy);cursor:pointer">
+          <input type="checkbox" id="counsel-approve-checkbox" style="width:16px;height:16px;cursor:pointer">
+          승인 (검토를 마쳤습니다)
+        </label>
+      </div>
+    </div>
+  </div>
+
   <!-- 탭11: 클리닉 미참석 문자 발송 -->
   <div id="tab-clinic-sms" class="tab-content">
     <div class="section-card">
@@ -1019,6 +1097,9 @@ const SUPABASE_URL = 'https://rcpzinsdocmpnfxkfbil.supabase.co';
 const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjcHppbnNkb2NtcG5meGtmYmlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwMzM2NzksImV4cCI6MjA5NTYwOTY3OX0.f_HsTsM4_z2qKeMtIXZ0G8vRuXFmHkXomIdQzFFXHb0';
 const SMS_FUNCTION_URL = 'https://rcpzinsdocmpnfxkfbil.supabase.co/functions/v1/send-sms';
 const ADMIN_API_URL = 'https://rcpzinsdocmpnfxkfbil.supabase.co/functions/v1/admin-api';
+// 상담 준비 탭의 AI 초안 생성 함수. 모델 API 키를 HTML에 두지 않기 위해 별도 Edge Function을 경유한다.
+// (사본: supabase/functions/counsel-draft/index.ts — 배포하지 않으면 '초안 생성'이 실패한다)
+const COUNSEL_FUNCTION_URL = 'https://rcpzinsdocmpnfxkfbil.supabase.co/functions/v1/counsel-draft';
 
 // 로그인 시 입력받은 비밀번호를 메모리에만 보관 (HTML/저장소에 평문 없음)
 let adminPassword = '';
@@ -1089,7 +1170,7 @@ async function adminLogin() {
 }
 
 let classes = [];
-const CLASS_SELECT_IDS = ['score-class','week-list-class','new-class','student-list-class','mock-score-class','mock-list-class','sms-class','uncert-class','student-sms-class','absent-class','clinic-sms-class','score-sms-class','history-class'];
+const CLASS_SELECT_IDS = ['score-class','week-list-class','new-class','student-list-class','mock-score-class','mock-list-class','sms-class','uncert-class','student-sms-class','absent-class','clinic-sms-class','score-sms-class','history-class','counsel-class-select'];
 
 // 숫자 입력칸(type=number)은 포커스된 채 마우스 휠을 굴리면 브라우저가 값을 올리내려
 // 방금 입력한 점수가 눈치채지 못한 사이에 바뀐다. 동적으로 생성되는 칸까지 전부 막기 위해
@@ -1126,6 +1207,7 @@ function switchTab(tabId) {
   if (tabId === 'tab-class') loadClassList();
   if (tabId === 'tab-memo') loadMemos();
   if (tabId === 'tab-clinic-schedule') loadClinicSchedule(false);
+  if (tabId === 'tab-counsel') loadCounselTab();
 }
 
 // ── 주차 관리
@@ -4915,6 +4997,204 @@ async function sendScoreSms() {
     const data = await res.json();
     showToast(`✅ 발송 완료 — 성공 ${data.success}건 / 실패 ${data.fail}건`, 4000);
   } catch (e) { showToast('❌ 발송 오류: ' + e.message); }
+}
+
+// ── 상담 준비 (AI 초안)
+// 한 학생 × 최근 N주차의 기록을 counsel-draft Edge Function에 넘겨 초안을 받아 온다.
+// 여기서는 점수를 합산하거나 재시험 대상을 판정하지 않는다 — 그 계산은 성적 문자·학부모 화면이
+// itemVal / isBelowCut / mockRowTotal로 하고 있고, 같은 식을 다시 쓰면 숫자가 조용히 어긋난다.
+// 발송 기능은 없다(1단계 범위 밖). 초안은 저장·복사까지만 한다.
+let _counselDraftId = null;     // 방금 만든 초안 행 id (저장 대상)
+let _counselFacts = null;       // 초안의 근거로 쓴 사실 묶음
+let _counselLoadSeq = 0;        // 반/학생을 연달아 바꿀 때의 경합 방지
+let _counselBusy = false;       // 생성 중 중복 클릭 방지
+
+function loadCounselTab() {
+  // 반 목록은 initAdmin의 refreshClassSelects가 이미 채운다(CLASS_SELECT_IDS에 등록돼 있음).
+  // 로그인 직후 목록을 못 받은 경우에만 다시 채운다.
+  const sel = document.getElementById('counsel-class-select');
+  if (sel && sel.options.length <= 1 && classes.length) refreshClassSelects();
+}
+
+function setCounselNotice(html) {
+  const el = document.getElementById('counsel-notice');
+  if (el) el.innerHTML = html || '';
+}
+
+function counselNoticeBox(msg, retry) {
+  return `<div style="margin-top:12px;padding:10px 12px;background:var(--red-light);border:1px solid #f5c6c2;border-radius:8px;font-size:12px;color:var(--red);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <span style="flex:1;min-width:200px">${escapeHtml(msg)}</span>
+    ${retry ? '<button type="button" class="btn btn-sm" style="background:var(--white);color:var(--navy);border:1.5px solid var(--border)" onclick="onCounselGenerateClick()">다시 시도</button>' : ''}
+  </div>`;
+}
+
+function setCounselStatus(msg) {
+  const box = document.getElementById('counsel-status');
+  const txt = document.getElementById('counsel-status-text');
+  if (!box || !txt) return;
+  if (!msg) { box.style.display = 'none'; return; }
+  txt.textContent = msg;
+  box.style.display = 'block';
+}
+
+function onCounselClassChange() {
+  document.getElementById('counsel-result').style.display = 'none';
+  setCounselNotice('');
+  loadCounselStudents(document.getElementById('counsel-class-select').value);
+}
+
+async function loadCounselStudents(classId) {
+  const sel = document.getElementById('counsel-student-select');
+  sel.innerHTML = '<option value="">학생을 선택하세요</option>';
+  if (!classId) return;
+  const seq = ++_counselLoadSeq;
+  const res = await api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=id,name`);
+  if (seq !== _counselLoadSeq) return;      // 그 사이 다른 반을 골랐다
+  // 조회 실패 시 빈 목록을 그려 놓으면 "학생이 없는 반"처럼 보인다. 오류로 알린다.
+  if (!Array.isArray(res)) { setCounselNotice(counselNoticeBox('학생 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.', false)); return; }
+  res.forEach(st => {
+    const opt = document.createElement('option');
+    opt.value = st.id; opt.textContent = st.name;
+    sel.appendChild(opt);
+  });
+  if (!res.length) setCounselNotice(counselNoticeBox('이 반에 재원 중인 학생이 없습니다.', false));
+}
+
+function onCounselStudentChange() {
+  document.getElementById('counsel-result').style.display = 'none';
+  setCounselNotice('');
+}
+
+function onCounselGenerateClick() {
+  const classId = document.getElementById('counsel-class-select').value;
+  const studentId = document.getElementById('counsel-student-select').value;
+  const weeks = parseInt(document.getElementById('counsel-weeks-input').value, 10);
+  if (!classId) { showToast('반을 먼저 선택해주세요.'); return; }
+  if (!studentId) { showToast('학생을 먼저 선택해주세요.'); return; }
+  if (!Number.isFinite(weeks) || weeks < 1 || weeks > 12) { showToast('기간은 1~12주차 사이로 넣어주세요.'); return; }
+  generateCounselDraft(studentId, classId, weeks);
+}
+
+async function generateCounselDraft(studentId, classId, weeks) {
+  if (_counselBusy) return;
+  _counselBusy = true;
+  const btn = document.getElementById('counsel-generate-btn');
+  if (btn) btn.disabled = true;
+  setCounselNotice('');
+  setCounselStatus('최근 주차를 확인하는 중...');
+  const studentName = document.getElementById('counsel-student-select').selectedOptions[0]?.text || '';
+
+  try {
+    // 기간은 날짜 범위로 자를 수 없다(test_date는 '6.3' 꼴 문자열, 연도 없음).
+    // 기존 코드와 같은 방식으로 id 내림차순 N개를 "최근 N주차"로 본다.
+    const weekRows = await api(`weeks?class_id=eq.${classId}&order=id.desc&limit=${weeks}&select=id,label,test_date`);
+    if (!Array.isArray(weekRows)) { setCounselNotice(counselNoticeBox('주차 목록을 불러오지 못했습니다.', true)); return; }
+    if (!weekRows.length) { setCounselNotice(counselNoticeBox('이 반에 등록된 주차가 없습니다. 주차 관리에서 먼저 주차를 만들어주세요.', false)); return; }
+
+    setCounselStatus(`최근 ${weekRows.length}주차 기록으로 초안을 만드는 중... (10초쯤 걸립니다)`);
+    const res = await fetch(COUNSEL_FUNCTION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
+      body: JSON.stringify({
+        password: adminPassword,
+        student_id: parseInt(studentId, 10),
+        class_id: parseInt(classId, 10),
+        period_weeks: weekRows.map(w => w.id)
+      })
+    });
+    if (res.status === 401) { handleAuthError(); return; }
+    const text = await res.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch (e) { data = null; }
+    if (!data) { setCounselNotice(counselNoticeBox(`초안 생성 응답을 읽지 못했습니다 (상태 ${res.status}).`, true)); return; }
+    if (!data.facts) {
+      setCounselNotice(counselNoticeBox(data.error || data.error_message || `초안 생성에 실패했습니다 (상태 ${res.status}).`, true));
+      return;
+    }
+    renderCounselResult(data, studentName, weekRows.length);
+  } catch (e) {
+    setCounselNotice(counselNoticeBox('초안 생성 중 오류가 발생했습니다: ' + e.message, true));
+  } finally {
+    setCounselStatus('');
+    _counselBusy = false;
+    if (btn) btn.disabled = false;
+  }
+}
+
+function renderCounselResult(data, studentName, weekCount) {
+  _counselDraftId = data.id || null;
+  _counselFacts = data.facts || null;
+
+  document.getElementById('counsel-student-name').textContent =
+    `${studentName || '학생'} — 최근 ${weekCount}주차 상담 초안`;
+  // 사실은 textContent로 넣는다(innerHTML 아님) — 메모에 들어간 <, & 가 깨지거나 주입되지 않게.
+  document.getElementById('counsel-facts').textContent = JSON.stringify(data.facts, null, 2);
+  document.getElementById('counsel-ai-draft').value = data.ai_draft || '';
+  document.getElementById('counsel-edited-draft').value = data.ai_draft || '';
+  document.getElementById('counsel-teacher-notes').value = '';
+  document.getElementById('counsel-approve-checkbox').checked = false;
+  document.getElementById('counsel-save-status').textContent = '';
+  document.getElementById('counsel-result').style.display = 'block';
+
+  const err = data.error || data.error_message;
+  const saveBtn = document.getElementById('counsel-save-btn');
+  if (!_counselDraftId) {
+    // 행이 안 만들어졌으면 저장할 대상이 없다. 사실·초안은 그대로 보여 주고 저장만 막는다.
+    if (saveBtn) saveBtn.disabled = true;
+    setCounselNotice(counselNoticeBox((err || '초안을 저장할 행을 만들지 못했습니다.') + ' 문구는 복사해서 쓰실 수 있습니다.', true));
+    return;
+  }
+  if (saveBtn) saveBtn.disabled = false;
+  if (err) {
+    // AI가 실패해도 사실은 나왔다 — 교사가 직접 쓰면 된다.
+    setCounselNotice(counselNoticeBox(err + ' 아래 사실을 보고 직접 쓰셔도 됩니다.', true));
+  }
+}
+
+function onCounselSaveClick() {
+  if (!_counselDraftId) { showToast('저장할 초안이 없습니다. 먼저 초안을 생성해주세요.'); return; }
+  const edited = document.getElementById('counsel-edited-draft').value.trim();
+  const approved = document.getElementById('counsel-approve-checkbox').checked;
+  if (approved && !edited) { showToast('승인하려면 검토본 내용이 있어야 합니다.'); return; }
+  saveCounselDraft(_counselDraftId, edited, approved ? 'approved' : 'pending');
+}
+
+// counsel_drafts 갱신. ai_draft(AI 원문)는 건드리지 않는다 — 원문과 수정본을 구분해 남기는 것이
+// 이 표의 존재 이유다. (updated_at은 DB 트리거가 채운다)
+async function saveCounselDraft(draftId, editedText, status) {
+  const statusEl = document.getElementById('counsel-save-status');
+  const btn = document.getElementById('counsel-save-btn');
+  if (btn) btn.disabled = true;
+  if (statusEl) { statusEl.textContent = '저장 중...'; statusEl.style.color = 'var(--gray)'; }
+  try {
+    const res = await apiRaw(`counsel_drafts?id=eq.${encodeURIComponent(draftId)}`, 'PATCH', {
+      edited_draft: editedText || null,
+      teacher_notes: document.getElementById('counsel-teacher-notes').value.trim() || null,
+      status: status
+    });
+    if (!res.ok) throw new Error(`status ${res.status}`);
+    if (statusEl) { statusEl.textContent = status === 'approved' ? '승인 저장됨' : '저장됨'; statusEl.style.color = 'var(--green)'; }
+    showToast(status === 'approved' ? '✅ 승인해서 저장했어요!' : '✅ 검토본을 저장했어요!');
+  } catch (e) {
+    if (statusEl) { statusEl.textContent = '저장 실패'; statusEl.style.color = 'var(--red)'; }
+    showToast('❌ 저장 실패: ' + e.message);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function copyCounselDraft() {
+  const edited = document.getElementById('counsel-edited-draft').value.trim();
+  const text = edited || document.getElementById('counsel-ai-draft').value.trim();
+  if (!text) { showToast('복사할 문구가 없습니다.'); return; }
+  const fallback = () => {
+    const ta = document.getElementById('counsel-edited-draft');
+    ta.focus(); ta.select();
+    showToast('문구를 선택했어요. Ctrl+C로 복사해주세요.');
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => showToast('✅ 문구를 복사했어요!')).catch(fallback);
+  } else fallback();
 }
 
 // ── 모의고사
