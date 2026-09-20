@@ -101,6 +101,11 @@
   .clinic-item { display:inline-block; min-width:17px; margin-left:3px; padding:0 4px; border-radius:4px;
     background:var(--red-light); color:var(--red); border:1px solid #f5c6c2;
     font-size:10px; font-weight:700; line-height:16px; text-align:center; vertical-align:1px; }
+  /* 남은 재시험 없이 메모 일정만으로 올라온 학생(과제 클리닉) 배지.
+     재시험 배지(.clinic-item, 빨강)와 색을 달리해 같은 칸에서도 성격이 구분되게 한다 */
+  .clinic-hwonly { display:inline-block; margin-left:3px; padding:0 4px; border-radius:4px;
+    background:var(--orange-light); color:var(--orange); border:1px solid #f6d5b0;
+    font-size:10px; font-weight:700; line-height:16px; text-align:center; vertical-align:1px; }
   /* 범례 — (00%)와 배지가 무엇인지 화면만 보고 알 수 없어 표 아래 붙인다 */
   .clinic-legend { font-size:11px; color:var(--gray); margin:8px 0 0; line-height:1.9; }
   /* 학년 필터 칩. 모양은 .memo-author-btn과 같지만 클래스를 반드시 따로 둔다 —
@@ -905,7 +910,7 @@
         <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="loadClinicSchedule()">새로고침</button>
       </div>
       <div class="section-body">
-        <p style="font-size:12px;color:var(--gray);margin:0 0 14px;line-height:1.7">반마다 <strong>클리닉 메모나 클리닉 대상 체크가 있는 가장 최근 주차</strong>를 기준으로, 메모를 읽어 요일·시간별로 배치합니다. 대상 체크가 없어도 메모에 요일이 적혀 있으면 표에 올라가고, 이름 뒤 괄호는 그 주차 과제 수행률입니다. 전 항목 커트라인을 통과해 재시험 표기가 없는 학생과 '통과' 메모는 제외되고, 학년 최신 주차보다 한 주 이상 뒤처진 반은 사유와 함께 제외 표시됩니다.<br>요일은 있지만 시간이 적히지 않은 학생은 그 요일 행 맨 끝의 빗금 친 <strong>시간 미정</strong> 칸에, 요일을 찾지 못한 학생은 표 아래 <strong>요일·시간 미기재</strong> 명단에 나옵니다.<br><strong>학생 이름을 누르면 그 자리에서 클리닉 메모를 고칠 수 있고</strong>, 저장하면 표가 바로 다시 그려집니다.</p>
+        <p style="font-size:12px;color:var(--gray);margin:0 0 14px;line-height:1.7">반마다 <strong>클리닉 메모나 클리닉 대상 체크가 있는 가장 최근 주차</strong>를 기준으로, 메모를 읽어 요일·시간별로 배치합니다. 대상 체크가 없어도 메모에 요일이 적혀 있으면 표에 올라가고, 이름 뒤 괄호는 그 주차 과제 수행률입니다. 전 항목 커트라인을 통과해 재시험 표기가 없는 학생도 메모에 일정이 적혀 있으면 <strong>과제</strong> 배지를 달고 표에 올라가며(과제 클리닉 등), 일정을 읽지 못한 경우에만 제외됩니다. 학년 최신 주차보다 한 주 이상 뒤처진 반은 사유와 함께 제외 표시됩니다.<br>요일은 있지만 시간이 적히지 않은 학생은 그 요일 행 맨 끝의 빗금 친 <strong>시간 미정</strong> 칸에, 요일을 찾지 못한 학생은 표 아래 <strong>요일·시간 미기재</strong> 명단에 나옵니다.<br><strong>학생 이름을 누르면 그 자리에서 클리닉 메모를 고칠 수 있고</strong>, 저장하면 표가 바로 다시 그려집니다.</p>
         <div id="clinic-grade-chips" style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px"></div>
         <div id="clinic-schedule-body"><p style="font-size:13px;color:var(--gray)">탭을 열면 자동으로 불러옵니다.</p></div>
       </div>
@@ -3397,14 +3402,17 @@ function closeClinicMemoModal() {
 }
 
 // 입력 중인 메모를 배정표와 같은 파서로 읽어 어느 칸에 들어갈지 미리 보여준다.
-// (재시험 통과 여부에 따라 표에서 빠질 수 있으므로 '메모에서 읽은 일정'까지만 안내한다)
+// (일정이 읽히면 재시험 통과 여부와 무관하게 표에 오르지만, 기준 주차·반 상태에 따라 달라질 수 있으므로
+//  '메모에서 읽은 일정'까지만 안내한다)
 function previewClinicMemoEdit() {
   const memo = document.getElementById('clinic-memo-modal-text').value.trim();
   const box = document.getElementById('clinic-memo-modal-preview');
   if (!memo) { box.innerHTML = '메모가 비어 있습니다.'; return; }
   const parsed = parseClinicMemo(memo);
   if (!parsed.length) {
-    box.innerHTML = '요일을 읽지 못했어요 → <strong>요일·시간 미기재</strong> 명단에 들어갑니다.';
+    // 재시험이 남지 않은 학생은 일정을 못 읽으면 표에서 아예 빠진다 — 명단에 뜰 거라 오해하지 않게 함께 알린다
+    box.innerHTML = '요일을 읽지 못했어요 → <strong>요일·시간 미기재</strong> 명단에 들어갑니다.'
+      + '<br><span style="color:var(--gray)">남은 재시험이 없는 학생은 이 경우 표에서 빠지고, 과제 인증 기한만 아래 기한 명단에 올라갑니다.</span>';
     return;
   }
   box.innerHTML = '메모에서 읽은 일정: ' + parsed.map(e => {
@@ -3550,8 +3558,8 @@ async function loadClinicSchedule(force = true) {
     // 과제 수행률은 이름 뒤 괄호로 표기. NULL(미기재·과제 없음)이면 붙이지 않는다.
     const hw = (sc.homework_rate === null || sc.homework_rate === undefined) ? null : sc.homework_rate;
 
-    // 재시험 표기가 하나도 없는 학생(전 항목 커트라인 통과)은 배정표 대상이 아니다.
-    // 다만 메모에 과제 인증 기한("~까지")이 적혀 있으면 표 아래 별도 명단으로 보여준다.
+    // 재시험 표기가 하나도 없는 학생(전 항목 커트라인 통과)은 아래에서 hwOnly로 갈라 본다 —
+    // 메모에 일정이 있으면 배정표에, 메모에 과제 인증 기한("~까지")이 적혀 있으면 표 아래 명단에도 올린다.
     // 점수가 아예 없는 학생(미응시)이나 커트라인이 설정되지 않은 주차는 이 판정을 건너뛴다.
     const cfgItems = normalizeItemConfig(weekById[sc.week_id].item_config).filter(it => it.active);
     const scored = cfgItems.map(it => {
@@ -3574,18 +3582,23 @@ async function loadClinicSchedule(force = true) {
     const retestItems = scored
       .filter(x => isBelowCut(x.value, x.cut) && pass[x.key] !== true)
       .map(x => abbrOf[x.key]);
-    // 남은 재시험이 없는 학생(미달이 없었든, 미달 항목을 전부 재시험 통과했든)은 배정표에서
-    // 뺀다 — 재시험을 다 통과했으면 클리닉에 올 이유가 없다. 과제 기한만 있으면 기한 명단에 올린다.
-    if (hasCut && scored.length && retestItems.length === 0) {
+    // 남은 재시험이 없는 학생(미달이 없었든, 미달 항목을 전부 재시험 통과했든)도 메모에 요일·시간이
+    // 적혀 있으면 배정표에 올린다 — 과제 클리닉처럼 재시험과 무관한 클리닉이 있다(2026-09 운영 요청).
+    // 예전엔 재시험이 없으면 무조건 표에서 빼서 과제 클리닉 학생이 배정표에 아예 뜨지 않았다.
+    // 재시험 배지가 붙지 않는 학생이므로 hwOnly로 표시해 '과제' 배지로 구분한다.
+    // 일정을 읽지 못하면 예전처럼 표에서 빼고, 과제 기한이 적혀 있으면 기한 명단에 올린다.
+    const hwOnly = hasCut && scored.length > 0 && retestItems.length === 0;
+    const parsed = parseClinicMemo(memo);
+    if (hwOnly) {
+      // 기한 명단은 배정표와 별개로 유지한다 — 배정표에 올라간 학생도 기한은 여기서 한눈에 본다
       const due = clinicHwDeadline(memo);
       if (due) g.hwDue.push({ sid, name: st.name, hw, due });
-      return;
+      if (!parsed.length) return;
     }
 
-    const parsed = parseClinicMemo(memo);
     if (parsed.length) {
       const clsName = cls ? cls.name : '';
-      parsed.forEach(e => g.entries.push({ ...e, id: st.id, sid, name: st.name, hw, items: retestItems, cls: clsName }));
+      parsed.forEach(e => g.entries.push({ ...e, id: st.id, sid, name: st.name, hw, items: retestItems, hwOnly, cls: clsName }));
     } else if (sc.clinic_target === true) {
       g.unassigned.push({ id: st.id, sid, name: st.name, memo, hw, items: retestItems, cls: cls ? cls.name : '' });
     } else if (!/통과/.test(memo)) {
@@ -3647,8 +3660,10 @@ async function loadClinicSchedule(force = true) {
       `<span class="clinic-item" title="${attrEsc((abbrLabel[ab] || ab) + ' 재시험 남음')}">${escapeHtml(ab)}</span>`).join('');
     const noteTag = e => e.note ? `<span class="clinic-note">(${escapeHtml(e.note)})</span>` : '';
     const exactTag = e => e.exact ? `<span class="clinic-exact" title="메모에 적힌 실제 시각">${escapeHtml(e.exact)}</span>` : '';
+    // 남은 재시험이 없는데 메모 일정으로 올라온 학생 — 재시험 배지가 없어 왜 표에 있는지 알 수 없으므로 표시한다
+    const hwOnlyTag = e => e.hwOnly ? `<span class="clinic-hwonly" title="남은 재시험 없음 — 메모에 적힌 일정(과제 클리닉 등)">과제</span>` : '';
     // 학생 하나를 block 칩으로 감싼다 — 몰린 칸이 가로로 늘어나지 않고 아래로 쌓이는 근거
-    const chip = e => `<span class="clinic-chip">${clinicNameLink(e.sid, e.name)}${exactTag(e)}${hwTag(e)}${itemTag(e)}${noteTag(e)}</span>`;
+    const chip = e => `<span class="clinic-chip">${clinicNameLink(e.sid, e.name)}${exactTag(e)}${hwTag(e)}${itemTag(e)}${hwOnlyTag(e)}${noteTag(e)}</span>`;
     // 요일을 여러 개 적은 학생("수 / 목 시간 미정")은 해당 요일 행마다 나온다 — 시간 있는 일정과 같은 규칙
     const cell = (day, key) => g.entries
       .filter(e => e.day === day && e.min === key)
@@ -3665,6 +3680,7 @@ async function loadClinicSchedule(force = true) {
     const legend = `<p class="clinic-legend"><span class="clinic-hw" style="margin-left:0">00%</span> 과제 수행률`
       + (usedAbbrs.length ? ' &nbsp;·&nbsp; 재시험 남은 항목 — ' + usedAbbrs.map(o =>
           `<span class="clinic-item" style="margin-left:0">${escapeHtml(o.abbr)}</span> ${escapeHtml(o.label)}`).join(' &nbsp; ') : '')
+      + (g.entries.some(e => e.hwOnly) ? ` &nbsp;·&nbsp; <span class="clinic-hwonly" style="margin-left:0">과제</span> 남은 재시험은 없고 메모에 일정만 적힌 학생 (과제 클리닉 등)` : '')
       + (timed.some(e => e.exact) ? ` &nbsp;·&nbsp; <span class="clinic-exact" style="margin-left:0">2:45</span> 30분 단위가 아닌 시각 (앞쪽 30분 칸에 표시)` : '')
       + (untimed.length ? ` &nbsp;·&nbsp; 연한 배경 '시간 미정' 칸은 요일만 정해지고 시간은 아직 안 정해진 학생` : '')
       + `</p>`;
