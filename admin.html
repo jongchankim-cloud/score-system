@@ -4955,6 +4955,8 @@ async function addMockExam() {
   const label = document.getElementById('mock-label').value.trim();
   const picked = getPickedClasses('mock-class-picker');
   if (!date) { showToast('시험 날짜를 입력해주세요.'); return; }
+  // 주차 추가와 같은 검증. 'M.D'가 아니면 성적 발송 드롭다운이 날짜를 못 읽어 맨 아래로 밀린다.
+  if (!resolveBaseDate(date)) { showToast('❌ 날짜 형식이 올바르지 않습니다. (예: 6.10)'); return; }
   if (!picked.length) { showToast('평균을 함께 낼 반을 한 개 이상 체크해주세요.'); return; }
 
   // 체크된 반들이 같은 group_id를 공유 → 학부모 화면의 모의고사 평균·석차 모집단
