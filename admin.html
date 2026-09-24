@@ -3247,6 +3247,11 @@ function parseClinicMemo(memo) {
     while ((m = markRe.exec(seg)) !== null) {
       toks.push({ type: m[0] === '취소' ? 'cancel' : 'change', word: m[0], at: m.index, end: markRe.lastIndex });
     }
+    // "목 6시 (금요일은 불가능)"처럼 안 되는 요일을 덧붙인 경우 — 예전엔 금요일이 앞 시각을 물려받아 금 6시에 떴다(2026-09)
+    const negRe = /불가능|불가|안\s*(?:돼|되|됨|됩|와|옴|가|감)|못\s*(?:와|옴|오|가|감|함|해)|제외|빼고|어려|힘들|[X✕×❌]/g;
+    while ((m = negRe.exec(seg)) !== null) {
+      toks.push({ type: 'neg', at: m.index, end: negRe.lastIndex });
+    }
     toks.sort((a, b) => a.at - b.at);
 
     // 토큰을 "요일 묶음 + 그 뒤 시각" 단위(group)로 묶는다. 시각이 나오면 묶음이 닫힌다.
@@ -3263,6 +3268,9 @@ function parseClinicMemo(memo) {
       } else if (cur && !cur.closed) {
         if (t.type === 'cancel') {
           cur.dropped = cur.closed = true;
+        } else if (t.type === 'neg') {
+          // 일정 바로 뒤에 붙은 부정만 그 일정을 버린다 — "월요일 3시, 서술형 제외"의 '제외'는 일정과 무관
+          if (/^\s*(?:은|는|이|가|도|에|엔|에는|에도|은요|는요)?\s*(?:좀|조금)?\s*$/.test(seg.slice(prevEnd, t.at))) cur.dropped = cur.closed = true;
         } else {
           // 화살표가 아닌 표시는 일정 바로 뒤에 붙어 있을 때만 변경으로 본다("학원에서"는 무시).
           // '에서'는 뒤에 "…로"가 와야 변경이다 — "4시에서 6시 사이"는 변경이 아니다.
