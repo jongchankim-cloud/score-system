@@ -4501,12 +4501,19 @@ function sharedScoreSmsPart(saved) {
   return out;
 }
 
+// {응시인원} 치환이 생기기 전에는 '응시인원: 39'처럼 숫자를 손으로 적어 보냈다(2026-09).
+// 그 숫자는 시험마다 달라야 하는데 양식에 고정돼 있어 다른 회차에도 같은 수가 나간다.
+// 불러올 때 '응시인원' 바로 뒤의 숫자를 {응시인원}으로 바꿔, 양식을 고치지 않아도 자동 계산 값이 들어가게 한다.
+function withAutoMockHeadcount(tpl) {
+  return String(tpl ?? '').replace(/(응시\s*인원\s*[:：]?\s*)\d+/g, '$1{응시인원}');
+}
+
 function applyScoreSmsSettings(saved) {
   const el = id => document.getElementById(id);
   el('score-sms-template').value = saved.template ?? DEFAULT_SCORE_SMS_TEMPLATE;
   el('score-sms-absent-template').value = saved.absentTemplate ?? DEFAULT_SCORE_SMS_ABSENT_TEMPLATE;
   el('score-sms-clinic-default').value = saved.clinicDefault ?? '';
-  el('score-sms-mock-template').value = saved.mockTemplate ?? DEFAULT_MOCK_SMS_TEMPLATE;
+  el('score-sms-mock-template').value = withAutoMockHeadcount(saved.mockTemplate ?? DEFAULT_MOCK_SMS_TEMPLATE);
   el('score-sms-mock-absent-template').value = saved.mockAbsentTemplate ?? DEFAULT_MOCK_SMS_ABSENT_TEMPLATE;
   _scoreSmsRecipient = saved.recipient === 'student' ? 'student' : 'parent';
   document.querySelectorAll('#score-sms-recipient-btns .memo-author-btn').forEach(b => {
