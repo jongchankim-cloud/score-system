@@ -130,6 +130,15 @@
   /* 배정표·명단의 학생 이름 — 누르면 클리닉 메모 수정 창이 열린다 */
   .clinic-memo-link { color:inherit; text-decoration:underline dotted var(--gray); text-underline-offset:3px; cursor:pointer; }
   .clinic-memo-link:hover { color:var(--gold); }
+  /* 메모 수정 창 오른쪽 '문자 보내기' 구역 — 좁은 화면에서는 메모 아래로 내려간다 */
+  .clinic-modal-cols { display:flex; gap:24px; flex-wrap:wrap; align-items:flex-start; }
+  .clinic-modal-col { flex:1 1 360px; min-width:0; }
+  .clinic-modal-sms { border-left:1px solid var(--border); padding-left:24px; }
+  @media (max-width:860px) { .clinic-modal-sms { border-left:none; padding-left:0; border-top:1px solid var(--border); padding-top:18px; } }
+  .clinic-modal-info { display:grid; grid-template-columns:auto 1fr; gap:4px 12px; font-size:12px; color:var(--navy);
+    background:var(--light-gray); border-radius:8px; padding:10px 12px; margin-bottom:12px; line-height:1.6; }
+  .clinic-modal-info dt { color:var(--gray); white-space:nowrap; }
+  .clinic-modal-info dd { margin:0; word-break:break-all; }
   .badge { display:inline-block; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:600; }
   .badge-active { background:var(--green-light); color:var(--green); }
   .badge-inactive { background:var(--red-light); color:var(--red); }
@@ -973,19 +982,43 @@
 </div>
 
 <!-- 클리닉 메모 수정 모달 (클리닉 배정표 탭) -->
-<div id="clinic-memo-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
-  <div style="background:var(--white);border-radius:16px;padding:28px;width:90%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+<div id="clinic-memo-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--white);border-radius:16px;padding:28px;width:100%;max-width:980px;max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+   <div class="clinic-modal-cols">
+   <div class="clinic-modal-col">
     <h3 style="font-size:16px;font-weight:700;color:var(--navy);margin-bottom:6px" id="clinic-memo-modal-title">클리닉 메모 수정</h3>
     <p style="font-size:13px;color:var(--gray);margin-bottom:16px" id="clinic-memo-modal-info"></p>
     <div style="margin-bottom:12px">
       <label style="display:block;font-size:11px;color:var(--gray);font-weight:500;margin-bottom:5px">클리닉 메모 <span style="font-weight:400">(점수 입력·성적 문자에 쓰이는 메모와 같은 값입니다)</span></label>
-      <textarea id="clinic-memo-modal-text" rows="4" oninput="previewClinicMemoEdit()" placeholder="예) 월요일 3시 / 수요일 하교 후" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7"></textarea>
+      <textarea id="clinic-memo-modal-text" rows="4" oninput="previewClinicMemoEdit();renderClinicMemoSms()" placeholder="예) 월요일 3시 / 수요일 하교 후" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7"></textarea>
     </div>
     <div id="clinic-memo-modal-preview" style="font-size:12px;color:var(--navy);margin-bottom:16px;background:var(--light-gray);border-radius:8px;padding:10px;line-height:1.7"></div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-primary" style="flex:1" onclick="saveClinicMemoEdit()">저장</button>
       <button class="btn" style="flex:1;background:var(--light-gray);color:var(--navy)" onclick="closeClinicMemoModal()">취소</button>
     </div>
+   </div>
+   <!-- 클리닉 미참석 문자 탭과 같은 문자를 이 학생 한 명에게 보낸다 -->
+   <div class="clinic-modal-col clinic-modal-sms">
+    <h3 style="font-size:16px;font-weight:700;color:var(--navy);margin-bottom:6px">문자 보내기</h3>
+    <p style="font-size:13px;color:var(--gray);margin-bottom:12px">클리닉 미참석 문자 발송 탭과 같은 문자를 이 학생에게만 보냅니다.</p>
+    <div style="margin-bottom:10px">
+      <label style="display:block;font-size:11px;color:var(--gray);font-weight:500;margin-bottom:5px">발송처</label>
+      <div id="clinic-memo-sms-recipient" style="display:flex;gap:6px">
+        <button type="button" class="clinic-grade-chip" data-recipient="parent" onclick="pickClinicMemoSmsRecipient(this.dataset.recipient)">학부모</button>
+        <button type="button" class="clinic-grade-chip" data-recipient="student" onclick="pickClinicMemoSmsRecipient(this.dataset.recipient)">학생</button>
+      </div>
+    </div>
+    <dl class="clinic-modal-info" id="clinic-memo-sms-info"></dl>
+    <div style="margin-bottom:10px">
+      <label style="display:block;font-size:11px;color:var(--gray);font-weight:500;margin-bottom:5px">문자 내용 (직접 수정 가능 · <code>{이름}</code> <code>{주차}</code> <code>{클리닉}</code> 자동 치환)</label>
+      <textarea id="clinic-memo-sms-text" rows="5" oninput="syncClinicMemoSmsTemplate()" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7"></textarea>
+    </div>
+    <label style="display:block;font-size:11px;color:var(--gray);font-weight:500;margin-bottom:5px">실제로 나갈 문자 <span style="font-weight:400">({클리닉}에는 왼쪽 메모가 저장 전이어도 지금 보이는 그대로 들어갑니다)</span></label>
+    <div id="clinic-memo-sms-preview" style="font-size:12px;color:var(--navy);margin-bottom:14px;background:var(--light-gray);border-radius:8px;padding:10px;line-height:1.7;white-space:pre-wrap;word-break:break-all"></div>
+    <button class="btn btn-primary" style="width:100%" id="clinic-memo-sms-send" onclick="sendClinicMemoSms()">문자 발송</button>
+   </div>
+   </div>
   </div>
 </div>
 
@@ -3400,6 +3433,10 @@ function openClinicMemoEdit(sid) {
   const ta = document.getElementById('clinic-memo-modal-text');
   ta.value = row.memo;
   previewClinicMemoEdit();
+  // 문자 내용은 클리닉 미참석 문자 탭의 문구를 그대로 가져온다 (거기서 고친 문구도 이어진다)
+  document.getElementById('clinic-memo-sms-text').value = document.getElementById('clinic-sms-text').value;
+  _clinicMemoSmsRecipient = _clinicRecipient;
+  loadClinicMemoSmsInfo(sid);
   document.getElementById('clinic-memo-modal').style.display = 'flex';
   ta.focus();
 }
@@ -3407,6 +3444,120 @@ function openClinicMemoEdit(sid) {
 function closeClinicMemoModal() {
   document.getElementById('clinic-memo-modal').style.display = 'none';
   _clinicMemoEditId = null;
+  _clinicMemoSmsSeq++; // 늦게 도착한 연락처 조회가 닫힌 창을 다시 그리지 않게
+}
+
+// ── 메모 수정 창의 '문자 보내기' 구역 ─────────────────────
+let _clinicMemoSmsRecipient = 'parent'; // 'parent' | 'student' — 창을 열 때 미참석 문자 탭의 선택을 따른다
+let _clinicMemoSmsInfo = null;          // null=불러오는 중 · {error:true} · { phone, student_phone, rate, eval }
+let _clinicMemoSmsSeq = 0;
+
+async function loadClinicMemoSmsInfo(sid) {
+  const row = _clinicMemoRows[sid];
+  const seq = ++_clinicMemoSmsSeq;
+  _clinicMemoSmsInfo = null;
+  renderClinicMemoSms();
+  let info;
+  try {
+    const [st, cur, carried] = await Promise.all([
+      api(`students?id=eq.${parseInt(row.studentId)}&select=id,phone,student_phone`),
+      api(`scores?id=eq.${parseInt(sid)}&select=id,homework_rate,homework_eval,item_scores,${ITEM_KEYS.join(',')}`),
+      fetchCarriedEvals(row.classId, row.weekId)
+    ]);
+    if (!Array.isArray(st) || !st.length || !Array.isArray(cur) || !cur.length) throw new Error('not_loaded');
+    const sc = cur[0];
+    // 과제%·과제평가 표시 규칙은 클리닉 미참석 문자 탭과 같다 (이번 주차 값 → 없으면 이전 주차에서 이어옴)
+    const carriedRate = carriedRateFor(sc, carried, row.studentId);
+    info = {
+      phone: st[0].phone || '',
+      student_phone: st[0].student_phone || '',
+      rate: (sc.homework_rate !== null && sc.homework_rate !== undefined) ? sc.homework_rate : (carriedRate === '' ? null : carriedRate),
+      eval: sc.homework_eval || carriedEvalFor(sc, carried, row.studentId)
+    };
+  } catch(e) {
+    info = { error: true };
+  }
+  if (seq !== _clinicMemoSmsSeq || _clinicMemoEditId !== sid) return;
+  _clinicMemoSmsInfo = info;
+  renderClinicMemoSms();
+}
+
+function pickClinicMemoSmsRecipient(r) {
+  _clinicMemoSmsRecipient = r === 'student' ? 'student' : 'parent';
+  renderClinicMemoSms();
+}
+
+// 창에서 고친 문구를 미참석 문자 탭에도 반영한다 — 다음 학생 창을 열 때도 같은 문구가 이어지게
+function syncClinicMemoSmsTemplate() {
+  document.getElementById('clinic-sms-text').value = document.getElementById('clinic-memo-sms-text').value;
+  renderClinicMemoSms();
+}
+
+function clinicMemoSmsText() {
+  const row = _clinicMemoRows[_clinicMemoEditId];
+  if (!row) return '';
+  const template = document.getElementById('clinic-memo-sms-text').value;
+  const memo = document.getElementById('clinic-memo-modal-text').value.trim();
+  // 메모가 비면 '클리닉 일정:' 줄을 통째로 뺀다 (미참석 문자 탭과 같은 fillSmsTemplate)
+  return fillSmsTemplate(template, { 이름: row.name, 주차: row.week, 클리닉: memo });
+}
+
+function renderClinicMemoSms() {
+  const isParent = _clinicMemoSmsRecipient === 'parent';
+  document.querySelectorAll('#clinic-memo-sms-recipient .clinic-grade-chip').forEach(b =>
+    b.classList.toggle('active', b.dataset.recipient === _clinicMemoSmsRecipient));
+  const infoEl = document.getElementById('clinic-memo-sms-info');
+  const sendBtn = document.getElementById('clinic-memo-sms-send');
+  const info = _clinicMemoSmsInfo;
+  let phone = '';
+  if (!info) {
+    infoEl.innerHTML = '<dt>연락처</dt><dd>불러오는 중...</dd>';
+  } else if (info.error) {
+    infoEl.innerHTML = '<dt>연락처</dt><dd style="color:var(--red)">❌ 불러오지 못했어요. 창을 닫았다가 다시 열어주세요.</dd>';
+  } else {
+    phone = isParent ? info.phone : info.student_phone;
+    infoEl.innerHTML =
+      `<dt>${isParent ? '학부모 연락처' : '학생 연락처'}</dt><dd style="font-family:monospace">${escapeHtml(phone || '번호없음')}</dd>`
+      + `<dt>과제(%)</dt><dd>${(info.rate !== null && info.rate !== undefined) ? escapeHtml(String(info.rate)) + '%' : '미기재'}</dd>`
+      + `<dt>과제평가</dt><dd>${info.eval ? escapeHtml(info.eval) : '<span style="color:var(--gray)">없음</span>'}</dd>`
+      + `<dt>상태</dt><dd><span class="badge ${phone ? 'badge-active' : 'badge-inactive'}">${phone ? '발송가능' : '번호없음'}</span></dd>`;
+  }
+  sendBtn.disabled = !phone;
+  sendBtn.style.opacity = phone ? '' : '0.5';
+  const text = clinicMemoSmsText();
+  document.getElementById('clinic-memo-sms-preview').textContent = text.trim() ? text : '(문자 내용이 비어 있습니다)';
+}
+
+async function sendClinicMemoSms() {
+  const sid = _clinicMemoEditId;
+  const row = _clinicMemoRows[sid];
+  const info = _clinicMemoSmsInfo;
+  if (!row || !info || info.error) { showToast('연락처를 아직 불러오지 못했어요.'); return; }
+  const isParent = _clinicMemoSmsRecipient === 'parent';
+  const recipientLabel = isParent ? '학부모' : '학생';
+  const phone = isParent ? info.phone : info.student_phone;
+  if (!phone) { showToast(`${recipientLabel} 연락처가 없어요.`); return; }
+  if (!document.getElementById('clinic-memo-sms-text').value.trim()) { showToast('문자 내용을 입력해주세요.'); return; }
+  const text = clinicMemoSmsText();
+  if (!confirm(`${row.name} ${recipientLabel}(${phone})에게 아래 문자를 발송할까요?\n\n${text}`)) return;
+
+  const btn = document.getElementById('clinic-memo-sms-send');
+  btn.disabled = true; // 두 번 눌러 같은 문자가 두 번 나가지 않게
+  showToast('발송 중...');
+  try {
+    const res = await fetch(SMS_FUNCTION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
+      body: JSON.stringify({ messages: [{ to: phone, text }] })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { showToast(`❌ 발송 실패 (${res.status})`, 4000); return; }
+    showToast(`✅ 발송 완료 — 성공 ${data.success ?? 0}건 / 실패 ${data.fail ?? 0}건`, 4000);
+  } catch(e) {
+    showToast('❌ 발송 오류: ' + e.message);
+  } finally {
+    if (_clinicMemoEditId === sid) renderClinicMemoSms();
+  }
 }
 
 // 입력 중인 메모를 배정표와 같은 파서로 읽어 어느 칸에 들어갈지 미리 보여준다.
@@ -3562,7 +3713,9 @@ async function loadClinicSchedule(force = true) {
     if (cls && latestWeek[cls.id]) g.weekOf[cls.name] = latestWeek[cls.id].label || latestWeek[cls.id].test_date;
     const memo = (sc.clinic_memo || '').trim();
     const sid = sc.id; // 이름을 눌러 메모를 고칠 때 PATCH할 scores 행
-    _clinicMemoRows[sid] = { name: st.name, cls: cls ? cls.name : '', week: g.weekOf[cls ? cls.name : ''] || '', memo: sc.clinic_memo || '' };
+    _clinicMemoRows[sid] = { name: st.name, cls: cls ? cls.name : '', week: g.weekOf[cls ? cls.name : ''] || '', memo: sc.clinic_memo || '',
+      // 문자 보내기 구역용 — 연락처·과제%·과제평가는 창을 열 때 새로 읽는다 (이 화면의 조회엔 과제평가가 없다)
+      studentId: sc.student_id, classId: weekById[sc.week_id].class_id, weekId: sc.week_id };
     // 과제 수행률은 이름 뒤 괄호로 표기. NULL(미기재·과제 없음)이면 붙이지 않는다.
     const hw = (sc.homework_rate === null || sc.homework_rate === undefined) ? null : sc.homework_rate;
 
