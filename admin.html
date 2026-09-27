@@ -838,7 +838,7 @@
         <!-- 모의고사는 주간 테스트와 문구가 달라 양식을 따로 둔다. 모의고사를 고르면 위 주차 양식 대신 보인다. -->
         <div class="form-row" id="score-sms-mock-tpl-row" style="margin-bottom:14px;display:none">
           <div class="form-group">
-            <label>모의고사 성적 문자 양식 (자동 저장 · <code>{이름}</code> <code>{시험명}</code> <code>{점수}</code> <code>{총점}</code> <code>{평균}</code> <code>{석차}</code> <code>{재시험}</code>)</label>
+            <label>모의고사 성적 문자 양식 (자동 저장 · <code>{이름}</code> <code>{시험명}</code> <code>{점수}</code> <code>{총점}</code> <code>{평균}</code> <code>{석차}</code> <code>{응시인원}</code> <code>{재시험}</code>)</label>
             <textarea id="score-sms-mock-template" rows="8" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7"
               oninput="onScoreSmsTemplateChange()"></textarea>
           </div>
@@ -4424,7 +4424,7 @@ const DEFAULT_MOCK_SMS_TEMPLATE = `[용산대성N학원 영어과]
 {점수}
 총점 {총점}
 평균 {평균}점
-석차 {석차}등
+석차 {석차}등 / 응시인원 {응시인원}명
 {재시험}
 감사합니다.`;
 const DEFAULT_MOCK_SMS_ABSENT_TEMPLATE = `[용산대성N학원 영어과]
@@ -4438,7 +4438,7 @@ function scoreSmsTplSpec() {
     ? { tplId: 'score-sms-mock-template', absId: 'score-sms-mock-absent-template',
         tplDefault: DEFAULT_MOCK_SMS_TEMPLATE, absDefault: DEFAULT_MOCK_SMS_ABSENT_TEMPLATE,
         baseTpl: 'mockTemplate', baseAbs: 'mockAbsentTemplate', name: '모의고사 ',
-        tplVars: '<code>{이름}</code> <code>{시험명}</code> <code>{점수}</code> <code>{총점}</code> <code>{평균}</code> <code>{석차}</code> <code>{재시험}</code>',
+        tplVars: '<code>{이름}</code> <code>{시험명}</code> <code>{점수}</code> <code>{총점}</code> <code>{평균}</code> <code>{석차}</code> <code>{응시인원}</code> <code>{재시험}</code>',
         absVars: '<code>{이름}</code> <code>{시험명}</code>' }
     : { tplId: 'score-sms-template', absId: 'score-sms-absent-template',
         tplDefault: DEFAULT_SCORE_SMS_TEMPLATE, absDefault: DEFAULT_SCORE_SMS_ABSENT_TEMPLATE,
@@ -4501,12 +4501,19 @@ function sharedScoreSmsPart(saved) {
   return out;
 }
 
+// {응시인원} 치환이 생기기 전에는 '응시인원: 39'처럼 숫자를 손으로 적어 보냈다(2026-09).
+// 그 숫자는 시험마다 달라야 하는데 양식에 고정돼 있어 다른 회차에도 같은 수가 나간다.
+// 불러올 때 '응시인원' 바로 뒤의 숫자를 {응시인원}으로 바꿔, 양식을 고치지 않아도 자동 계산 값이 들어가게 한다.
+function withAutoMockHeadcount(tpl) {
+  return String(tpl ?? '').replace(/(응시\s*인원\s*[:：]?\s*)\d+/g, '$1{응시인원}');
+}
+
 function applyScoreSmsSettings(saved) {
   const el = id => document.getElementById(id);
   el('score-sms-template').value = saved.template ?? DEFAULT_SCORE_SMS_TEMPLATE;
   el('score-sms-absent-template').value = saved.absentTemplate ?? DEFAULT_SCORE_SMS_ABSENT_TEMPLATE;
   el('score-sms-clinic-default').value = saved.clinicDefault ?? '';
-  el('score-sms-mock-template').value = saved.mockTemplate ?? DEFAULT_MOCK_SMS_TEMPLATE;
+  el('score-sms-mock-template').value = withAutoMockHeadcount(saved.mockTemplate ?? DEFAULT_MOCK_SMS_TEMPLATE);
   el('score-sms-mock-absent-template').value = saved.mockAbsentTemplate ?? DEFAULT_MOCK_SMS_ABSENT_TEMPLATE;
   _scoreSmsRecipient = saved.recipient === 'student' ? 'student' : 'parent';
   document.querySelectorAll('#score-sms-recipient-btns .memo-author-btn').forEach(b => {
@@ -4918,11 +4925,15 @@ function composeScoreSms(t) {
         { 이름: t.name, 시험명: weekLabel });
     }
     const avg = window._scoreSmsMockInfo?.avg;
+    // 응시인원 = 석차를 매긴 모집단 인원(같은 비교 그룹 시험 전체에서 점수가 있는 학생 수, 그룹이 없으면 이 시험만).
+    // 미응시로 체크했거나 점수가 없는 학생은 빠진다. 평균의 표본과 같은 수다.
+    const sample = window._scoreSmsMockInfo?.sample;
     return fillSmsTemplate(document.getElementById('score-sms-mock-template').value, {
       이름: t.name, 시험명: weekLabel,
       점수: t.scoreText, 총점: t.totalText,
       평균: avg === null || avg === undefined ? '' : avg,
       석차: t.rankText,
+      응시인원: sample ? String(sample) : '',
       재시험: retestText()
     });
   }
@@ -4985,7 +4996,7 @@ function renderMockSmsNotice(box, targets) {
   if (notTarget) warns.push(`${notTarget}명은 점수도 미응시 표시도 없어 '대상 아님'으로 분류했습니다. 시험을 봤다면 모의고사 탭에서 점수를 먼저 입력하세요.`);
 
   const avgLine = info.avg !== null && info.avg !== undefined
-    ? `<div style="font-size:12px;color:var(--gray);margin:0 0 10px">평균 <strong style="color:var(--navy)">${info.avg}점</strong> · 표본 ${info.sample}명${info.groupSize > 1 ? ` (비교 그룹 ${info.groupSize}개 반)` : ''} — 학부모 화면과 같은 값입니다.</div>`
+    ? `<div style="font-size:12px;color:var(--gray);margin:0 0 10px">평균 <strong style="color:var(--navy)">${info.avg}점</strong> · 응시인원 ${info.sample}명 (<code>{응시인원}</code>에 들어가는 값)${info.groupSize > 1 ? ` (비교 그룹 ${info.groupSize}개 반)` : ''} — 학부모 화면과 같은 값입니다.</div>`
     : '';
   box.innerHTML = avgLine + (warns.length
     ? `<div style="background:var(--orange-light);border:1px solid var(--orange);border-radius:8px;padding:10px 12px;margin:0 0 12px;font-size:12px;color:var(--navy);line-height:1.7">`
