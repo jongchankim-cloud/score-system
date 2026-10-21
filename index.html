@@ -825,6 +825,7 @@
             body: JSON.stringify({ name, pin }),
           });
           if (res.status === 401) {
+            localStorage.removeItem("vocab_auth"); // 저장된 PIN이 바뀌었으면 자동 로그인을 멈춘다
             err.textContent = "이름 또는 PIN이 올바르지 않습니다.";
             err.classList.add("show");
             return;
@@ -836,6 +837,12 @@
           }
           loginData = await res.json();
           currentStudent = loginData.student;
+          // 새로고침·뒤로 가기·단어 사이트의 [📊 점수 확인]으로 돌아와도 로그인이 유지되게 저장
+          // (단어 사이트도 같은 vocab_auth로 자동 로그인한다. 로그아웃 시 삭제)
+          localStorage.setItem(
+            "vocab_auth",
+            JSON.stringify({ name: currentStudent?.name || name, pin }),
+          );
           await showResult();
         } catch (e) {
           err.textContent = "오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
@@ -1485,9 +1492,25 @@
       document.getElementById("input-name").addEventListener("keydown", (e) => {
         if (e.key === "Enter") document.getElementById("input-pin").focus();
       });
-      window.addEventListener("load", () => {
-        document.getElementById("input-name").focus();
-      });
+      // 저장된 로그인 정보가 있으면 자동 로그인
+      function tryAutoLogin() {
+        try {
+          const auth = JSON.parse(localStorage.getItem("vocab_auth") || "null");
+          if (!auth || !auth.name || !auth.pin) return false;
+          document.getElementById("input-name").value = auth.name;
+          document.getElementById("input-pin").value = auth.pin;
+          login();
+          return true;
+        } catch (e) {
+          localStorage.removeItem("vocab_auth");
+          return false;
+        }
+      }
+      if (!tryAutoLogin()) {
+        window.addEventListener("load", () => {
+          document.getElementById("input-name").focus();
+        });
+      }
     </script>
   </body>
 </html>
