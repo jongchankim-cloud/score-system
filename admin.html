@@ -825,7 +825,7 @@
         </div>
         <div class="form-row" id="score-sms-week-tpl-row" style="margin-bottom:14px">
           <div class="form-group">
-            <label>성적 문자 양식 (자동 저장 · <code>{이름}</code> <code>{주차}</code> <code>{점수}</code> <code>{총점}</code> <code>{재시험}</code> <code>{클리닉}</code>)</label>
+            <label>성적 문자 양식 (자동 저장 · <code>{이름}</code> <code>{주차}</code> <code>{점수}</code> <code>{총점}</code> <code>{수행률}</code> <code>{재시험}</code> <code>{클리닉}</code>)</label>
             <textarea id="score-sms-template" rows="8" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7"
               oninput="onScoreSmsTemplateChange()"></textarea>
           </div>
@@ -4413,6 +4413,7 @@ const DEFAULT_SCORE_SMS_TEMPLATE = `[용산대성N학원 영어과]
 {이름} 학생 {주차} 테스트 결과입니다.
 {점수}
 총점 {총점}
+과제 수행률 {수행률}
 {재시험}
 {클리닉}
 감사합니다.`;
@@ -4443,7 +4444,7 @@ function scoreSmsTplSpec() {
     : { tplId: 'score-sms-template', absId: 'score-sms-absent-template',
         tplDefault: DEFAULT_SCORE_SMS_TEMPLATE, absDefault: DEFAULT_SCORE_SMS_ABSENT_TEMPLATE,
         baseTpl: 'template', baseAbs: 'absentTemplate', name: '',
-        tplVars: '<code>{이름}</code> <code>{주차}</code> <code>{점수}</code> <code>{총점}</code> <code>{재시험}</code> <code>{클리닉}</code>',
+        tplVars: '<code>{이름}</code> <code>{주차}</code> <code>{점수}</code> <code>{총점}</code> <code>{수행률}</code> <code>{재시험}</code> <code>{클리닉}</code>',
         absVars: '<code>{이름}</code> <code>{주차}</code>' };
 }
 
@@ -4805,7 +4806,10 @@ async function buildWeekSmsTargets(classId, weekId) {
       totalText: `${fmtSmsNum(scored.reduce((a, x) => a + x.value, 0))}/${fmtSmsNum(scored.filter(hasMax).reduce((a, x) => a + x.max, 0))}`,
       retestTargets: below.filter(x => pass[x.key] !== true).map(x => x.label || '항목'),
       retestPassed: below.filter(x => pass[x.key] === true).map(x => x.label || '항목'),
-      clinicMemo: (sc && sc.clinic_memo) || ''
+      clinicMemo: (sc && sc.clinic_memo) || '',
+      // 과제 수행률은 학부모 화면과 같은 기준: '과제 없음' 주차거나 미기재(null)면 비워서 줄이 빠지게 한다
+      hwText: (sc && sc.no_homework !== true && sc.homework_rate !== null && sc.homework_rate !== undefined && sc.homework_rate !== '')
+        ? sc.homework_rate + '%' : ''
     };
   });
   return { targets };
@@ -4949,6 +4953,7 @@ function composeScoreSms(t) {
   return fillSmsTemplate(document.getElementById('score-sms-template').value, {
     이름: t.name, 주차: weekLabel,
     점수: t.scoreText, 총점: t.totalText,
+    수행률: t.hwText,
     재시험: retestLines.join('\n'),
     클리닉: memo ? `클리닉 일정: ${memo}` : clinicDefault
   });
