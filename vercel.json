@@ -1,10 +1,12 @@
 {
   "redirects": [
+    { "source": "/vocab-study", "destination": "/vocab-study/", "permanent": false },
     { "source": "/score-system", "destination": "/", "permanent": false },
+    { "source": "/score-system/", "destination": "/", "permanent": false },
     { "source": "/score-system/:path*", "destination": "/:path*", "permanent": false }
   ],
   "rewrites": [
-    { "source": "/vocab-study", "destination": "https://jongchankim-cloud.github.io/vocab-study/" },
+    { "source": "/vocab-study/", "destination": "https://jongchankim-cloud.github.io/vocab-study/" },
     { "source": "/vocab-study/:path*", "destination": "https://jongchankim-cloud.github.io/vocab-study/:path*" }
   ]
 }
