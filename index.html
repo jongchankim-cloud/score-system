@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>용산대성N학원 [영어과] 점수 확인</title>
     <link
-      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Serif+Display&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap"
       rel="stylesheet"
     />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -51,22 +51,10 @@
         position: relative;
         overflow: hidden;
       }
-      header::before {
-        content: "";
-        position: absolute;
-        top: -40px;
-        right: -40px;
-        width: 180px;
-        height: 180px;
-        border-radius: 50%;
-        background: rgba(200, 169, 110, 0.08);
-        pointer-events: none;
-      }
       header h1 {
-        font-family: "DM Serif Display", serif;
         font-size: 20px;
         color: var(--white);
-        font-weight: 400;
+        font-weight: 700;
       }
       header h1 span {
         color: var(--gold);
@@ -90,7 +78,9 @@
         font-size: 13px;
         font-weight: 600;
         cursor: pointer;
-        transition: all 0.2s;
+        transition:
+          background-color 0.2s,
+          color 0.2s;
         font-family: "Noto Sans KR", sans-serif;
       }
       .tab-btn:hover {
@@ -115,7 +105,7 @@
       .card {
         background: var(--white);
         border-radius: 16px;
-        box-shadow: var(--shadow);
+        border: 1px solid var(--border);
         overflow: hidden;
         margin-bottom: 14px;
       }
@@ -126,17 +116,10 @@
         align-items: center;
         gap: 8px;
       }
-      .card-header .dot {
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        background: var(--gold);
-      }
       .card-header h2 {
         font-size: 12px;
         color: var(--white);
         font-weight: 600;
-        letter-spacing: 1px;
       }
       .card-body {
         padding: 16px 18px;
@@ -149,7 +132,6 @@
         font-size: 11px;
         color: var(--gray);
         font-weight: 500;
-        letter-spacing: 1px;
         margin-bottom: 5px;
       }
       .form-group input {
@@ -180,8 +162,7 @@
         font-weight: 700;
         font-family: "Noto Sans KR", sans-serif;
         cursor: pointer;
-        transition: all 0.2s;
-        letter-spacing: 0.3px;
+        transition: background-color 0.2s, opacity 0.2s;
       }
       .btn-primary {
         background: var(--navy);
@@ -244,16 +225,6 @@
         position: relative;
         overflow: hidden;
       }
-      .student-info::after {
-        content: "";
-        position: absolute;
-        right: -20px;
-        top: -20px;
-        width: 90px;
-        height: 90px;
-        border-radius: 50%;
-        background: rgba(200, 169, 110, 0.1);
-      }
       .student-name {
         font-size: 22px;
         font-weight: 700;
@@ -263,7 +234,6 @@
       .student-class {
         font-size: 12px;
         color: var(--gold);
-        letter-spacing: 1px;
       }
       .summary-grid {
         display: grid;
@@ -479,9 +449,18 @@
         border: 1.5px solid #f5c6c2;
       }
       .notice-icon {
-        font-size: 16px;
-        margin-top: 1px;
+        width: 8px;
+        height: 8px;
+        margin-top: 6px;
+        border-radius: 50%;
+        background: currentColor;
         flex-shrink: 0;
+      }
+      .notice-card.warning {
+        color: var(--orange);
+      }
+      .notice-card.danger {
+        color: var(--red);
       }
       .notice-title {
         font-size: 12px;
@@ -499,6 +478,26 @@
         line-height: 1.6;
         color: #555;
       }
+      ::selection {
+        background: var(--gold-light);
+        color: var(--navy);
+      }
+      :focus-visible {
+        outline: 2px solid var(--gold);
+        outline-offset: 2px;
+      }
+      .score-value,
+      .summary-value,
+      .meta-value,
+      .homework-rate {
+        font-variant-numeric: tabular-nums;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          transition: none !important;
+          animation-duration: 0.01ms !important;
+        }
+      }
       .empty-msg {
         text-align: center;
         padding: 28px;
@@ -511,7 +510,6 @@
         padding: 18px;
         font-size: 11px;
         color: var(--gray);
-        letter-spacing: 0.5px;
       }
     </style>
   </head>
@@ -519,9 +517,9 @@
     <header>
       <h1>영어과 <span>성적 관리</span></h1>
       <div class="tab-nav" id="tab-nav">
-        <button class="tab-btn active" onclick="switchTab('scores')">📊 점수 확인</button>
-        <button class="tab-btn" onclick="switchTab('vocab')">📚 단어 공부</button>
-        <button class="tab-btn" onclick="switchTab('passage')">📜 지문 공부</button>
+        <button class="tab-btn active" onclick="switchTab('scores')">점수 확인</button>
+        <button class="tab-btn" onclick="switchTab('vocab')">단어 공부</button>
+        <button class="tab-btn" onclick="switchTab('passage')">지문 공부</button>
       </div>
     </header>
 
@@ -529,7 +527,7 @@
       <div id="login-section">
         <div class="card">
           <div class="card-header">
-            <div class="dot"></div>
+            
             <h2>학생 로그인</h2>
           </div>
           <div class="card-body">
@@ -576,7 +574,7 @@
 
         <div class="card">
           <div class="card-header">
-            <div class="dot"></div>
+            
             <h2>주차 선택</h2>
           </div>
           <div class="card-body">
@@ -607,7 +605,7 @@
 
         <div class="card" id="chart-card" style="display: none">
           <div class="card-header">
-            <div class="dot"></div>
+            
             <h2>점수 추이</h2>
           </div>
           <div class="chart-wrap">
@@ -828,7 +826,7 @@
           }
           loginData = await res.json();
           currentStudent = loginData.student;
-          // 새로고침·뒤로 가기·단어 사이트의 [📊 점수 확인]으로 돌아와도 로그인이 유지되게 저장
+          // 새로고침·뒤로 가기·단어 사이트의 [점수 확인]으로 돌아와도 로그인이 유지되게 저장
           // (단어 사이트도 같은 vocab_auth로 자동 로그인한다. 로그아웃 시 삭제)
           localStorage.setItem(
             "vocab_auth",
@@ -1095,10 +1093,10 @@
           section.innerHTML = s?.absent
             ? `
     <div class="card">
-      <div class="card-header"><div class="dot"></div><h2>모의고사 점수</h2></div>
+      <div class="card-header"><h2>모의고사 점수</h2></div>
       <div class="card-body">
         <div class="notice-card warning" style="margin-bottom:0">
-          <div class="notice-icon">📌</div>
+          <span class="notice-icon" aria-hidden="true"></span>
           <div>
             <div class="notice-title">미응시</div>
             <div class="notice-body">${escapeHtml(examName)}<br>해당 모의고사에 응시하지 않았습니다.</div>
@@ -1183,7 +1181,7 @@
 
         section.innerHTML = `
     <div class="card">
-      <div class="card-header"><div class="dot"></div><h2>모의고사 점수</h2></div>
+      <div class="card-header"><h2>모의고사 점수</h2></div>
       <div class="card-body">
         ${itemsHtml}
         <div class="score-item total" style="border-radius:12px;margin-bottom:10px">
@@ -1363,7 +1361,7 @@
           const absentHtml = absent
             ? `
         <div class="notice-card warning">
-          <div class="notice-icon">📌</div>
+          <span class="notice-icon" aria-hidden="true"></span>
           <div>
             <div class="notice-title">결석</div>
             <div class="notice-body">이번 주 수업에 결석했습니다.${myTotal === null ? "" : "<br>아래 점수는 보충·재응시 등으로 기록된 점수입니다."}</div>
@@ -1384,7 +1382,7 @@
           const noticeHtml = clinicMemo
             ? `
         <div class="notice-card warning">
-          <div class="notice-icon">📋</div>
+          <span class="notice-icon" aria-hidden="true"></span>
           <div>
             <div class="notice-title">클리닉 안내</div>
             <div class="notice-body">${escapeHtml(clinicMemo).replace(/\n/g, "<br>")}</div>
@@ -1394,7 +1392,7 @@
 
           content.innerHTML = `
       <div class="card">
-        <div class="card-header"><div class="dot"></div><h2>점수 결과</h2></div>
+        <div class="card-header"><h2>점수 결과</h2></div>
         <div class="card-body">
           ${absentHtml}
           <div class="score-grid items-${itemsForWeek(weekId).length}">
