@@ -4,13 +4,20 @@
 // 세션은 HttpOnly 쿠키(parent_session)로 관리하므로 JS는 토큰을 읽을 수 없고,
 // 같은 도메인의 성적 화면·단어 사이트·지문 사이트가 쿠키를 함께 쓴다.
 //
-//  POST   { name, pin } → PIN 검증, 쿠키 발급, 성적 데이터
-//  GET    (쿠키)        → 세션 검증, 성적 데이터 (새로고침·뒤로 가기·다른 페이지)
+//  POST   { name, pin } → PIN 검증, 쿠키 발급, 성적 데이터, vocab_key(단어 사이트 기록용 학생 키)
+//  GET    (쿠키)        → 세션 검증, 성적 데이터, vocab_key (새로고침·뒤로 가기·다른 페이지)
 //  DELETE               → 쿠키 삭제 (로그아웃)
+//
+// vocab_key 는 PIN 을 확인한 POST 에서만 단어 사이트 DB 에 받아, 서명된 세션 토큰에 넣어 둔다.
+// 그래서 자동 입장(GET)에서도 PIN 없이 단어 사이트 기록을 이어 쓸 수 있다.
 
 const SUPABASE_URL = Deno.env.get("SB_URL")!;
 const SERVICE_ROLE = Deno.env.get("SB_SERVICE_ROLE")!;
 const SESSION_SECRET = Deno.env.get("SESSION_SECRET")!; // supabase secrets set SESSION_SECRET=...
+// 단어 사이트 DB 연결 (없으면 vocab_key 없이 로그인만 된다)
+const VOCAB_URL = Deno.env.get("VOCAB_URL") || "";
+const VOCAB_ANON = Deno.env.get("VOCAB_ANON") || "";
+const VOCAB_BRIDGE_SECRET = Deno.env.get("VOCAB_BRIDGE_SECRET") || "";
 const SESSION_TTL_SEC = 60 * 60 * 12; // 12시간
 const COOKIE_NAME = "parent_session";
 
@@ -84,17 +91,17 @@ function hmacKey(): Promise<CryptoKey> {
   return keyPromise;
 }
 
-async function issueToken(studentId: number): Promise<string> {
+async function issueToken(studentId: number, vocabKey: string | null): Promise<string> {
   const exp = Math.floor(Date.now() / 1000) + SESSION_TTL_SEC;
-  const body = b64url(enc.encode(JSON.stringify({ sid: studentId, exp })));
+  const body = b64url(enc.encode(JSON.stringify({ sid: studentId, vk: vocabKey, exp })));
   const sig = new Uint8Array(
     await crypto.subtle.sign("HMAC", await hmacKey(), enc.encode(body)),
   );
   return `${body}.${b64url(sig)}`;
 }
 
-// 유효하면 student id, 아니면 null
-async function readToken(token: string): Promise<number | null> {
+// 유효하면 student id 와 vocab_key, 아니면 null
+async function readToken(token: string): Promise<{ sid: number; vk: string | null } | null> {
   const [body, sig] = token.split(".");
   if (!body || !sig) return null;
   let sigBytes: Uint8Array;
@@ -110,14 +117,37 @@ async function readToken(token: string): Promise<number | null> {
     enc.encode(body),
   );
   if (!ok) return null;
-  let claims: { sid?: number; exp?: number };
+  let claims: { sid?: number; vk?: string | null; exp?: number };
   try {
     claims = JSON.parse(new TextDecoder().decode(b64urlDecode(body)));
   } catch {
     return null;
   }
   if (!claims.sid || !claims.exp || claims.exp * 1000 < Date.now()) return null;
-  return claims.sid;
+  return { sid: claims.sid, vk: claims.vk || null };
+}
+
+// ── 단어 사이트 학생 키 ──
+// PIN 을 방금 확인한 뒤에만 부른다. 실패하면 null — 성적 로그인은 그대로 된다.
+// 단어 DB 의 session_student_key 가 공유 비밀값을 확인하므로, 아무나 키를 받을 수 없다.
+async function vocabKeyFor(name: string, pin: string): Promise<string | null> {
+  if (!VOCAB_URL || !VOCAB_ANON || !VOCAB_BRIDGE_SECRET) return null;
+  try {
+    const res = await fetch(`${VOCAB_URL}/rest/v1/rpc/session_student_key`, {
+      method: "POST",
+      headers: {
+        apikey: VOCAB_ANON,
+        Authorization: `Bearer ${VOCAB_ANON}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ p_name: name, p_phone: pin, p_bridge: VOCAB_BRIDGE_SECRET }),
+    });
+    if (!res.ok) return null;
+    const key = await res.json();
+    return typeof key === "string" && key ? key : null;
+  } catch {
+    return null;
+  }
 }
 
 // ── 학생 성적 데이터 묶음 (기존 로직 그대로) ──
@@ -223,13 +253,13 @@ Deno.serve(async (req) => {
   // 세션 복원: 쿠키 토큰 검증 후 학생이 아직 재원 중인지 확인
   if (req.method === "GET") {
     const token = readCookie(req);
-    const sid = token ? await readToken(token) : null;
-    if (!sid) return json({ error: "session_expired" }, 401);
-    const rows = await rest(`students?id=eq.${sid}&is_active=eq.true&${STUDENT_SELECT}`);
+    const sess = token ? await readToken(token) : null;
+    if (!sess) return json({ error: "session_expired" }, 401);
+    const rows = await rest(`students?id=eq.${sess.sid}&is_active=eq.true&${STUDENT_SELECT}`);
     if (!rows || !rows.length) {
       return json({ error: "session_expired" }, 401, { "Set-Cookie": clearCookie() });
     }
-    return json(await loadStudentData(rows[0]));
+    return json({ ...(await loadStudentData(rows[0])), vocab_key: sess.vk });
   }
 
   // 최초 로그인: 이름 + PIN 검증 후 쿠키 발급
@@ -251,8 +281,11 @@ Deno.serve(async (req) => {
       return json({ error: "invalid_credentials" }, 401);
     }
     const student = students[0];
-    const token = await issueToken(student.id);
-    return json(await loadStudentData(student), 200, { "Set-Cookie": sessionCookie(token) });
+    const vocabKey = await vocabKeyFor(name, pin);
+    const token = await issueToken(student.id, vocabKey);
+    return json({ ...(await loadStudentData(student)), vocab_key: vocabKey }, 200, {
+      "Set-Cookie": sessionCookie(token),
+    });
   }
 
   return json({ error: "method_not_allowed" }, 405);
