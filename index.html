@@ -524,6 +524,10 @@
     </header>
 
     <div class="container">
+      <!-- 단어 공부·지문 공부는 단어 사이트를 이 안에 한 번만 열어 두고 보이기만 바꾼다 -->
+      <div id="vocab-frame-wrap" style="display: none">
+        <iframe id="vocab-frame" title="단어 공부" style="width: 100%; height: 80vh; border: 0"></iframe>
+      </div>
       <div id="login-section">
         <div class="card">
           <div class="card-header">
@@ -1426,6 +1430,9 @@
         }
       }
 
+      // 단어 탭에서 가려 둘 점수 화면 영역
+      const SCORE_PARTS = ["login-section", "result-section"];
+
       function switchTab(tabName) {
         const tabNav = document.getElementById("tab-nav");
         const buttons = tabNav.querySelectorAll(".tab-btn");
@@ -1433,12 +1440,45 @@
           btn.classList.toggle("active", (i === 0 && tabName === "scores") || (i === 1 && tabName === "vocab") || (i === 2 && tabName === "passage"));
         });
 
+        window.scrollTo(0, 0);
+        const wrap = document.getElementById("vocab-frame-wrap");
+        const frame = document.getElementById("vocab-frame");
+
         if (tabName === "vocab" || tabName === "passage") {
-          // 세션 쿠키는 같은 도메인의 단어 사이트에도 그대로 전달된다
-          // 지문 공부는 같은 단어 사이트의 지문 화면으로 바로 연다
-          window.location.href = tabName === "passage" ? "./vocab/?go=passage" : "./vocab/";
+          // 단어 사이트는 처음 한 번만 연다. 다음부터는 메시지로 탭만 알린다 (페이지를 다시 열지 않는다)
+          // 세션 쿠키는 같은 도메인이라 iframe 에도 그대로 전달된다
+          SCORE_PARTS.forEach((id) => {
+            const el = document.getElementById(id);
+            if (el.style.display !== "none") el.dataset.prevDisplay = el.style.display;
+            el.style.display = "none";
+          });
+          wrap.style.display = "block";
+          if (!frame.dataset.loaded) {
+            frame.dataset.loaded = "1";
+            frame.src = tabName === "passage" ? "./vocab/?go=passage" : "./vocab/";
+          } else {
+            frame.contentWindow.postMessage({ type: "vocab-tab", tab: tabName }, location.origin);
+          }
+        } else {
+          wrap.style.display = "none";
+          SCORE_PARTS.forEach((id) => {
+            const el = document.getElementById(id);
+            if (el.style.display === "none") el.style.display = el.dataset.prevDisplay || "";
+          });
         }
       }
+
+      // 단어 사이트(iframe)가 보내는 메시지: 화면 높이, 점수 화면으로 돌아가기, 로그아웃
+      window.addEventListener("message", (e) => {
+        const frame = document.getElementById("vocab-frame");
+        if (e.origin !== location.origin || e.source !== frame.contentWindow || !e.data) return;
+        if (e.data.type === "vocab-height") frame.style.height = Math.max(600, e.data.h) + "px";
+        if (e.data.type === "vocab-back") switchTab("scores");
+        if (e.data.type === "vocab-logout") {
+          switchTab("scores");
+          logout();
+        }
+      });
 
       function logout() {
         currentStudent = null;
