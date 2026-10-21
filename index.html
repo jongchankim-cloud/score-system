@@ -623,12 +623,9 @@
 
     <script>
       const SUPABASE_URL = "https://rcpzinsdocmpnfxkfbil.supabase.co";
-      const ANON_KEY =
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjcHppbnNkb2NtcG5meGtmYmlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwMzM2NzksImV4cCI6MjA5NTYwOTY3OX0.f_HsTsM4_z2qKeMtIXZ0G8vRuXFmHkXomIdQzFFXHb0";
-      const PARENT_LOGIN_URL =
-        "https://rcpzinsdocmpnfxkfbil.supabase.co/functions/v1/parent-login";
-      // 로그인 세션 토큰 (PIN은 저장하지 않는다). 탭을 닫으면 사라진다.
-      const SESSION_KEY = "parent_session";
+      // 같은 도메인의 /api/parent-login (vercel.json rewrite → Supabase 함수).
+      // 세션은 HttpOnly 쿠키라서 JS는 토큰을 다루지 않는다.
+      const PARENT_LOGIN_URL = "/api/parent-login";
       // 예전 버전이 저장해 둔 PIN 평문 정보를 지운다
       try { localStorage.removeItem("vocab_auth"); } catch (e) {}
 
@@ -811,10 +808,7 @@
         try {
           const res = await fetch(PARENT_LOGIN_URL, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${ANON_KEY}`,
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ name, pin }),
           });
           if (res.status === 401) {
@@ -827,10 +821,9 @@
             err.classList.add("show");
             return;
           }
+          // 세션은 서버가 준 HttpOnly 쿠키로 유지된다 (새로고침·뒤로 가기·단어 사이트 공유)
           loginData = await res.json();
           currentStudent = loginData.student;
-          // PIN 대신 서버가 발급한 세션 토큰만 보관한다 (새로고침·뒤로 가기 대응)
-          sessionStorage.setItem(SESSION_KEY, loginData.token);
           document.getElementById("input-pin").value = "";
           await showResult();
         } catch (e) {
@@ -1441,7 +1434,7 @@
         });
 
         if (tabName === "vocab" || tabName === "passage") {
-          // 세션 토큰은 sessionStorage에 이미 있으므로 같은 탭에서 바로 이동하면 된다
+          // 세션 쿠키는 같은 도메인의 단어 사이트에도 그대로 전달된다
           // 지문 공부는 같은 단어 사이트의 지문 화면으로 바로 연다
           window.location.href = tabName === "passage" ? "./vocab/?go=passage" : "./vocab/";
         }
@@ -1467,7 +1460,8 @@
         document.getElementById("input-pin").value = "";
         document.getElementById("error-msg").classList.remove("show");
         document.getElementById("tab-nav").classList.remove("show");
-        try { sessionStorage.removeItem(SESSION_KEY); } catch (e) {}
+        // 서버가 세션 쿠키를 지운다 (실패해도 화면은 이미 로그아웃 상태)
+        fetch(PARENT_LOGIN_URL, { method: "DELETE" }).catch(() => {});
       }
 
       document.getElementById("input-pin").addEventListener("keydown", (e) => {
@@ -1476,27 +1470,13 @@
       document.getElementById("input-name").addEventListener("keydown", (e) => {
         if (e.key === "Enter") document.getElementById("input-pin").focus();
       });
-      // 같은 탭에 세션 토큰이 남아 있으면 PIN 없이 성적 화면을 다시 연다
+      // 세션 쿠키가 살아 있으면 PIN 없이 성적 화면을 다시 연다
       async function tryResumeSession() {
-        let token = null;
-        try { token = sessionStorage.getItem(SESSION_KEY); } catch (e) {}
-        if (!token) return false;
         const load = document.getElementById("login-loading");
         load.classList.add("show");
         try {
-          const res = await fetch(PARENT_LOGIN_URL, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${ANON_KEY}`,
-            },
-            body: JSON.stringify({ token }),
-          });
-          if (res.status === 401) {
-            // 만료되었거나 재원 상태가 바뀜 → 로그인 화면으로
-            try { sessionStorage.removeItem(SESSION_KEY); } catch (e) {}
-            return false;
-          }
+          const res = await fetch(PARENT_LOGIN_URL, { method: "GET" });
+          // 401: 만료되었거나 재원 상태가 바뀜 → 로그인 화면으로
           if (!res.ok) return false;
           loginData = await res.json();
           currentStudent = loginData.student;

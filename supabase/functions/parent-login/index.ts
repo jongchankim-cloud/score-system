@@ -1,18 +1,22 @@
 // parent-login / index.ts
 //
-// 두 가지 요청을 받는다.
-//  1) { name, pin }   → PIN 검증 후 세션 토큰 발급 + 성적 데이터
-//  2) { token }       → 토큰 서명·만료 검증 후 성적 데이터 (새로고침·뒤로 가기용)
-// 브라우저에는 PIN을 저장하지 않고 토큰만 보관한다.
+// 브라우저는 Vercel 도메인의 /api/parent-login 으로만 호출한다 (vercel.json rewrite).
+// 세션은 HttpOnly 쿠키(parent_session)로 관리하므로 JS는 토큰을 읽을 수 없고,
+// 같은 도메인의 성적 화면·단어 사이트·지문 사이트가 쿠키를 함께 쓴다.
+//
+//  POST   { name, pin } → PIN 검증, 쿠키 발급, 성적 데이터
+//  GET    (쿠키)        → 세션 검증, 성적 데이터 (새로고침·뒤로 가기·다른 페이지)
+//  DELETE               → 쿠키 삭제 (로그아웃)
 
 const SUPABASE_URL = Deno.env.get("SB_URL")!;
 const SERVICE_ROLE = Deno.env.get("SB_SERVICE_ROLE")!;
 const SESSION_SECRET = Deno.env.get("SESSION_SECRET")!; // supabase secrets set SESSION_SECRET=...
 const SESSION_TTL_SEC = 60 * 60 * 12; // 12시간
+const COOKIE_NAME = "parent_session";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "authorization, content-type, apikey",
 };
 
@@ -27,11 +31,30 @@ async function rest(path: string) {
   return text ? JSON.parse(text) : null;
 }
 
-function json(obj: unknown, status = 200) {
+function json(obj: unknown, status = 200, extra: Record<string, string> = {}) {
   return new Response(JSON.stringify(obj), {
     status,
-    headers: { ...CORS, "Content-Type": "application/json" },
+    headers: { ...CORS, "Content-Type": "application/json", ...extra },
   });
+}
+
+// ── 쿠키 ──
+
+function sessionCookie(token: string): string {
+  return `${COOKIE_NAME}=${token}; Path=/; Max-Age=${SESSION_TTL_SEC}; HttpOnly; Secure; SameSite=Lax`;
+}
+
+function clearCookie(): string {
+  return `${COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`;
+}
+
+function readCookie(req: Request): string | null {
+  const header = req.headers.get("cookie") || "";
+  for (const part of header.split(";")) {
+    const [k, ...rest] = part.trim().split("=");
+    if (k === COOKIE_NAME) return rest.join("=") || null;
+  }
+  return null;
 }
 
 // ── 세션 토큰 (HMAC-SHA256 서명, 형식: base64url(payload).base64url(sig)) ──
@@ -187,46 +210,50 @@ async function loadStudentData(student: any) {
 
 // ── 요청 처리 ──
 
+const STUDENT_SELECT = "select=id,name,class_id,classes(name)";
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
-  if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
 
-  let payload: { name?: string; pin?: string; token?: string };
-  try {
-    payload = await req.json();
-  } catch {
-    return json({ error: "invalid_json" }, 400);
+  // 로그아웃: 쿠키 삭제
+  if (req.method === "DELETE") {
+    return json({ ok: true }, 200, { "Set-Cookie": clearCookie() });
   }
 
-  let student: any;
-  let token: string;
-
-  if (typeof payload.token === "string" && payload.token) {
-    // 세션 복원: 토큰 검증 후 학생이 아직 재원 중인지 확인
-    const sid = await readToken(payload.token);
+  // 세션 복원: 쿠키 토큰 검증 후 학생이 아직 재원 중인지 확인
+  if (req.method === "GET") {
+    const token = readCookie(req);
+    const sid = token ? await readToken(token) : null;
     if (!sid) return json({ error: "session_expired" }, 401);
-    const rows = await rest(
-      `students?id=eq.${sid}&is_active=eq.true&select=id,name,class_id,classes(name)`,
-    );
-    if (!rows || !rows.length) return json({ error: "session_expired" }, 401);
-    student = rows[0];
-    token = payload.token;
-  } else {
-    // 최초 로그인: 이름 + PIN 검증 후 토큰 발급
+    const rows = await rest(`students?id=eq.${sid}&is_active=eq.true&${STUDENT_SELECT}`);
+    if (!rows || !rows.length) {
+      return json({ error: "session_expired" }, 401, { "Set-Cookie": clearCookie() });
+    }
+    return json(await loadStudentData(rows[0]));
+  }
+
+  // 최초 로그인: 이름 + PIN 검증 후 쿠키 발급
+  if (req.method === "POST") {
+    let payload: { name?: string; pin?: string };
+    try {
+      payload = await req.json();
+    } catch {
+      return json({ error: "invalid_json" }, 400);
+    }
     const name = (payload.name || "").trim();
     const pin = (payload.pin || "").trim();
     if (!name || !pin) return json({ error: "missing_credentials" }, 400);
 
-    const enc2 = encodeURIComponent(name);
     const students = await rest(
-      `students?name=eq.${enc2}&pin=eq.${encodeURIComponent(pin)}&is_active=eq.true&select=id,name,class_id,classes(name)`,
+      `students?name=eq.${encodeURIComponent(name)}&pin=eq.${encodeURIComponent(pin)}&is_active=eq.true&${STUDENT_SELECT}`,
     );
     if (!students || !students.length) {
       return json({ error: "invalid_credentials" }, 401);
     }
-    student = students[0];
-    token = await issueToken(student.id);
+    const student = students[0];
+    const token = await issueToken(student.id);
+    return json(await loadStudentData(student), 200, { "Set-Cookie": sessionCookie(token) });
   }
 
-  return json({ token, ...(await loadStudentData(student)) });
+  return json({ error: "method_not_allowed" }, 405);
 });

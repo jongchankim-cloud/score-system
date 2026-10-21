@@ -6,6 +6,7 @@
     { "source": "/score-system/:path*", "destination": "/:path*", "permanent": false }
   ],
   "rewrites": [
+    { "source": "/api/parent-login", "destination": "https://rcpzinsdocmpnfxkfbil.supabase.co/functions/v1/parent-login" },
     { "source": "/vocab-study/", "destination": "https://jongchankim-cloud.github.io/vocab-study/" },
     { "source": "/vocab-study/:path*", "destination": "https://jongchankim-cloud.github.io/vocab-study/:path*" }
   ]
