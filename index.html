@@ -627,6 +627,10 @@
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjcHppbnNkb2NtcG5meGtmYmlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwMzM2NzksImV4cCI6MjA5NTYwOTY3OX0.f_HsTsM4_z2qKeMtIXZ0G8vRuXFmHkXomIdQzFFXHb0";
       const PARENT_LOGIN_URL =
         "https://rcpzinsdocmpnfxkfbil.supabase.co/functions/v1/parent-login";
+      // 로그인 세션 토큰 (PIN은 저장하지 않는다). 탭을 닫으면 사라진다.
+      const SESSION_KEY = "parent_session";
+      // 예전 버전이 저장해 둔 PIN 평문 정보를 지운다
+      try { localStorage.removeItem("vocab_auth"); } catch (e) {}
 
       let currentStudent = null;
       let currentWeeks = [];
@@ -814,7 +818,6 @@
             body: JSON.stringify({ name, pin }),
           });
           if (res.status === 401) {
-            localStorage.removeItem("vocab_auth"); // 저장된 PIN이 바뀌었으면 자동 로그인을 멈춘다
             err.textContent = "이름 또는 PIN이 올바르지 않습니다.";
             err.classList.add("show");
             return;
@@ -826,12 +829,9 @@
           }
           loginData = await res.json();
           currentStudent = loginData.student;
-          // 새로고침·뒤로 가기·단어 사이트의 [점수 확인]으로 돌아와도 로그인이 유지되게 저장
-          // (단어 사이트도 같은 vocab_auth로 자동 로그인한다. 로그아웃 시 삭제)
-          localStorage.setItem(
-            "vocab_auth",
-            JSON.stringify({ name: currentStudent?.name || name, pin }),
-          );
+          // PIN 대신 서버가 발급한 세션 토큰만 보관한다 (새로고침·뒤로 가기 대응)
+          sessionStorage.setItem(SESSION_KEY, loginData.token);
+          document.getElementById("input-pin").value = "";
           await showResult();
         } catch (e) {
           err.textContent = "오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
@@ -1441,12 +1441,7 @@
         });
 
         if (tabName === "vocab" || tabName === "passage") {
-          // vocab로 인증 정보 저장 후 이동
-          const credentials = {
-            name: currentStudent?.name,
-            pin: document.getElementById("input-pin").value
-          };
-          localStorage.setItem("vocab_auth", JSON.stringify(credentials));
+          // 세션 토큰은 sessionStorage에 이미 있으므로 같은 탭에서 바로 이동하면 된다
           // 지문 공부는 같은 단어 사이트의 지문 화면으로 바로 연다
           window.location.href = tabName === "passage" ? "./vocab/?go=passage" : "./vocab/";
         }
@@ -1472,7 +1467,7 @@
         document.getElementById("input-pin").value = "";
         document.getElementById("error-msg").classList.remove("show");
         document.getElementById("tab-nav").classList.remove("show");
-        localStorage.removeItem("vocab_auth");
+        try { sessionStorage.removeItem(SESSION_KEY); } catch (e) {}
       }
 
       document.getElementById("input-pin").addEventListener("keydown", (e) => {
@@ -1481,25 +1476,41 @@
       document.getElementById("input-name").addEventListener("keydown", (e) => {
         if (e.key === "Enter") document.getElementById("input-pin").focus();
       });
-      // 저장된 로그인 정보가 있으면 자동 로그인
-      function tryAutoLogin() {
+      // 같은 탭에 세션 토큰이 남아 있으면 PIN 없이 성적 화면을 다시 연다
+      async function tryResumeSession() {
+        let token = null;
+        try { token = sessionStorage.getItem(SESSION_KEY); } catch (e) {}
+        if (!token) return false;
+        const load = document.getElementById("login-loading");
+        load.classList.add("show");
         try {
-          const auth = JSON.parse(localStorage.getItem("vocab_auth") || "null");
-          if (!auth || !auth.name || !auth.pin) return false;
-          document.getElementById("input-name").value = auth.name;
-          document.getElementById("input-pin").value = auth.pin;
-          login();
+          const res = await fetch(PARENT_LOGIN_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${ANON_KEY}`,
+            },
+            body: JSON.stringify({ token }),
+          });
+          if (res.status === 401) {
+            // 만료되었거나 재원 상태가 바뀜 → 로그인 화면으로
+            try { sessionStorage.removeItem(SESSION_KEY); } catch (e) {}
+            return false;
+          }
+          if (!res.ok) return false;
+          loginData = await res.json();
+          currentStudent = loginData.student;
+          await showResult();
           return true;
         } catch (e) {
-          localStorage.removeItem("vocab_auth");
           return false;
+        } finally {
+          load.classList.remove("show");
         }
       }
-      if (!tryAutoLogin()) {
-        window.addEventListener("load", () => {
-          document.getElementById("input-name").focus();
-        });
-      }
+      tryResumeSession().then((resumed) => {
+        if (!resumed) document.getElementById("input-name").focus();
+      });
     </script>
   </body>
 </html>
