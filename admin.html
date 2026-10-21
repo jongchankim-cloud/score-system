@@ -4413,7 +4413,7 @@ const DEFAULT_SCORE_SMS_TEMPLATE = `[용산대성N학원 영어과]
 {이름} 학생 {주차} 테스트 결과입니다.
 {점수}
 총점 {총점}
-과제 수행률 {수행률}
+{수행률}
 {재시험}
 {클리닉}
 감사합니다.`;
@@ -4809,7 +4809,7 @@ async function buildWeekSmsTargets(classId, weekId) {
       clinicMemo: (sc && sc.clinic_memo) || '',
       // 과제 수행률은 학부모 화면과 같은 기준: '과제 없음' 주차거나 미기재(null)면 비워서 줄이 빠지게 한다
       hwText: (sc && sc.no_homework !== true && sc.homework_rate !== null && sc.homework_rate !== undefined && sc.homework_rate !== '')
-        ? sc.homework_rate + '%' : ''
+        ? `과제 수행률: ${sc.homework_rate}%` : ''
     };
   });
   return { targets };
