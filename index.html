@@ -1500,6 +1500,11 @@
         document.getElementById("input-pin").value = "";
         document.getElementById("error-msg").classList.remove("show");
         document.getElementById("tab-nav").classList.remove("show");
+        // 단어 사이트 iframe 을 비워서, 다음 학생이 이전 학생의 단어 화면을 보지 않게 한다
+        const vocabFrame = document.getElementById("vocab-frame");
+        document.getElementById("vocab-frame-wrap").style.display = "none";
+        vocabFrame.removeAttribute("src");
+        delete vocabFrame.dataset.loaded;
         // 서버가 세션 쿠키를 지운다 (실패해도 화면은 이미 로그아웃 상태)
         fetch(PARENT_LOGIN_URL, { method: "DELETE" }).catch(() => {});
       }
