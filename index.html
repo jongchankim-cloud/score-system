@@ -36,8 +36,8 @@
           box-shadow 0.2s;
       }
       .form-group input:focus {
-        border-color: var(--gold);
-        box-shadow: 0 0 0 3px rgba(200, 169, 110, 0.15);
+        border-color: var(--accent-ink);
+        box-shadow: 0 0 0 3px rgba(47, 94, 168, 0.15);
         background: var(--white);
       }
       .btn {
@@ -91,7 +91,7 @@
         width: 28px;
         height: 28px;
         border: 3px solid var(--light-gray);
-        border-top-color: var(--gold);
+        border-top-color: var(--accent-ink);
         border-radius: 50%;
         animation: spin 0.8s linear infinite;
         margin: 0 auto 10px;
@@ -120,7 +120,7 @@
       }
       .student-class {
         font-size: 12px;
-        color: var(--gold);
+        color: var(--accent);
       }
       .summary-grid {
         display: grid;
@@ -192,7 +192,7 @@
         color: var(--navy);
         background-color: var(--white);
         /* 기본 화살표 대신 직접 그린 화살표 (브라우저별 모양 통일) */
-        background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' fill='none' stroke='%23c8a96e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+        background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' fill='none' stroke='%232f5ea8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
         background-repeat: no-repeat;
         background-position: right 14px center;
         background-size: 12px 8px;
@@ -204,7 +204,7 @@
         transition: border-color 0.15s;
       }
       .period-select:focus {
-        border-color: var(--gold);
+        border-color: var(--accent-ink);
       }
       .period-select optgroup {
         font-size: 12px;
@@ -249,7 +249,7 @@
         margin-bottom: 5px;
       }
       .score-item.total .score-label {
-        color: var(--gold);
+        color: var(--accent-ink);
         margin: 0;
       }
       .score-value {
@@ -366,11 +366,11 @@
         color: #555;
       }
       ::selection {
-        background: var(--gold-light);
+        background: var(--accent-light);
         color: var(--navy);
       }
       :focus-visible {
-        outline: 2px solid var(--gold);
+        outline: 2px solid var(--accent-ink);
         outline-offset: 2px;
       }
       .score-value,
@@ -1111,8 +1111,8 @@
               {
                 label: "총점",
                 data,
-                borderColor: "#c8a96e",
-                backgroundColor: "rgba(200,169,110,0.12)",
+                borderColor: "#2f5ea8",
+                backgroundColor: "rgba(47,94,168,0.12)",
                 borderWidth: 2.5,
                 pointBackgroundColor: "#0f1f3d",
                 pointRadius: 5,
