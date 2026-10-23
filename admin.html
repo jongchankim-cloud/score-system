@@ -993,6 +993,11 @@
       <textarea id="clinic-memo-modal-text" rows="4" oninput="previewClinicMemoEdit();renderClinicMemoSms()" placeholder="예) 월요일 3시 / 수요일 하교 후" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7"></textarea>
     </div>
     <div id="clinic-memo-modal-preview" style="font-size:12px;color:var(--navy);margin-bottom:16px;background:var(--light-gray);border-radius:8px;padding:10px;line-height:1.7"></div>
+    <!-- 점수 입력 탭의 재시험 통과 체크와 같은 scores.retest_pass 값. 커트라인 미달 항목만 나온다 -->
+    <div style="margin-bottom:16px">
+      <label style="display:block;font-size:11px;color:var(--gray);font-weight:500;margin-bottom:5px">재시험 통과 <span style="font-weight:400">(커트라인 미달 항목 · 점수 입력 탭과 같은 값입니다)</span></label>
+      <div id="clinic-memo-retest" style="font-size:13px;color:var(--navy);background:var(--light-gray);border-radius:8px;padding:10px;line-height:1.9"></div>
+    </div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-primary" style="flex:1" onclick="saveClinicMemoEdit()">저장</button>
       <button class="btn" style="flex:1;background:var(--light-gray);color:var(--navy)" onclick="closeClinicMemoModal()">취소</button>
@@ -3437,6 +3442,7 @@ function openClinicMemoEdit(sid) {
   document.getElementById('clinic-memo-sms-text').value = document.getElementById('clinic-sms-text').value;
   _clinicMemoSmsRecipient = _clinicRecipient;
   loadClinicMemoSmsInfo(sid);
+  loadClinicMemoRetest(sid);
   document.getElementById('clinic-memo-modal').style.display = 'flex';
   ta.focus();
 }
@@ -3445,6 +3451,59 @@ function closeClinicMemoModal() {
   document.getElementById('clinic-memo-modal').style.display = 'none';
   _clinicMemoEditId = null;
   _clinicMemoSmsSeq++; // 늦게 도착한 연락처 조회가 닫힌 창을 다시 그리지 않게
+  _clinicRetestSeq++;  // 늦게 도착한 재시험 조회도 마찬가지
+}
+
+// ── 메모 수정 창의 '재시험 통과' 구역 ─────────────────────
+// 점수 입력 탭의 재시험 체크와 같은 scores.retest_pass를 고친다. 커트라인 미달 항목만 체크할 수 있다.
+let _clinicRetestLoaded = null; // 창을 열 때 읽은 { pass: 저장돼 있던 통과 맵 } · null=아직 못 읽음
+let _clinicRetestSeq = 0;
+
+// 통과로 표시된 항목 키만 정렬해 문자열로 만든다 — 저장 전후 비교용
+function clinicRetestKey(pass) {
+  return JSON.stringify(Object.keys(pass || {}).filter(k => pass[k] === true).sort());
+}
+
+async function loadClinicMemoRetest(sid) {
+  const row = _clinicMemoRows[sid];
+  const seq = ++_clinicRetestSeq;
+  const box = document.getElementById('clinic-memo-retest');
+  _clinicRetestLoaded = null;
+  box.textContent = '불러오는 중...';
+  try {
+    const [cur, wk] = await Promise.all([
+      api(`scores?id=eq.${parseInt(sid)}&select=id,retest_pass,item_scores,${ITEM_KEYS.join(',')}`),
+      api(`weeks?id=eq.${parseInt(row.weekId)}&select=id,item_config`)
+    ]);
+    if (seq !== _clinicRetestSeq) return;
+    if (!Array.isArray(cur) || !cur.length || !Array.isArray(wk) || !wk.length) throw new Error('not_loaded');
+    const sc = cur[0];
+    const pass = sc.retest_pass || {};
+    // 배정표의 재시험 판정(retestItems)과 같은 기준: 활성 항목 중 커트라인 미달만
+    const below = normalizeItemConfig(wk[0].item_config).filter(it => it.active)
+      .map(it => ({ ...it, value: itemVal(sc, it.key) }))
+      .filter(it => isBelowCut(it.value, it.cut));
+    _clinicRetestLoaded = { pass };
+    if (!below.length) { box.textContent = '커트라인 미달 항목이 없어요. 재시험 대상이 아닙니다.'; return; }
+    box.innerHTML = below.map(it => `<label style="display:flex;align-items:center;gap:6px;cursor:pointer">`
+      + `<input type="checkbox" class="inp-modal-retest" data-key="${attrEsc(it.key)}"${pass[it.key] === true ? ' checked' : ''}>`
+      + `<span>${escapeHtml((it.label || '항목').trim())} <span style="color:var(--gray)">(${escapeHtml(String(it.value))} · 커트라인 ${escapeHtml(String(it.cut))} 미달)</span></span>`
+      + `</label>`).join('');
+  } catch (e) {
+    if (seq !== _clinicRetestSeq) return;
+    box.textContent = '재시험 정보를 불러오지 못했어요. 창을 닫고 다시 열어주세요.';
+  }
+}
+
+// 창에 보이는 항목은 체크 상태를 따르고, 창에 안 나온 항목(커트라인 통과 등)은 DB 값을 그대로 둔다.
+function collectClinicMemoRetest(dbPass) {
+  const shown = new Set(Array.from(document.querySelectorAll('#clinic-memo-retest .inp-modal-retest')).map(c => c.dataset.key));
+  const out = {};
+  Object.keys(dbPass || {}).forEach(k => { if (!shown.has(k) && dbPass[k] === true) out[k] = true; });
+  document.querySelectorAll('#clinic-memo-retest .inp-modal-retest').forEach(chk => {
+    if (chk.checked) out[chk.dataset.key] = true;
+  });
+  return Object.keys(out).length ? out : null;
 }
 
 // ── 메모 수정 창의 '문자 보내기' 구역 ─────────────────────
@@ -3587,20 +3646,30 @@ async function saveClinicMemoEdit() {
   if (!row) { closeClinicMemoModal(); return; }
   const memo = document.getElementById('clinic-memo-modal-text').value.trim();
   const loaded = (row.memo || '').trim();
-  if (memo === loaded) { closeClinicMemoModal(); showToast('변경된 내용이 없어요.'); return; }
+  // 재시험 체크가 아직 안 그려졌으면 저장 시 체크 상태를 잃으므로, 불러올 때까지 막는다
+  if (!_clinicRetestLoaded) { showToast('⏳ 재시험 정보를 불러오는 중이에요. 잠시 후 다시 시도해주세요.', 3500); return; }
+  const loadedPass = _clinicRetestLoaded.pass;
+  const screenPass = collectClinicMemoRetest(loadedPass);
+  const memoChanged = memo !== loaded;
+  const retestChanged = clinicRetestKey(screenPass) !== clinicRetestKey(loadedPass);
+  if (!memoChanged && !retestChanged) { closeClinicMemoModal(); showToast('변경된 내용이 없어요.'); return; }
 
   try {
-    // 저장 직전 DB 값을 다시 읽는다 — 창을 연 사이 점수 입력 탭 등에서 메모가 바뀌었을 수 있다(8.31 소실 사고 재발 방지)
-    const cur = await api(`scores?id=eq.${sid}&select=id,student_id,clinic_memo`);
+    // 저장 직전 DB 값을 다시 읽는다 — 창을 연 사이 점수 입력 탭 등에서 메모나 재시험 값이 바뀌었을 수 있다(8.31 소실 사고 재발 방지)
+    const cur = await api(`scores?id=eq.${sid}&select=id,student_id,clinic_memo,retest_pass`);
     if (!Array.isArray(cur) || !cur.length) { showToast('❌ 최신 데이터를 확인하지 못해 저장을 중단했어요. 잠시 후 다시 시도해주세요.', 4000); return; }
     const dbMemo = (cur[0].clinic_memo || '').trim();
+    const memoConflict = memoChanged && dbMemo !== loaded;
+    const passConflict = retestChanged && clinicRetestKey(cur[0].retest_pass) !== clinicRetestKey(loadedPass);
     let ok;
-    if (dbMemo !== loaded) {
+    if (memoConflict || passConflict) {
       // 한 칸짜리 편집이라 빈칸 여부뿐 아니라 내용이 바뀐 것까지 잡을 수 있다
-      ok = confirm(`⚠️ 이 창을 연 뒤 다른 곳에서 ${row.name} 학생의 클리닉 메모가 바뀌었어요.\n\n현재 저장된 메모: ${dbMemo || '(비어 있음)'}\n\n[확인] 지금 입력한 내용으로 덮어쓰기   [취소] 저장 중단하고 최신 데이터 다시 불러오기`);
-    } else {
+      ok = confirm(`⚠️ 이 창을 연 뒤 다른 곳에서 ${row.name} 학생의 ${memoConflict ? '클리닉 메모' : '재시험 통과'} 값이 바뀌었어요.\n\n` + (memoConflict ? `현재 저장된 메모: ${dbMemo || '(비어 있음)'}\n\n` : '') + `[확인] 지금 입력한 내용으로 덮어쓰기   [취소] 저장 중단하고 최신 데이터 다시 불러오기`);
+    } else if (memoChanged) {
       const conflicts = findBlankOverwrites(cur, { [cur[0].student_id]: { clinic_memo: memo } }, { clinic_memo: '클리닉메모' }, () => row.name);
       ok = confirmBlankOverwrite(conflicts);
+    } else {
+      ok = true;
     }
     if (!ok) {
       closeClinicMemoModal();
@@ -3608,10 +3677,19 @@ async function saveClinicMemoEdit() {
       loadClinicSchedule();
       return;
     }
-    const res = await apiRaw(`scores?id=eq.${sid}`, 'PATCH', { clinic_memo: memo });
+    // 바뀐 필드만 보낸다 — 메모를 건드리지 않은 저장이 메모를 덮어쓰지 않게
+    const body = {};
+    if (memoChanged) body.clinic_memo = memo;
+    if (retestChanged) body.retest_pass = screenPass;
+    const res = await apiRaw(`scores?id=eq.${sid}`, 'PATCH', body);
     if (!res.ok) { showToast(`❌ 저장에 실패했어요. (${res.status})`, 4000); return; }
+    if (retestChanged) {
+      // 점수 입력·미인증 탭 캐시에도 재시험 통과가 반영되도록 비운다 (saveClinicGrid와 같은 처리)
+      delete scoreCache[row.weekId]; delete _prevEvalCache[row.weekId]; invalidateClinicSchedule();
+      if (typeof _uncertScoreData === 'object') delete _uncertScoreData[row.weekId];
+    }
     closeClinicMemoModal();
-    showToast('✅ 클리닉 메모를 저장했어요!');
+    showToast(retestChanged ? '✅ 저장했어요! (점수입력·미인증 탭에도 반영)' : '✅ 클리닉 메모를 저장했어요!');
     loadClinicSchedule();
   } catch(e) {
     showToast('❌ 오류: ' + e.message);
