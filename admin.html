@@ -3454,6 +3454,13 @@ function closeClinicMemoModal() {
   _clinicRetestSeq++;  // 늦게 도착한 재시험 조회도 마찬가지
 }
 
+// Esc로 메모 창을 닫는다 (취소 버튼과 같은 동작)
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (document.getElementById('clinic-memo-modal').style.display === 'none') return;
+  closeClinicMemoModal();
+});
+
 // ── 메모 수정 창의 '재시험 통과' 구역 ─────────────────────
 // 점수 입력 탭의 재시험 체크와 같은 scores.retest_pass를 고친다. 커트라인 미달 항목만 체크할 수 있다.
 let _clinicRetestLoaded = null; // 창을 열 때 읽은 { pass: 저장돼 있던 통과 맵 } · null=아직 못 읽음
