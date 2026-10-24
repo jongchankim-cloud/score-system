@@ -825,7 +825,7 @@
         </div>
         <div class="form-row" id="score-sms-week-tpl-row" style="margin-bottom:14px">
           <div class="form-group">
-            <label>성적 문자 양식 (자동 저장 · <code>{이름}</code> <code>{주차}</code> <code>{점수}</code> <code>{총점}</code> <code>{수행률}</code> <code>{재시험}</code> <code>{클리닉}</code>)</label>
+            <label>성적 문자 양식 (자동 저장 · <code>{이름}</code> <code>{주차}</code> <code>{점수}</code> <code>{총점}</code> <code>{수행률}</code> <code>{과제}</code> <code>{재시험}</code> <code>{클리닉}</code>)</label>
             <textarea id="score-sms-template" rows="8" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7"
               oninput="onScoreSmsTemplateChange()"></textarea>
           </div>
@@ -849,7 +849,7 @@
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px">
-          <p id="score-sms-tpl-hint" style="font-size:11px;color:var(--gray);margin:0;flex:1;min-width:240px">양식에서 <code>{재시험}</code>·<code>{클리닉}</code>처럼 내용이 없는 항목이 들어간 줄은 자동으로 사라집니다.</p>
+          <p id="score-sms-tpl-hint" style="font-size:11px;color:var(--gray);margin:0;flex:1;min-width:240px">양식에서 <code>{재시험}</code>·<code>{클리닉}</code>·<code>{과제}</code>처럼 내용이 없는 항목이 들어간 줄은 자동으로 사라집니다.</p>
           <span id="score-sms-save-status" style="font-size:11px;font-weight:600;color:var(--gray)"></span>
           <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="openScoreSmsBaseModal()">기본 양식 변경</button>
           <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="resetScoreSmsTemplate()">기본 양식으로 되돌리기</button>
@@ -1035,7 +1035,7 @@
     <!-- 두 양식을 나란히 둔다. 세로로 쌓으면 노트북 화면에서 모달에 스크롤이 생긴다. -->
     <div class="form-row" style="flex:1;min-height:0;margin-bottom:14px">
       <div class="form-group" style="display:flex;flex-direction:column;min-width:260px;min-height:0">
-        <label style="display:block;font-size:11px;color:var(--gray);font-weight:500;margin-bottom:5px" id="score-sms-base-template-label">기본 성적 문자 양식 (<code>{이름}</code> <code>{주차}</code> <code>{점수}</code> <code>{총점}</code> <code>{재시험}</code> <code>{클리닉}</code>)</label>
+        <label style="display:block;font-size:11px;color:var(--gray);font-weight:500;margin-bottom:5px" id="score-sms-base-template-label">기본 성적 문자 양식 (<code>{이름}</code> <code>{주차}</code> <code>{점수}</code> <code>{총점}</code> <code>{과제}</code> <code>{재시험}</code> <code>{클리닉}</code>)</label>
         <textarea id="score-sms-base-template" rows="7" style="flex:1;min-height:150px;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:none;outline:none;line-height:1.7"></textarea>
       </div>
       <div class="form-group" style="display:flex;flex-direction:column;min-width:260px;min-height:0">
@@ -4499,6 +4499,7 @@ const DEFAULT_SCORE_SMS_TEMPLATE = `[용산대성N학원 영어과]
 {점수}
 총점 {총점}
 {수행률}
+{과제}
 {재시험}
 {클리닉}
 감사합니다.`;
@@ -4529,7 +4530,7 @@ function scoreSmsTplSpec() {
     : { tplId: 'score-sms-template', absId: 'score-sms-absent-template',
         tplDefault: DEFAULT_SCORE_SMS_TEMPLATE, absDefault: DEFAULT_SCORE_SMS_ABSENT_TEMPLATE,
         baseTpl: 'template', baseAbs: 'absentTemplate', name: '',
-        tplVars: '<code>{이름}</code> <code>{주차}</code> <code>{점수}</code> <code>{총점}</code> <code>{수행률}</code> <code>{재시험}</code> <code>{클리닉}</code>',
+        tplVars: '<code>{이름}</code> <code>{주차}</code> <code>{점수}</code> <code>{총점}</code> <code>{수행률}</code> <code>{과제}</code> <code>{재시험}</code> <code>{클리닉}</code>',
         absVars: '<code>{이름}</code> <code>{주차}</code>' };
 }
 
@@ -4542,7 +4543,7 @@ function applyScoreSmsModeUI() {
   const hint = document.getElementById('score-sms-tpl-hint');
   if (hint) hint.innerHTML = _scoreSmsIsMock
     ? '양식에서 <code>{재시험}</code>·<code>{평균}</code>·<code>{석차}</code>처럼 내용이 없는 항목이 들어간 줄은 자동으로 사라집니다.'
-    : '양식에서 <code>{재시험}</code>·<code>{클리닉}</code>처럼 내용이 없는 항목이 들어간 줄은 자동으로 사라집니다.';
+    : '양식에서 <code>{재시험}</code>·<code>{클리닉}</code>·<code>{과제}</code>처럼 내용이 없는 항목이 들어간 줄은 자동으로 사라집니다.';
 }
 
 function readScoreSmsLocal() {
@@ -4853,15 +4854,20 @@ async function loadScoreSmsTargets() {
 }
 
 async function buildWeekSmsTargets(classId, weekId) {
-  const [students, scores] = await Promise.all([
+  // 과제 내용(weeks.memo)은 점수 입력 탭에서 수시로 고치므로 반 선택 때 받아 둔 목록 대신 지금 값을 읽는다
+  const [students, scores, memoRes] = await Promise.all([
     api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`),
-    api(`scores?week_id=eq.${weekId}&select=*`)
+    api(`scores?week_id=eq.${weekId}&select=*`),
+    api(`weeks?id=eq.${weekId}&select=memo`)
   ]);
   const weekRow = (window._scoreSmsWeeks || []).find(w => w.id == weekId);
   const items = normalizeItemConfig(weekRow?.item_config).filter(it => it.active);
 
   const scoreMap = {};
   (scores || []).forEach(s => { scoreMap[s.student_id] = s; });
+  // 학부모 화면과 같은 기준: '과제 없음' 주차면 과제 안내를 보내지 않는다 (비우면 그 줄이 빠진다)
+  const hwNote = hasNoHomework(scoreMap) ? ''
+    : ((Array.isArray(memoRes) && memoRes[0] ? memoRes[0].memo : weekRow?.memo) || '').trim();
 
   const targets = (students || []).map(st => {
     const sc = scoreMap[st.id];
@@ -4894,7 +4900,8 @@ async function buildWeekSmsTargets(classId, weekId) {
       clinicMemo: (sc && sc.clinic_memo) || '',
       // 과제 수행률은 학부모 화면과 같은 기준: '과제 없음' 주차거나 미기재(null)면 비워서 줄이 빠지게 한다
       hwText: (sc && sc.no_homework !== true && sc.homework_rate !== null && sc.homework_rate !== undefined && sc.homework_rate !== '')
-        ? `과제 수행률: ${sc.homework_rate}%` : ''
+        ? `과제 수행률: ${sc.homework_rate}%` : '',
+      hwNote
     };
   });
   return { targets };
@@ -5039,6 +5046,7 @@ function composeScoreSms(t) {
     이름: t.name, 주차: weekLabel,
     점수: t.scoreText, 총점: t.totalText,
     수행률: t.hwText,
+    과제: t.hwNote,
     재시험: retestLines.join('\n'),
     클리닉: memo ? `클리닉 일정: ${memo}` : clinicDefault
   });
@@ -5057,6 +5065,9 @@ function renderScoreSmsNotice(targets) {
 
   if (!tpl.includes('{재시험}')) warns.push('양식에 <code>{재시험}</code>이 없어 재시험 안내가 발송되지 않습니다.');
   if (!tpl.includes('{클리닉}')) warns.push('양식에 <code>{클리닉}</code>이 없어 클리닉 일정이 발송되지 않습니다.');
+  if (tpl.includes('{과제}') && scored.length && !scored[0].hwNote) {
+    warns.push("이 주차는 과제 내용이 비어 있거나 '과제 없음'이라 과제 줄이 빠집니다. (점수 입력 탭 → 이번 주 과제 내용)");
+  }
   if (scored.length && scored.every(t => t.cutCount === 0)) {
     warns.push('이 주차 항목 설정에 커트라인이 없어 통과/재시험 판정이 붙지 않습니다. (점수 입력 탭 → 항목 설정)');
   }
