@@ -2285,6 +2285,7 @@ async function saveWeekMemo() {
   if (!weekId) return;
   await api(`weeks?id=eq.${weekId}`, 'PATCH', { memo: memoEl.value.trim() });
   showToast('✅ 과제 내용이 저장됐어요.');
+  syncScoreSmsHwNote(weekId, memoEl.value.trim());
 }
 
 // 저장 직전, 화면은 비어 있는데 DB에는 값이 있는 칸을 찾는다. 다른 사람·다른 탭이 그 사이에
@@ -4866,7 +4867,8 @@ async function buildWeekSmsTargets(classId, weekId) {
   const scoreMap = {};
   (scores || []).forEach(s => { scoreMap[s.student_id] = s; });
   // 학부모 화면과 같은 기준: '과제 없음' 주차면 과제 안내를 보내지 않는다 (비우면 그 줄이 빠진다)
-  const hwNote = hasNoHomework(scoreMap) ? ''
+  const noHomework = hasNoHomework(scoreMap);
+  const hwNote = noHomework ? ''
     : ((Array.isArray(memoRes) && memoRes[0] ? memoRes[0].memo : weekRow?.memo) || '').trim();
 
   const targets = (students || []).map(st => {
@@ -4901,10 +4903,20 @@ async function buildWeekSmsTargets(classId, weekId) {
       // 과제 수행률은 학부모 화면과 같은 기준: '과제 없음' 주차거나 미기재(null)면 비워서 줄이 빠지게 한다
       hwText: (sc && sc.no_homework !== true && sc.homework_rate !== null && sc.homework_rate !== undefined && sc.homework_rate !== '')
         ? `과제 수행률: ${sc.homework_rate}%` : '',
-      hwNote
+      hwNote,
+      weekNoHomework: noHomework
     };
   });
   return { targets };
+}
+
+// 점수 입력 탭에서 과제 내용을 고치면, 성적 문자 탭에 같은 주차가 떠 있을 때 과제 줄을 바로 바꾼다.
+// 주차를 다시 고르면 조교가 골라 둔 체크가 초기화되므로, 목록을 새로 받지 않고 그 자리에서 다시 그린다.
+function syncScoreSmsHwNote(weekId, memo) {
+  const val = document.getElementById('score-sms-week')?.value;
+  if (_scoreSmsIsMock || val !== 'w' + weekId || !window._scoreSmsTargets) return;
+  window._scoreSmsTargets.forEach(t => { t.hwNote = t.weekNoHomework ? '' : memo; });
+  renderScoreSmsList();
 }
 
 // 항목 옆 판정 문구. 커트라인이 없는 항목은 판정 기준이 없으므로 빈 문자열.
