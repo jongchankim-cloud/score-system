@@ -407,6 +407,7 @@
         <button class="tab-btn active" onclick="switchTab('scores')">점수 확인</button>
         <button class="tab-btn" onclick="switchTab('vocab')">단어 공부</button>
         <button class="tab-btn" onclick="switchTab('passage')">지문 공부</button>
+        <button class="tab-btn" onclick="switchTab('grammar')">어법 공부</button>
       </div>
     </header>
 
@@ -1317,12 +1318,12 @@
         const tabNav = document.getElementById("tab-nav");
         const buttons = tabNav.querySelectorAll(".tab-btn");
         buttons.forEach((btn, i) => {
-          btn.classList.toggle("active", (i === 0 && tabName === "scores") || (i === 1 && tabName === "vocab") || (i === 2 && tabName === "passage"));
+          btn.classList.toggle("active", (i === 0 && tabName === "scores") || (i === 1 && tabName === "vocab") || (i === 2 && tabName === "passage") || (i === 3 && tabName === "grammar"));
         });
 
-        if (tabName === "vocab" || tabName === "passage") {
-          // 단어·지문 사이트는 같은 도메인의 독립 페이지로 연다. 세션 쿠키가 있어서 다시 로그인하지 않는다
-          window.location.href = tabName === "passage" ? "./vocab/?go=passage" : "./vocab/";
+        if (tabName === "vocab" || tabName === "passage" || tabName === "grammar") {
+          // 단어·지문·어법 사이트는 같은 도메인의 독립 페이지로 연다. 세션 쿠키가 있어서 다시 로그인하지 않는다
+          window.location.href = tabName === "vocab" ? "./vocab/" : "./vocab/?go=" + tabName;
         }
       }
 
