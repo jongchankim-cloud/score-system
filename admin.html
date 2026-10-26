@@ -919,7 +919,7 @@
         <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="loadClinicSchedule()">새로고침</button>
       </div>
       <div class="section-body">
-        <p style="font-size:12px;color:var(--gray);margin:0 0 14px;line-height:1.7">반마다 <strong>클리닉 메모나 클리닉 대상 체크가 있는 가장 최근 주차</strong>를 기준으로, 메모를 읽어 요일·시간별로 배치합니다. 대상 체크가 없어도 메모에 요일이 적혀 있으면 표에 올라가고, 이름 뒤 괄호는 그 주차 과제 수행률입니다. 전 항목 커트라인을 통과해 재시험 표기가 없는 학생도 메모에 일정이 적혀 있으면 <strong>과제</strong> 배지를 달고 표에 올라가며(과제 클리닉 등), 일정을 읽지 못한 경우에만 제외됩니다. 학년 최신 주차보다 한 주 이상 뒤처진 반은 사유와 함께 제외 표시됩니다.<br>요일은 있지만 시간이 적히지 않은 학생은 그 요일 행 맨 끝의 빗금 친 <strong>시간 미정</strong> 칸에, 요일을 찾지 못한 학생은 표 아래 <strong>요일·시간 미기재</strong> 명단에 나옵니다.<br><strong>학생 이름을 누르면 그 자리에서 클리닉 메모를 고칠 수 있고</strong>, 저장하면 표가 바로 다시 그려집니다.</p>
+        <p style="font-size:12px;color:var(--gray);margin:0 0 14px;line-height:1.7">반마다 <strong>클리닉 메모나 클리닉 대상 체크가 있는 가장 최근 주차</strong>를 기준으로, 메모를 읽어 요일·시간별로 배치합니다. 대상 체크가 없어도 메모에 요일이 적혀 있으면 표에 올라가고, 이름 뒤 괄호는 그 주차 과제 수행률입니다. 전 항목 커트라인을 통과해 재시험 표기가 없는 학생도 메모에 일정이 적혀 있으면 <strong>과제</strong> 배지를 달고 표에 올라가며(과제 클리닉 등), 일정을 읽지 못한 경우에만 제외됩니다. 학년 최신 주차보다 한 주 이상 뒤처진 반은 사유와 함께 제외 표시됩니다.<br>요일은 있지만 시간이 적히지 않은 학생은 그 요일 행 맨 끝의 빗금 친 <strong>시간 미정</strong> 칸에, 요일을 찾지 못한 학생은 표 아래 <strong>요일·시간 미기재</strong> 명단에 나옵니다.<br><strong>학생 이름을 누르면 그 자리에서 클리닉 메모·재시험 통과·과제 수행률·과제 평가를 고칠 수 있고</strong>, 저장하면 표가 바로 다시 그려집니다.</p>
         <div id="clinic-grade-chips" style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px"></div>
         <div id="clinic-schedule-body"><p style="font-size:13px;color:var(--gray)">탭을 열면 자동으로 불러옵니다.</p></div>
       </div>
@@ -997,6 +997,20 @@
     <div style="margin-bottom:16px">
       <label style="display:block;font-size:11px;color:var(--gray);font-weight:500;margin-bottom:5px">재시험 통과 <span style="font-weight:400">(커트라인 미달 항목 · 점수 입력 탭과 같은 값입니다)</span></label>
       <div id="clinic-memo-retest" style="font-size:13px;color:var(--navy);background:var(--light-gray);border-radius:8px;padding:10px;line-height:1.9"></div>
+    </div>
+    <!-- 점수 입력 탭의 과제%·과제평가와 같은 scores.homework_rate / homework_eval 값 -->
+    <div style="margin-bottom:16px">
+      <div style="display:flex;gap:8px;align-items:flex-start">
+        <div style="flex:0 0 110px">
+          <label style="display:block;font-size:11px;color:var(--gray);font-weight:500;margin-bottom:5px">과제 수행률(%)</label>
+          <input type="number" id="clinic-memo-hw-rate" min="0" max="100" oninput="renderClinicMemoSms()" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'Noto Sans KR',sans-serif;outline:none">
+        </div>
+        <div style="flex:1;min-width:0">
+          <label style="display:block;font-size:11px;color:var(--gray);font-weight:500;margin-bottom:5px">과제 평가 <span style="font-weight:400">(점수 입력 탭과 같은 값입니다)</span></label>
+          <textarea id="clinic-memo-hw-eval" rows="2" oninput="renderClinicMemoSms()" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7"></textarea>
+        </div>
+      </div>
+      <div id="clinic-memo-hw-note" style="font-size:11px;color:var(--gray);margin-top:5px;line-height:1.6"></div>
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-primary" style="flex:1" onclick="saveClinicMemoEdit()">저장</button>
@@ -3444,6 +3458,7 @@ function openClinicMemoEdit(sid) {
   _clinicMemoSmsRecipient = _clinicRecipient;
   loadClinicMemoSmsInfo(sid);
   loadClinicMemoRetest(sid);
+  loadClinicMemoHomework(sid);
   document.getElementById('clinic-memo-modal').style.display = 'flex';
   ta.focus();
 }
@@ -3453,6 +3468,7 @@ function closeClinicMemoModal() {
   _clinicMemoEditId = null;
   _clinicMemoSmsSeq++; // 늦게 도착한 연락처 조회가 닫힌 창을 다시 그리지 않게
   _clinicRetestSeq++;  // 늦게 도착한 재시험 조회도 마찬가지
+  _clinicHwSeq++;      // 과제 조회도 마찬가지
 }
 
 // Esc로 메모 창을 닫는다 (취소 버튼과 같은 동작)
@@ -3514,9 +3530,65 @@ function collectClinicMemoRetest(dbPass) {
   return Object.keys(out).length ? out : null;
 }
 
+// ── 메모 수정 창의 '과제 수행률 · 과제 평가' 구역 ─────────────
+// 점수 입력 탭의 과제%·과제평가와 같은 scores 값을 고친다. 비어 있으면 점수 입력 탭처럼 이전 주차 값을 이어 보여준다.
+// 이어온 값은 그 칸을 고쳐야만 이번 주차에 저장된다 — 메모만 고친 저장이 과제 값을 몰래 기록하지 않게.
+let _clinicHwLoaded = null; // 창을 열 때 { rate, eval: 저장돼 있던 DB 값, shownRate, shownEval: 칸에 처음 채운 값 } · null=아직 못 읽음
+let _clinicHwSeq = 0;
+
+function normClinicHwRate(v) {
+  return (v === null || v === undefined || v === '') ? null : Number(v);
+}
+
+async function loadClinicMemoHomework(sid) {
+  const row = _clinicMemoRows[sid];
+  const seq = ++_clinicHwSeq;
+  const rateInp = document.getElementById('clinic-memo-hw-rate');
+  const evalInp = document.getElementById('clinic-memo-hw-eval');
+  const note = document.getElementById('clinic-memo-hw-note');
+  _clinicHwLoaded = null;
+  rateInp.value = ''; evalInp.value = '';
+  rateInp.disabled = true; evalInp.disabled = true;
+  rateInp.title = ''; evalInp.title = '';
+  note.textContent = '불러오는 중...';
+  renderClinicMemoSms();
+  try {
+    const [cur, carried] = await Promise.all([
+      api(`scores?id=eq.${parseInt(sid)}&select=id,homework_rate,homework_eval,no_homework,item_scores,${ITEM_KEYS.join(',')}`),
+      fetchCarriedEvals(row.classId, row.weekId)
+    ]);
+    if (seq !== _clinicHwSeq) return;
+    if (!Array.isArray(cur) || !cur.length) throw new Error('not_loaded');
+    const sc = cur[0];
+    // 이어오기 규칙은 점수 입력 탭과 같다 (이번 주차 값 → 없으면 이전 주차에서 이어옴)
+    const dbRate = normClinicHwRate(sc.homework_rate);
+    const dbEval = (sc.homework_eval || '').trim();
+    const carriedRate = carriedRateFor(sc, carried, row.studentId);
+    const carriedEval = carriedEvalFor(sc, carried, row.studentId);
+    // '이번 주 과제 없음' 주차는 점수 입력 탭에서도 과제% 칸이 잠긴다 — 여기서도 고치지 못하게 한다
+    const noHw = sc.no_homework === true;
+    const shownRate = noHw ? dbRate : (dbRate !== null ? dbRate : normClinicHwRate(carriedRate));
+    const shownEval = dbEval || carriedEval;
+    _clinicHwLoaded = { rate: dbRate, eval: dbEval, shownRate, shownEval };
+    rateInp.value = shownRate === null ? '' : shownRate;
+    evalInp.value = shownEval;
+    rateInp.disabled = noHw; evalInp.disabled = false;
+    rateInp.title = noHw ? '' : carryTitle('rate', sc, carried, row.studentId);
+    evalInp.title = carryTitle('eval', sc, carried, row.studentId);
+    const notes = [];
+    if (noHw) notes.push("이번 주차는 '과제 없음'으로 체크돼 있어 과제 수행률은 고칠 수 없어요 (점수 입력 탭에서 바꿀 수 있어요).");
+    if ((!noHw && carriedRate !== '') || carriedEval) notes.push('이전 주차 값을 이어서 보여주고 있어요. 고친 칸만 이번 주차에 저장돼요.');
+    note.textContent = notes.join(' ');
+  } catch (e) {
+    if (seq !== _clinicHwSeq) return;
+    note.textContent = '과제 정보를 불러오지 못했어요. 창을 닫고 다시 열어주세요.';
+  }
+  if (_clinicMemoEditId === sid) renderClinicMemoSms();
+}
+
 // ── 메모 수정 창의 '문자 보내기' 구역 ─────────────────────
 let _clinicMemoSmsRecipient = 'parent'; // 'parent' | 'student' — 창을 열 때 미참석 문자 탭의 선택을 따른다
-let _clinicMemoSmsInfo = null;          // null=불러오는 중 · {error:true} · { phone, student_phone, rate, eval }
+let _clinicMemoSmsInfo = null;          // null=불러오는 중 · {error:true} · { phone, student_phone }
 let _clinicMemoSmsSeq = 0;
 
 async function loadClinicMemoSmsInfo(sid) {
@@ -3526,20 +3598,12 @@ async function loadClinicMemoSmsInfo(sid) {
   renderClinicMemoSms();
   let info;
   try {
-    const [st, cur, carried] = await Promise.all([
-      api(`students?id=eq.${parseInt(row.studentId)}&select=id,phone,student_phone`),
-      api(`scores?id=eq.${parseInt(sid)}&select=id,homework_rate,homework_eval,item_scores,${ITEM_KEYS.join(',')}`),
-      fetchCarriedEvals(row.classId, row.weekId)
-    ]);
-    if (!Array.isArray(st) || !st.length || !Array.isArray(cur) || !cur.length) throw new Error('not_loaded');
-    const sc = cur[0];
-    // 과제%·과제평가 표시 규칙은 클리닉 미참석 문자 탭과 같다 (이번 주차 값 → 없으면 이전 주차에서 이어옴)
-    const carriedRate = carriedRateFor(sc, carried, row.studentId);
+    // 과제%·과제평가는 왼쪽 입력칸에 보이는 값을 그대로 보여준다 (loadClinicMemoHomework가 채운다)
+    const st = await api(`students?id=eq.${parseInt(row.studentId)}&select=id,phone,student_phone`);
+    if (!Array.isArray(st) || !st.length) throw new Error('not_loaded');
     info = {
       phone: st[0].phone || '',
-      student_phone: st[0].student_phone || '',
-      rate: (sc.homework_rate !== null && sc.homework_rate !== undefined) ? sc.homework_rate : (carriedRate === '' ? null : carriedRate),
-      eval: sc.homework_eval || carriedEvalFor(sc, carried, row.studentId)
+      student_phone: st[0].student_phone || ''
     };
   } catch(e) {
     info = { error: true };
@@ -3583,10 +3647,14 @@ function renderClinicMemoSms() {
     infoEl.innerHTML = '<dt>연락처</dt><dd style="color:var(--red)">❌ 불러오지 못했어요. 창을 닫았다가 다시 열어주세요.</dd>';
   } else {
     phone = isParent ? info.phone : info.student_phone;
+    // 왼쪽 과제 입력칸을 따라간다 — 저장 전이어도 지금 보이는 값
+    const hwReady = !!_clinicHwLoaded;
+    const rate = document.getElementById('clinic-memo-hw-rate').value.trim();
+    const ev = document.getElementById('clinic-memo-hw-eval').value.trim();
     infoEl.innerHTML =
       `<dt>${isParent ? '학부모 연락처' : '학생 연락처'}</dt><dd style="font-family:monospace">${escapeHtml(phone || '번호없음')}</dd>`
-      + `<dt>과제(%)</dt><dd>${(info.rate !== null && info.rate !== undefined) ? escapeHtml(String(info.rate)) + '%' : '미기재'}</dd>`
-      + `<dt>과제평가</dt><dd>${info.eval ? escapeHtml(info.eval) : '<span style="color:var(--gray)">없음</span>'}</dd>`
+      + `<dt>과제(%)</dt><dd>${!hwReady ? '불러오는 중...' : rate !== '' ? escapeHtml(rate) + '%' : '미기재'}</dd>`
+      + `<dt>과제평가</dt><dd>${!hwReady ? '불러오는 중...' : ev ? escapeHtml(ev) : '<span style="color:var(--gray)">없음</span>'}</dd>`
       + `<dt>상태</dt><dd><span class="badge ${phone ? 'badge-active' : 'badge-inactive'}">${phone ? '발송가능' : '번호없음'}</span></dd>`;
   }
   sendBtn.disabled = !phone;
@@ -3656,28 +3724,50 @@ async function saveClinicMemoEdit() {
   const loaded = (row.memo || '').trim();
   // 재시험 체크가 아직 안 그려졌으면 저장 시 체크 상태를 잃으므로, 불러올 때까지 막는다
   if (!_clinicRetestLoaded) { showToast('⏳ 재시험 정보를 불러오는 중이에요. 잠시 후 다시 시도해주세요.', 3500); return; }
+  // 과제 칸도 마찬가지 — 못 읽은 상태로 저장하면 빈 칸이 DB 값을 지운다
+  if (!_clinicHwLoaded) { showToast('⏳ 과제 정보를 불러오는 중이에요. 잠시 후 다시 시도해주세요.', 3500); return; }
   const loadedPass = _clinicRetestLoaded.pass;
   const screenPass = collectClinicMemoRetest(loadedPass);
+  const rateText = document.getElementById('clinic-memo-hw-rate').value.trim();
+  const screenRate = normClinicHwRate(rateText);
+  if (screenRate !== null && !(Number.isInteger(screenRate) && screenRate >= 0 && screenRate <= 100)) {
+    showToast('❌ 과제 수행률은 0~100 사이 정수로 입력해주세요.', 3500); return;
+  }
+  const screenEval = document.getElementById('clinic-memo-hw-eval').value.trim();
   const memoChanged = memo !== loaded;
   const retestChanged = clinicRetestKey(screenPass) !== clinicRetestKey(loadedPass);
-  if (!memoChanged && !retestChanged) { closeClinicMemoModal(); showToast('변경된 내용이 없어요.'); return; }
+  // 창을 열 때 칸에 채운 값(이어온 값 포함)과 비교한다 — 손대지 않은 칸은 보내지 않는다
+  const rateChanged = screenRate !== _clinicHwLoaded.shownRate;
+  const evalChanged = screenEval !== _clinicHwLoaded.shownEval;
+  const hwChanged = rateChanged || evalChanged;
+  if (!memoChanged && !retestChanged && !hwChanged) { closeClinicMemoModal(); showToast('변경된 내용이 없어요.'); return; }
 
   try {
     // 저장 직전 DB 값을 다시 읽는다 — 창을 연 사이 점수 입력 탭 등에서 메모나 재시험 값이 바뀌었을 수 있다(8.31 소실 사고 재발 방지)
-    const cur = await api(`scores?id=eq.${sid}&select=id,student_id,clinic_memo,retest_pass`);
+    const cur = await api(`scores?id=eq.${sid}&select=id,student_id,clinic_memo,retest_pass,homework_rate,homework_eval`);
     if (!Array.isArray(cur) || !cur.length) { showToast('❌ 최신 데이터를 확인하지 못해 저장을 중단했어요. 잠시 후 다시 시도해주세요.', 4000); return; }
     const dbMemo = (cur[0].clinic_memo || '').trim();
+    const dbRate = normClinicHwRate(cur[0].homework_rate);
+    const dbEval = (cur[0].homework_eval || '').trim();
     const memoConflict = memoChanged && dbMemo !== loaded;
     const passConflict = retestChanged && clinicRetestKey(cur[0].retest_pass) !== clinicRetestKey(loadedPass);
+    const rateConflict = rateChanged && dbRate !== _clinicHwLoaded.rate;
+    const evalConflict = evalChanged && dbEval !== _clinicHwLoaded.eval;
     let ok;
-    if (memoConflict || passConflict) {
-      // 한 칸짜리 편집이라 빈칸 여부뿐 아니라 내용이 바뀐 것까지 잡을 수 있다
-      ok = confirm(`⚠️ 이 창을 연 뒤 다른 곳에서 ${row.name} 학생의 ${memoConflict ? '클리닉 메모' : '재시험 통과'} 값이 바뀌었어요.\n\n` + (memoConflict ? `현재 저장된 메모: ${dbMemo || '(비어 있음)'}\n\n` : '') + `[확인] 지금 입력한 내용으로 덮어쓰기   [취소] 저장 중단하고 최신 데이터 다시 불러오기`);
-    } else if (memoChanged) {
-      const conflicts = findBlankOverwrites(cur, { [cur[0].student_id]: { clinic_memo: memo } }, { clinic_memo: '클리닉메모' }, () => row.name);
-      ok = confirmBlankOverwrite(conflicts);
+    if (memoConflict || passConflict || rateConflict || evalConflict) {
+      // 한 학생 편집이라 빈칸 여부뿐 아니라 내용이 바뀐 것까지 잡을 수 있다
+      const what = [memoConflict && '클리닉 메모', passConflict && '재시험 통과', rateConflict && '과제%', evalConflict && '과제평가'].filter(Boolean).join(', ');
+      const nowLines = (memoConflict ? `현재 저장된 메모: ${dbMemo || '(비어 있음)'}\n` : '')
+        + (rateConflict ? `현재 저장된 과제%: ${dbRate === null ? '(비어 있음)' : dbRate + '%'}\n` : '')
+        + (evalConflict ? `현재 저장된 과제평가: ${dbEval || '(비어 있음)'}\n` : '');
+      ok = confirm(`⚠️ 이 창을 연 뒤 다른 곳에서 ${row.name} 학생의 ${what} 값이 바뀌었어요.\n\n` + (nowLines ? nowLines + '\n' : '') + `[확인] 지금 입력한 내용으로 덮어쓰기   [취소] 저장 중단하고 최신 데이터 다시 불러오기`);
     } else {
-      ok = true;
+      // 바뀐 칸 중 비운 칸이 DB 값을 지우게 되면 확인을 받는다
+      const screen = {}, fields = {};
+      if (memoChanged) { screen.clinic_memo = memo; fields.clinic_memo = '클리닉메모'; }
+      if (rateChanged) { screen.homework_rate = screenRate; fields.homework_rate = '과제%'; }
+      if (evalChanged) { screen.homework_eval = screenEval; fields.homework_eval = '과제평가'; }
+      ok = confirmBlankOverwrite(findBlankOverwrites(cur, { [cur[0].student_id]: screen }, fields, () => row.name));
     }
     if (!ok) {
       closeClinicMemoModal();
@@ -3689,15 +3779,19 @@ async function saveClinicMemoEdit() {
     const body = {};
     if (memoChanged) body.clinic_memo = memo;
     if (retestChanged) body.retest_pass = screenPass;
+    if (rateChanged) body.homework_rate = screenRate;
+    if (evalChanged) body.homework_eval = screenEval;
     const res = await apiRaw(`scores?id=eq.${sid}`, 'PATCH', body);
     if (!res.ok) { showToast(`❌ 저장에 실패했어요. (${res.status})`, 4000); return; }
-    if (retestChanged) {
-      // 점수 입력·미인증 탭 캐시에도 재시험 통과가 반영되도록 비운다 (saveClinicGrid와 같은 처리)
+    if (retestChanged || hwChanged) {
+      // 점수 입력·미인증 탭 캐시에도 재시험 통과·과제 값이 반영되도록 비운다 (saveClinicGrid와 같은 처리)
       delete scoreCache[row.weekId]; delete _prevEvalCache[row.weekId]; invalidateClinicSchedule();
       if (typeof _uncertScoreData === 'object') delete _uncertScoreData[row.weekId];
+      // 이번 주차 과제 값은 뒤 주차들이 이어오는 값이기도 하다 — 뒤 주차의 이어오기 캐시도 모두 비운다
+      if (hwChanged) Object.keys(_prevEvalCache).forEach(k => delete _prevEvalCache[k]);
     }
     closeClinicMemoModal();
-    showToast(retestChanged ? '✅ 저장했어요! (점수입력·미인증 탭에도 반영)' : '✅ 클리닉 메모를 저장했어요!');
+    showToast((retestChanged || hwChanged) ? '✅ 저장했어요! (점수입력·미인증 탭에도 반영)' : '✅ 클리닉 메모를 저장했어요!');
     loadClinicSchedule();
   } catch(e) {
     showToast('❌ 오류: ' + e.message);
