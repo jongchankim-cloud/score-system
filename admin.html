@@ -1204,6 +1204,34 @@ function resolveBaseDate(mdStr) {
   return d;
 }
 
+// 'M.D' 시험 날짜의 정렬용 시각. 날짜에 연도가 없으므로 등록 시각(created_at)에 가장 가까운 연도를 고른다.
+// 오늘 기준으로 연도를 추정하면 작년 가을 주차가 올해로 읽혀 맨 위에 올라온다.
+// created_at이 없으면 resolveBaseDate의 추정을 따른다.
+function testDateTime(mdStr, createdAt) {
+  const m = (mdStr || '').match(/^\s*(\d{1,2})\s*\.\s*(\d{1,2})\s*$/);
+  const created = createdAt ? new Date(createdAt) : null;
+  if (!m || !created || isNaN(created)) {
+    const d = resolveBaseDate(mdStr);
+    return d ? d.getTime() : null;
+  }
+  const month = parseInt(m[1]) - 1, day = parseInt(m[2]);
+  let best = null;
+  [-1, 0, 1].forEach(dy => {
+    const t = new Date(created.getFullYear() + dy, month, day).getTime();
+    if (best === null || Math.abs(t - created) < Math.abs(best - created)) best = t;
+  });
+  return best;
+}
+
+// 주차·모의고사를 시험 날짜 최신순으로. 주차를 뒤늦게 추가하면 id(등록 순서)와 날짜 순서가 어긋나므로
+// 화면에 보이는 목록은 id가 아니라 이 정렬을 쓴다. 같은 날짜는 들어온 순서 유지, 날짜를 못 읽는 항목은 맨 뒤로.
+function sortByTestDate(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .map(r => ({ r, t: testDateTime(r.test_date || r.exam_date || r.label, r.created_at) }))
+    .sort((a, b) => (a.t === null) - (b.t === null) || (b.t || 0) - (a.t || 0))
+    .map(x => x.r);
+}
+
 function fmtMD(d) { return `${d.getMonth() + 1}.${d.getDate()}`; }
 
 // 기준 날짜가 속한 주(월요일 시작)에서 지정 요일의 날짜.
@@ -1314,6 +1342,8 @@ async function addWeek() {
       else failed.push(c.name);
     } catch (e) { failed.push(c.name); }
   }
+  // 옛 날짜 주차가 끼어들면 그 뒤 주차들의 '이전 주차'가 바뀌므로 이어오기 캐시를 비운다
+  Object.keys(_prevEvalCache).forEach(k => delete _prevEvalCache[k]);
   if (failed.length) { showToast(`❌ ${failed.length}개 반 추가 실패 (${failed.join(', ')})`, 4000); return; }
   showToast(`✅ ${created.length}개 반 주차 추가 — ${created.join(' / ')}`, 4000);
 
@@ -1328,7 +1358,7 @@ async function loadWeekList() {
   const container = document.getElementById('week-list');
   if (!classId) { container.innerHTML = '<p style="font-size:13px;color:var(--gray)">반을 선택하면 주차 목록이 표시됩니다.</p>'; return; }
   container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
-  const weeks = await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`) || [];
+  const weeks = sortByTestDate(await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`));
   if (!weeks.length) { container.innerHTML = '<p style="font-size:13px;color:var(--gray)">등록된 주차가 없습니다.</p>'; return; }
   container.innerHTML = `<table class="data-table"><thead><tr><th>날짜</th><th>등록일</th><th></th></tr></thead><tbody>${weeks.map(w => `<tr><td><strong>${w.label || w.test_date}</strong></td><td style="color:var(--gray);font-size:12px">${w.created_at?.slice(0,10) || ''}</td><td><button class="btn btn-danger btn-sm" onclick="deleteWeek(${w.id})">삭제</button></td></tr>`).join('')}</tbody></table>`;
 }
@@ -1652,7 +1682,7 @@ async function loadWeeksForScore() {
 
   sel.innerHTML = '<option value="">주차를 선택하세요</option>';
   if (!classId) return;
-  const weeks = await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`) || [];
+  const weeks = sortByTestDate(await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`));
   weeks.forEach(w => { const opt = document.createElement('option'); opt.value = w.id; opt.textContent = w.label || w.test_date; sel.appendChild(opt); });
 
   // 가장 최근 주차 자동 선택
@@ -1669,7 +1699,7 @@ async function refreshScoreWeekOptions() {
   const sel = document.getElementById('score-week');
   if (!sel || !classId) return;
   const prev = sel.value;
-  const weeks = await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`) || [];
+  const weeks = sortByTestDate(await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`));
   sel.innerHTML = '<option value="">주차를 선택하세요</option>';
   weeks.forEach(w => { const opt = document.createElement('option'); opt.value = w.id; opt.textContent = w.label || w.test_date; sel.appendChild(opt); });
 
@@ -1680,7 +1710,7 @@ async function refreshScoreWeekOptions() {
     document.getElementById('score-input-card').style.display = 'none';
     scoreDirty = false;
   } else if (weeks.length) {
-    sel.value = weeks[0].id;                // 아무것도 안 보고 있었다면 새로 만든 주차를 바로 연다
+    sel.value = Math.max(...weeks.map(w => w.id));   // 아무것도 안 보고 있었다면 새로 만든 주차를 바로 연다 (날짜가 옛날이어도)
     loadScoreInputs();
   }
 }
@@ -1737,20 +1767,25 @@ function carryTitle(kind, sc, carried, studentId) {
 async function fetchCarriedEvals(classId, weekId) {
   if (_prevEvalCache[weekId]) return _prevEvalCache[weekId];
   const map = {};
-  const prevWeeks = await api(`weeks?class_id=eq.${classId}&id=lt.${weekId}&select=id,label`) || [];
+  // '이전 주차'는 id가 아니라 시험 날짜로 정한다. 주차를 뒤늦게 추가하면 id가 더 커서,
+  // id로 비교하면 뒤 주차 값이 옛 주차로 이어지거나 옛 주차가 최신 값으로 잡힌다.
+  const classWeeks = sortByTestDate(await api(`weeks?class_id=eq.${classId}&order=id.desc&select=id,label,test_date,created_at`));
+  const curIdx = classWeeks.findIndex(w => w.id == weekId);
+  const prevWeeks = curIdx < 0 ? [] : classWeeks.slice(curIdx + 1);   // 최신순이므로 뒤쪽이 이전 주차
   if (prevWeeks.length) {
     const ids = prevWeeks.map(w => w.id).join(',');
-    const labelOf = {}; prevWeeks.forEach(w => { labelOf[w.id] = w.label || ''; });
+    const labelOf = {}, recency = {};   // recency: 작을수록 이번 주차에 가깝다
+    prevWeeks.forEach((w, i) => { labelOf[w.id] = w.label || ''; recency[w.id] = i; });
     const rows = await api(`scores?week_id=in.(${ids})&select=student_id,week_id,homework_eval,homework_rate`) || [];
     const bestEvalWeek = {}, bestRateWeek = {};
     rows.forEach(r => {
       const txt = (r.homework_eval || '').trim();
-      if (txt && (!(r.student_id in bestEvalWeek) || r.week_id > bestEvalWeek[r.student_id])) {
+      if (txt && (!(r.student_id in bestEvalWeek) || recency[r.week_id] < recency[bestEvalWeek[r.student_id]])) {
         bestEvalWeek[r.student_id] = r.week_id;
         map[r.student_id] = { ...(map[r.student_id] || {}), eval: txt, evalLabel: labelOf[r.week_id] };
       }
       if (r.homework_rate !== null && r.homework_rate !== undefined
-          && (!(r.student_id in bestRateWeek) || r.week_id > bestRateWeek[r.student_id])) {
+          && (!(r.student_id in bestRateWeek) || recency[r.week_id] < recency[bestRateWeek[r.student_id]])) {
         bestRateWeek[r.student_id] = r.week_id;
         map[r.student_id] = { ...(map[r.student_id] || {}), rate: r.homework_rate, rateLabel: labelOf[r.week_id] };
       }
@@ -1943,7 +1978,7 @@ async function refreshGroupInfo() {
 // 즉 체크한 반들은 서로 같은 평균·석차를 공유한다.
 const GROUP_KINDS = {
   week: {
-    table: 'weeks', unit: '주차', selectCols: 'id,class_id,label,test_date,group_id',
+    table: 'weeks', unit: '주차', selectCols: 'id,class_id,label,test_date,group_id,created_at',
     itemSelId: 'score-week', classSelId: 'score-class',
     boxId: 'group-edit-box', btnId: 'group-edit-btn',
     pickerId: 'group-class-picker', previewId: 'group-edit-preview',
@@ -1952,7 +1987,7 @@ const GROUP_KINDS = {
     onSaved: () => refreshGroupInfo()
   },
   mock: {
-    table: 'mock_exams', unit: '모의고사', selectCols: 'id,class_id,label,exam_date,group_id',
+    table: 'mock_exams', unit: '모의고사', selectCols: '*',
     itemSelId: 'mock-score-exam', classSelId: 'mock-score-class',
     boxId: 'mock-group-edit-box', btnId: 'mock-group-edit-btn',
     pickerId: 'mock-group-class-picker', previewId: 'mock-group-edit-preview',
@@ -1980,7 +2015,7 @@ async function renderGroupEditor(kind) {
   const classId = parseInt(document.getElementById(K.classSelId).value);
   if (!el || !curId) return;
   el.innerHTML = `<div class="mini-loading"><span class="spinner-sm"></span>${K.unit} 목록 불러오는 중...</div>`;
-  groupEditRows[kind] = await api(`${K.table}?select=${K.selectCols}&order=id.desc`) || [];
+  groupEditRows[kind] = sortByTestDate(await api(`${K.table}?select=${K.selectCols}&order=id.desc`));
   const rows = groupEditRows[kind];
   const gid = K.getGid();
 
@@ -2443,7 +2478,7 @@ async function loadUncertGrid() {
     api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`),
     api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`)
   ]);
-  _uncertAllWeeks = weeks || [];
+  _uncertAllWeeks = sortByTestDate(weeks);
   _uncertStudents = students || [];
 
   renderUncertGrid();
@@ -2629,9 +2664,9 @@ async function previewMoveMatch(studentId, fromClassId, toClassId) {
   preview.textContent = '매칭 확인 중...';
 
   // 현재 반의 주차 목록
-  const fromWeeks = await api(`weeks?class_id=eq.${fromClassId}&order=id.asc&select=*`) || [];
+  const fromWeeks = sortByTestDate(await api(`weeks?class_id=eq.${fromClassId}&order=id.asc&select=*`)).reverse();
   // 이동할 반의 주차 목록
-  const toWeeks = await api(`weeks?class_id=eq.${toClassId}&order=id.asc&select=*`) || [];
+  const toWeeks = sortByTestDate(await api(`weeks?class_id=eq.${toClassId}&order=id.asc&select=*`)).reverse();
   // 학생 점수 목록
   const scores = await api(`scores?student_id=eq.${studentId}&select=week_id`) || [];
   const scoredWeekIds = new Set(scores.map(s => s.week_id));
@@ -2830,14 +2865,19 @@ async function loadAbsentWeeks() {
   sel.innerHTML = '<option value="">주차를 선택하세요</option>';
   document.getElementById('absent-preview-card').style.display = 'none';
   if (!classId) return;
-  const [weeks, exams] = await Promise.all([
+  const [weeksRes, examsRes] = await Promise.all([
     api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`),
     api(`mock_exams?class_id=eq.${classId}&order=id.desc&select=*`)
   ]);
-  (weeks || []).forEach(w => { const opt = document.createElement('option'); opt.value = 'w' + w.id; opt.textContent = w.label || w.test_date; sel.appendChild(opt); });
-  (exams || []).forEach(e => { const opt = document.createElement('option'); opt.value = 'm' + e.id; opt.textContent = '[모의고사] ' + (e.label || e.exam_date); sel.appendChild(opt); });
-  if (weeks && weeks.length > 0) { sel.value = 'w' + weeks[0].id; loadAbsentTargets(); }
-  else if (exams && exams.length > 0) { sel.value = 'm' + exams[0].id; loadAbsentTargets(); }
+  const weeks = sortByTestDate(weeksRes);
+  const exams = sortByTestDate(examsRes);
+  // 성적 문자 탭과 같이 주차·모의고사를 구분 없이 날짜순으로 섞는다. 같은 날짜면 주차가 먼저.
+  sortByTestDate([
+    ...weeks.map(w => ({ ...w, value: 'w' + w.id, text: w.label || w.test_date })),
+    ...exams.map(e => ({ ...e, value: 'm' + e.id, text: '[모의고사] ' + (e.label || e.exam_date) }))
+  ]).forEach(it => { const opt = document.createElement('option'); opt.value = it.value; opt.textContent = it.text; sel.appendChild(opt); });
+  if (weeks.length > 0) { sel.value = 'w' + weeks[0].id; loadAbsentTargets(); }
+  else if (exams.length > 0) { sel.value = 'm' + exams[0].id; loadAbsentTargets(); }
 }
 
 async function loadAbsentTargets() {
@@ -2959,7 +2999,7 @@ async function loadStudentSmsWeeks() {
   sel.innerHTML = '<option value="">주차를 선택하세요</option>';
   document.getElementById('student-sms-preview-card').style.display = 'none';
   if (!classId) return;
-  const weeks = await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`) || [];
+  const weeks = sortByTestDate(await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`));
   weeks.forEach(w => { const opt = document.createElement('option'); opt.value = w.id; opt.textContent = w.label || w.test_date; sel.appendChild(opt); });
   if (weeks.length > 0) { sel.value = weeks[0].id; loadStudentSmsTargets(); }
 }
@@ -3073,7 +3113,7 @@ async function loadClinicSmsWeeks() {
   sel.innerHTML = '<option value="">주차를 선택하세요</option>';
   document.getElementById('clinic-sms-preview-card').style.display = 'none';
   if (!classId) return;
-  const weeks = await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`) || [];
+  const weeks = sortByTestDate(await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`));
   weeks.forEach(w => { const opt = document.createElement('option'); opt.value = w.id; opt.textContent = w.label || w.test_date; sel.appendChild(opt); });
   if (weeks.length > 0) { sel.value = weeks[0].id; loadClinicSmsTargets(); }
 }
@@ -3814,8 +3854,8 @@ async function loadClinicSchedule(force = true) {
   const classIds = classes.map(c => c.id);
   if (!classIds.length) { box.innerHTML = '<p style="font-size:13px;color:var(--gray)">등록된 반이 없습니다.</p>'; hwBox.innerHTML = ''; return; }
 
-  const [weeks, students] = await Promise.all([
-    api(`weeks?class_id=in.(${classIds.join(',')})&order=id.desc&select=id,class_id,label,test_date,item_config`),
+  const [weeksRes, students] = await Promise.all([
+    api(`weeks?class_id=in.(${classIds.join(',')})&order=id.desc&select=id,class_id,label,test_date,item_config,created_at`),
     api(`students?class_id=in.(${classIds.join(',')})&is_active=eq.true&select=id,name,class_id`)
   ]);
   if (seq !== _clinicLoadSeq) return;
@@ -3825,15 +3865,16 @@ async function loadClinicSchedule(force = true) {
   // scores가 이 화면에서 가장 비싼 조회다. 반마다 실제로 쓰는 건 '클리닉 흔적이 있는 최신 주차' 하나뿐인데
   // 예전에는 개설 이래 모든 주차의 점수를 받아, 학년도가 갈수록 받는 양이 선형으로 늘었다.
   // 반별 최근 주차로 범위를 좁힌다 — 한 주(5일) 이상 뒤처진 반은 아래 stale 판정에서 어차피 빠지므로
-  // 8주면 충분히 여유롭다. weeks가 id.desc 순서라 앞에서부터 세면 그대로 최신순이다. (2026-09)
+  // 8주면 충분히 여유롭다. 날짜 최신순으로 정렬해 앞에서부터 센다. id 순서로 세면 뒤늦게 추가한
+  // 옛 주차가 최신 주차로 잡힌다. (2026-09)
   const CLINIC_WEEK_WINDOW = 8;
   const seenPerClass = {};
-  const recentWeeks = (weeks || []).filter(w => {
+  const recentWeeks = sortByTestDate(weeksRes).filter(w => {
     seenPerClass[w.class_id] = (seenPerClass[w.class_id] || 0) + 1;
     return seenPerClass[w.class_id] <= CLINIC_WEEK_WINDOW;
   });
-  const weekById = {};
-  recentWeeks.forEach(w => { weekById[w.id] = w; });
+  const weekById = {}, weekRecency = {};   // weekRecency: 작을수록 최신
+  recentWeeks.forEach((w, i) => { weekById[w.id] = w; weekRecency[w.id] = i; });
   const allWeekIds = recentWeeks.map(w => w.id);
   const allRows = allWeekIds.length
     ? await api(`scores?week_id=in.(${allWeekIds.join(',')})&select=id,student_id,week_id,clinic_memo,clinic_target,retest_pass,item_scores,homework_rate,${ITEM_KEYS.join(',')}`) || []
@@ -3845,7 +3886,7 @@ async function loadClinicSchedule(force = true) {
     if (!hasClinic(sc)) return;
     const w = weekById[sc.week_id];
     if (!w) return;
-    if (!latestWeek[w.class_id] || w.id > latestWeek[w.class_id].id) latestWeek[w.class_id] = w;
+    if (!latestWeek[w.class_id] || weekRecency[w.id] < weekRecency[latestWeek[w.class_id].id]) latestWeek[w.class_id] = w;
   });
   const studentMap = {}, classMap = {};
   (students || []).forEach(st => { studentMap[st.id] = st; });
@@ -4123,7 +4164,7 @@ async function loadHistoryWeeks() {
   sel.innerHTML = '<option value="">주차를 선택하세요</option>';
   document.getElementById('history-card').style.display = 'none';
   if (!classId) return;
-  _historyWeeks = await api(`weeks?class_id=eq.${classId}&order=id.desc&select=id,label,test_date,item_config`) || [];
+  _historyWeeks = sortByTestDate(await api(`weeks?class_id=eq.${classId}&order=id.desc&select=id,label,test_date,item_config,created_at`));
   _historyWeeks.forEach(w => { const opt = document.createElement('option'); opt.value = w.id; opt.textContent = w.label || w.test_date; sel.appendChild(opt); });
   if (_historyWeeks.length) { sel.value = _historyWeeks[0].id; loadHistory(); }
 }
@@ -4432,7 +4473,7 @@ async function loadSmsWeeks() {
   sel.innerHTML = '<option value="">주차를 선택하세요</option>';
   document.getElementById('sms-preview-card').style.display = 'none';
   if (!classId) return;
-  const weeks = await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`) || [];
+  const weeks = sortByTestDate(await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`));
   weeks.forEach(w => { const opt = document.createElement('option'); opt.value = w.id; opt.textContent = w.label || w.test_date; sel.appendChild(opt); });
   if (weeks.length > 0) loadSmsTargets();
 }
@@ -4876,16 +4917,13 @@ async function loadScoreSmsWeeks() {
     api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`),
     api(`mock_exams?class_id=eq.${classId}&order=id.desc&select=*`)
   ]);
-  const weeks = Array.isArray(weeksRes) ? weeksRes : [];
-  const exams = Array.isArray(examsRes) ? examsRes : [];
+  const weeks = sortByTestDate(weeksRes);
+  const exams = sortByTestDate(examsRes);
   // 주차·모의고사를 구분 없이 시험 날짜 최신순으로 섞는다. 같은 날짜면 주차가 먼저(정렬은 안정 정렬).
-  // 날짜를 못 읽는 항목은 맨 뒤로.
-  const items = [
-    ...weeks.map(w => ({ value: 'w' + w.id, text: w.label || w.test_date, t: scoreSmsDateTime(w.test_date || w.label, w.created_at) })),
-    ...exams.map(e => ({ value: 'm' + e.id, text: '[모의고사] ' + mockSmsExamName(e), t: scoreSmsDateTime(e.exam_date || e.label, e.created_at) }))
-  ];
-  items.sort((a, b) => (a.t === null) - (b.t === null) || (b.t || 0) - (a.t || 0));
-  items.forEach(it => {
+  sortByTestDate([
+    ...weeks.map(w => ({ ...w, value: 'w' + w.id, text: w.label || w.test_date })),
+    ...exams.map(e => ({ ...e, value: 'm' + e.id, text: '[모의고사] ' + mockSmsExamName(e) }))
+  ]).forEach(it => {
     const opt = document.createElement('option');
     opt.value = it.value; opt.textContent = it.text;
     sel.appendChild(opt);
@@ -4895,25 +4933,6 @@ async function loadScoreSmsWeeks() {
   // 기본 선택은 예전처럼 최근 주차. 주차가 없는 반만 최근 모의고사.
   if (weeks.length) { sel.value = 'w' + weeks[0].id; loadScoreSmsTargets(); }
   else if (exams.length) { sel.value = 'm' + exams[0].id; loadScoreSmsTargets(); }
-}
-
-// 'M.D' 시험 날짜의 정렬용 시각. 날짜에 연도가 없으므로 등록 시각(created_at)에 가장 가까운 연도를 고른다.
-// 오늘 기준으로 연도를 추정하면 작년 가을 주차가 올해로 읽혀 맨 위에 올라온다.
-// created_at이 없으면 resolveBaseDate의 추정을 따른다.
-function scoreSmsDateTime(mdStr, createdAt) {
-  const m = (mdStr || '').match(/^\s*(\d{1,2})\s*\.\s*(\d{1,2})\s*$/);
-  const created = createdAt ? new Date(createdAt) : null;
-  if (!m || !created || isNaN(created)) {
-    const d = resolveBaseDate(mdStr);
-    return d ? d.getTime() : null;
-  }
-  const month = parseInt(m[1]) - 1, day = parseInt(m[2]);
-  let best = null;
-  [-1, 0, 1].forEach(dy => {
-    const t = new Date(created.getFullYear() + dy, month, day).getTime();
-    if (best === null || Math.abs(t - created) < Math.abs(best - created)) best = t;
-  });
-  return best;
 }
 
 // 문자에 들어갈 시험 이름. 이름을 따로 안 붙인 시험은 label이 날짜와 같으므로 '모의고사'를 붙인다.
@@ -5367,7 +5386,7 @@ async function loadMockExams() {
   sel.innerHTML = '<option value="">모의고사를 선택하세요</option>';
   document.getElementById('mock-score-card').style.display = 'none';
   if (!classId) return;
-  const exams = await api(`mock_exams?class_id=eq.${classId}&order=id.desc&select=*`) || [];
+  const exams = sortByTestDate(await api(`mock_exams?class_id=eq.${classId}&order=id.desc&select=*`));
   exams.forEach(e => { const opt = document.createElement('option'); opt.value = e.id; opt.textContent = e.label || e.exam_date; sel.appendChild(opt); });
   // 최근 회차 자동 선택
   if (exams.length > 0) { sel.value = exams[0].id; loadMockScoreInputs(); }
@@ -5380,7 +5399,7 @@ async function refreshMockExamOptions() {
   const sel = document.getElementById('mock-score-exam');
   if (!sel || !classId) return;
   const prev = sel.value;
-  const exams = await api(`mock_exams?class_id=eq.${classId}&order=id.desc&select=*`) || [];
+  const exams = sortByTestDate(await api(`mock_exams?class_id=eq.${classId}&order=id.desc&select=*`));
   sel.innerHTML = '<option value="">모의고사를 선택하세요</option>';
   exams.forEach(e => { const opt = document.createElement('option'); opt.value = e.id; opt.textContent = e.label || e.exam_date; sel.appendChild(opt); });
 
@@ -5391,7 +5410,7 @@ async function refreshMockExamOptions() {
     document.getElementById('mock-score-card').style.display = 'none';
     mockDirty = false;
   } else if (exams.length) {
-    sel.value = exams[0].id;                // 아무것도 안 보고 있었다면 새로 만든 시험을 바로 연다
+    sel.value = Math.max(...exams.map(e => e.id));   // 아무것도 안 보고 있었다면 새로 만든 시험을 바로 연다 (날짜가 옛날이어도)
     loadMockScoreInputs();
   }
 }
@@ -5800,7 +5819,7 @@ async function loadMockList() {
   const container = document.getElementById('mock-list');
   if (!classId) { container.innerHTML = '<p style="font-size:13px;color:var(--gray)">반을 선택하면 목록이 표시됩니다.</p>'; return; }
   container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
-  const exams = await api(`mock_exams?class_id=eq.${classId}&order=id.desc&select=*`) || [];
+  const exams = sortByTestDate(await api(`mock_exams?class_id=eq.${classId}&order=id.desc&select=*`));
   if (!exams.length) { container.innerHTML = '<p style="font-size:13px;color:var(--gray)">등록된 모의고사가 없습니다.</p>'; return; }
   container.innerHTML = `<table class="data-table"><thead><tr><th>시험명</th><th>날짜</th><th></th></tr></thead><tbody>${exams.map(e => `<tr><td><strong>${e.label || e.exam_date}</strong></td><td style="color:var(--gray);font-size:12px">${e.exam_date}</td><td><button class="btn btn-danger btn-sm" onclick="deleteMockExam(${e.id})">삭제</button></td></tr>`).join('')}</tbody></table>`;
 }

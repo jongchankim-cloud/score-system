@@ -1094,8 +1094,13 @@
         allScores.forEach((s) => {
           scoreMap[s.week_id] = computeTotal(s, s.week_id);
         });
-        const labels = currentWeeks.map((w) => w.label || w.test_date);
-        const data = currentWeeks.map((w) => scoreMap[w.id] ?? null);
+        // 주차를 뒤늦게 추가해도 그래프는 왼쪽(옛날)→오른쪽(최근) 날짜순으로 그린다
+        const chartWeeks = sortByDateDesc(
+          currentWeeks,
+          (w) => w.test_date || w.label,
+        ).reverse();
+        const labels = chartWeeks.map((w) => w.label || w.test_date);
+        const data = chartWeeks.map((w) => scoreMap[w.id] ?? null);
         // y축 최대값: 주차별 총점 만점 중 가장 큰 값 (기본 100)
         const yMax = Math.max(
           100,
