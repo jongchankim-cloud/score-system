@@ -1,2 +1,5 @@
 _workspace/
 _workspace_prev/
+
+# 쿨에스엠에스 비밀키
+supabase/functions/send-sms/
