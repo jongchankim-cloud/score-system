@@ -6849,6 +6849,11 @@ let _mrepBusy = false;
 let _mrepListOpen = false;
 let _mrepDropReady = false;
 const _scriptPromises = {};
+// 기능 스위치 (2026-11). 쓰지 않기로 하면 조교가 이 칸에서 바로 끈다 — 코드·서버를 되돌리지 않아도 된다.
+// 끄면 모든 시험의 공개를 내려 학부모 화면 버튼이 사라지고(parent-login은 공개된 시험만 알려 준다),
+// 이 칸은 '꺼짐' 한 줄로 접힌다. 올린 파일·입력된 점수는 그대로 둔다. 값이 없으면 켜진 것으로 본다.
+// 완전히 되돌리는 절차: supabase/mock-reports-rollback.md
+const MREP_SETTING_KEY = 'mockReports.enabled';
 
 function loadScriptOnce(src) {
   if (!_scriptPromises[src]) {
@@ -6900,6 +6905,36 @@ function initMockReportDrop() {
   el.addEventListener('drop', e => { e.preventDefault(); el.classList.remove('over'); onMockReportFile(e.dataTransfer?.files); });
 }
 
+function setMockReportOff() {
+  _mrepCtx = null;
+  clearMockReportReview();
+  const badge = document.getElementById('mock-report-pub-badge');
+  badge.className = 'badge'; badge.style.cssText = 'background:var(--light-gray);color:var(--gray)'; badge.textContent = '기능 꺼짐';
+  document.getElementById('mock-report-drop').style.display = 'none';
+  document.getElementById('mock-report-status').innerHTML =
+    `<div class="mrep-summary"><div class="mrep-note">분석지 기능이 꺼져 있어요. 학부모 화면에도 분석지 버튼이 나오지 않아요.</div>
+      <div class="mrep-actions"><button class="btn btn-light btn-sm" onclick="setMockReportFeature(true)">다시 켜기</button></div></div>`;
+}
+
+async function saveMockReportSetting(on) {
+  return apiRaw('app_settings?on_conflict=key', 'POST',
+    { key: MREP_SETTING_KEY, value: { enabled: on }, updated_at: new Date().toISOString() },
+    'resolution=merge-duplicates,return=minimal');
+}
+
+async function setMockReportFeature(on) {
+  if (!on) {
+    if (!confirm('분석지 기능을 끌까요?\n\n· 모든 모의고사의 분석지 공개가 중단돼요 (학부모 화면의 분석지 버튼이 사라짐)\n· 이 칸은 접히고, 올린 파일과 이미 입력된 점수는 그대로 남아요\n· 언제든 다시 켤 수 있어요 (다시 켜도 공개는 시험마다 새로 눌러야 해요)')) return;
+    // 공개부터 내린다 — 이게 실패하면 스위치만 꺼지고 학부모 화면엔 버튼이 남으므로 중단한다
+    const un = await apiRaw('mock_exams?report_published=is.true', 'PATCH', { report_published: false });
+    if (!un.ok) { showToast('❌ 분석지 공개를 내리지 못해 끄지 않았어요. 다시 시도해 주세요.', 4000); return; }
+  }
+  const r = await saveMockReportSetting(on);
+  if (!r.ok) { showToast(on ? '❌ 기능을 켜지 못했어요.' : '❌ 공개는 내렸지만 스위치 저장에 실패했어요. 다시 눌러 주세요.', 4000); loadMockReportPanel(); return; }
+  showToast(on ? '✅ 분석지 기능을 켰어요!' : '✅ 분석지 기능을 껐어요. 학부모 화면에서도 사라졌어요.');
+  loadMockReportPanel();
+}
+
 function setMockReportNotReady() {
   _mrepCtx = null;
   clearMockReportReview();
@@ -6919,6 +6954,13 @@ async function loadMockReportPanel() {
   if (_mrepDoc && _mrepDoc.examId !== examId && !_mrepBusy) clearMockReportReview();
   const status = document.getElementById('mock-report-status');
   status.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>분석지 현황 확인 중...</div>';
+  let enabled = true;
+  try {
+    const rows = await api(`app_settings?key=eq.${encodeURIComponent(MREP_SETTING_KEY)}&select=value`);
+    if (Array.isArray(rows) && rows[0]?.value && rows[0].value.enabled === false) enabled = false;
+  } catch (e) {}
+  if (seq !== _mrepSeq) return;
+  if (!enabled) { setMockReportOff(); return; }
   let groupExams = null;
   try {
     groupExams = currentMockGroupId
@@ -6987,7 +7029,8 @@ function renderMockReportStatus() {
       </div>
     </div>
     ${_mrepListOpen ? `<div class="mrep-list"><table class="data-table"><tbody>${rows}</tbody></table></div>` : ''}
-    <div class="mrep-note">올리기만 해서는 학부모에게 보이지 않아요. 검수 후 '학부모에게 공개'를 누르면 점수 화면에 '분석지 보기' 버튼이 생깁니다.</div>`;
+    <div class="mrep-note">올리기만 해서는 학부모에게 보이지 않아요. 검수 후 '학부모에게 공개'를 누르면 점수 화면에 '분석지 보기' 버튼이 생깁니다.
+      이 기능을 쓰지 않을 거라면 <a href="#" onclick="setMockReportFeature(false); return false;" style="color:var(--gray)">분석지 기능 끄기</a></div>`;
 }
 
 function toggleMockReportList() { _mrepListOpen = !_mrepListOpen; renderMockReportStatus(); }
