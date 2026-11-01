@@ -174,6 +174,9 @@
   .cfg-toggle:hover { color:var(--navy); }
   .cfg-toggle .chev { display:inline-block; font-size:10px; color:var(--gold); transition:transform 0.15s; }
   .cfg-toggle.collapsed .chev { transform:rotate(-90deg); }
+  .withdrawn-toggle { display:flex; align-items:center; gap:8px; padding:0; border:none; background:none; cursor:pointer; font-family:'Noto Sans KR',sans-serif; font-size:14px; font-weight:700; color:var(--navy); }
+  .withdrawn-toggle .chev { display:inline-block; font-size:11px; color:var(--gold); transition:transform 0.15s; }
+  .withdrawn-toggle.collapsed .chev { transform:rotate(-90deg); }
   /* 만점 초과·음수 입력 강조 — 커트라인 미달(빨강)과 구분되도록 주황 */
   .score-input-row input.over-max, .mock-input-row input.over-max { color:var(--orange); border-color:var(--orange); font-weight:700; background:var(--orange-light); }
   .range-warn { font-size:12px; color:var(--orange); font-weight:600; margin:10px 0 4px; }
@@ -296,7 +299,6 @@
     <button class="tab-btn" onclick="switchTab('tab-mock')">모의고사</button>
     <button class="tab-btn" onclick="switchTab('tab-week')">주차 관리</button>
     <button class="tab-btn" onclick="switchTab('tab-student')">학생 관리</button>
-    <button class="tab-btn" onclick="switchTab('tab-withdrawn')">퇴원생</button>
     <button class="tab-btn" onclick="switchTab('tab-class')">반 관리</button>
     <button class="tab-btn" onclick="switchTab('tab-memo')">조교 메모</button>
   </div>
@@ -452,22 +454,21 @@
         <div id="student-list" style="overflow-x:auto"><p style="font-size:13px;color:var(--gray)">반을 선택하거나 이름으로 검색하세요.</p></div>
       </div>
     </div>
-  </div>
-
-  <!-- 퇴원생 (학생 관리에서 퇴원 처리한 학생만 따로 모아 본다) -->
-  <div id="tab-withdrawn" class="tab-content">
-    <div class="section-card">
+    <!-- 퇴원생: 학생 목록에서 빠진 퇴원생을 따로 모아 본다. 평소엔 접어 두고 펼칠 때만 불러온다. -->
+    <div class="section-card" id="withdrawn-card">
       <div class="section-head">
-        <h3 id="withdrawn-title">퇴원생</h3>
-        <button class="btn btn-light btn-sm" onclick="loadWithdrawnStudents()">새로고침</button>
+        <button type="button" class="withdrawn-toggle collapsed" id="withdrawn-toggle" onclick="toggleWithdrawnCard()">
+          <span class="chev">▾</span><span id="withdrawn-title">퇴원생</span>
+        </button>
+        <button class="btn btn-light btn-sm" id="withdrawn-refresh" onclick="loadWithdrawnStudents()" style="display:none">새로고침</button>
       </div>
-      <div class="section-body">
-        <p style="font-size:12px;color:var(--gray);margin:0 0 12px;line-height:1.7">학생 관리에서 퇴원 처리한 학생만 모아 봅니다. 학생 목록·점수 입력·문자 발송·학부모 화면에는 나오지 않지만 점수 기록은 그대로 남아 있습니다. <strong>[복귀]</strong>하면 원래 반으로 돌아갑니다.</p>
+      <div class="section-body" id="withdrawn-body" style="display:none">
+        <p style="font-size:12px;color:var(--gray);margin:0 0 12px;line-height:1.7">퇴원 처리한 학생만 모아 봅니다. 위 학생 목록·점수 입력·문자 발송·학부모 화면에는 나오지 않지만 점수 기록은 그대로 남아 있습니다. <strong>[복귀]</strong>하면 원래 반으로 돌아갑니다.</p>
         <div class="form-row">
           <div class="form-group"><label>반</label><select id="withdrawn-class" onchange="renderWithdrawnList()"><option value="">전체 반</option></select></div>
           <div class="form-group"><label>이름 검색</label><input type="text" id="withdrawn-search" placeholder="학생 이름" oninput="renderWithdrawnList()"></div>
         </div>
-        <div id="withdrawn-list" style="overflow-x:auto"><p style="font-size:13px;color:var(--gray)">탭을 열면 자동으로 불러옵니다.</p></div>
+        <div id="withdrawn-list" style="overflow-x:auto"><p style="font-size:13px;color:var(--gray)">펼치면 불러옵니다.</p></div>
       </div>
     </div>
   </div>
@@ -1207,7 +1208,7 @@ function switchTab(tabId) {
   if (tabId === 'tab-class') loadClassList();
   if (tabId === 'tab-memo') loadMemos();
   if (tabId === 'tab-clinic-schedule') loadClinicSchedule(false);
-  if (tabId === 'tab-withdrawn') loadWithdrawnStudents();
+  if (tabId === 'tab-student') refreshWithdrawnCard();
 }
 
 // ── 주차 관리
@@ -6050,8 +6051,32 @@ function initNoteHeights() {
   }, 30);
 }
 
-// ── 퇴원생 탭 ─────────────────────────────────────────────
+// ── 퇴원생 (학생 관리 탭 맨 아래 접이식 카드) ─────────────────
+// 2026-11: 처음엔 별도 탭이었으나 탭이 너무 많아 학생 관리 아래로 합쳤다.
 let _withdrawn = [];   // 퇴원생 + left_at(변경 이력에서 찾은 퇴원 시각, 2026-09 이전 퇴원은 null)
+
+function isWithdrawnOpen() {
+  return document.getElementById('withdrawn-body')?.style.display !== 'none';
+}
+
+function toggleWithdrawnCard(open) {
+  const body = document.getElementById('withdrawn-body');
+  if (!body) return;
+  const willOpen = open === undefined ? !isWithdrawnOpen() : !!open;
+  body.style.display = willOpen ? '' : 'none';
+  document.getElementById('withdrawn-toggle').classList.toggle('collapsed', !willOpen);
+  document.getElementById('withdrawn-refresh').style.display = willOpen ? '' : 'none';
+  if (willOpen) loadWithdrawnStudents();
+}
+
+// 접혀 있으면 인원만 세고, 펼쳐져 있으면 목록을 다시 불러온다 (퇴원·복귀·삭제 뒤에 부른다)
+async function refreshWithdrawnCard() {
+  if (isWithdrawnOpen()) { loadWithdrawnStudents(); return; }
+  try {
+    const rows = await api('students?is_active=eq.false&select=id');
+    if (Array.isArray(rows)) document.getElementById('withdrawn-title').textContent = `퇴원생 ${rows.length}명`;
+  } catch (e) { if (e && e.message === 'unauthorized') throw e; }
+}
 
 async function loadWithdrawnStudents() {
   const box = document.getElementById('withdrawn-list');
@@ -6129,6 +6154,7 @@ async function restoreWithdrawn(id) {
   clearAdminCaches();
   showToast(`✅ ${s.name} 학생이 ${cname}으로 복귀했어요.`);
   loadWithdrawnStudents();
+  refreshStudentList();   // 위 학생 목록에도 바로 나타나게
 }
 
 async function deleteWithdrawn(id) {
@@ -6235,15 +6261,15 @@ async function loadStudentList() {
   initNoteHeights();
 }
 
-// 학생 목록 아래 '퇴원생 N명은 퇴원생 탭에서' 안내. 탭 버튼을 눌러 이동한다(switchTab이 눌린 버튼을 강조하므로).
+// 학생 목록 아래 '퇴원생 N명은 숨겼어요' 안내. 누르면 맨 아래 퇴원생 카드를 펼치고 그 위치로 내려간다.
 function withdrawnHint(n, where) {
   if (!n) return '';
   return `<p style="font-size:12px;color:var(--gray);margin:10px 0 0">${where} 퇴원생 ${n}명은 목록에서 숨겼어요. `
-    + `<a href="#" onclick="openWithdrawnTab();return false" style="color:var(--navy);font-weight:600">퇴원생 탭에서 보기</a></p>`;
+    + `<a href="#" onclick="openWithdrawnCard();return false" style="color:var(--navy);font-weight:600">아래 퇴원생 목록에서 보기</a></p>`;
 }
-function openWithdrawnTab() {
-  const btn = document.querySelector(`.tab-btn[onclick*="tab-withdrawn"]`);
-  if (btn) btn.click();
+function openWithdrawnCard() {
+  if (!isWithdrawnOpen()) toggleWithdrawnCard(true);
+  document.getElementById('withdrawn-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 let _searchTimer = null;
@@ -6297,12 +6323,13 @@ async function updateStudentPhone(id, phone) {
 }
 
 async function toggleStudent(id, active) {
-  if (!active && !confirm('퇴원 처리할까요?\n학생 목록에서 사라지고 [퇴원생] 탭으로 옮겨집니다.\n점수 기록은 그대로 남고, 언제든 복귀할 수 있습니다.')) return;
+  if (!active && !confirm('퇴원 처리할까요?\n학생 목록에서 사라지고 맨 아래 [퇴원생] 목록으로 옮겨집니다.\n점수 기록은 그대로 남고, 언제든 복귀할 수 있습니다.')) return;
   const res = await apiRaw(`students?id=eq.${id}`, 'PATCH', { is_active: active });
   if (!res.ok) { showToast(`❌ ${active ? '복귀' : '퇴원'} 처리에 실패했어요. (${res.status})`, 4000); return; }
   clearAdminCaches();   // 점수 탭 명단 캐시에 퇴원생이 남지 않게
-  showToast(active ? '✅ 복귀 처리됐어요.' : '퇴원 처리됐어요. [퇴원생] 탭에서 볼 수 있어요.', 3500);
+  showToast(active ? '✅ 복귀 처리됐어요.' : '퇴원 처리됐어요. 맨 아래 [퇴원생] 목록에서 볼 수 있어요.', 3500);
   refreshStudentList();
+  refreshWithdrawnCard();
 }
 
 async function deleteStudent(id, name) {
