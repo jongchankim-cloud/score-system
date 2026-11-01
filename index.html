@@ -58,6 +58,19 @@
       .btn-primary:hover {
         background: var(--navy-light);
       }
+      .btn:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+      .mock-report-msg {
+        font-size: 12px;
+        color: var(--red);
+        text-align: center;
+        margin-top: 8px;
+      }
+      .mock-report-msg:empty {
+        display: none;
+      }
       .btn-secondary {
         background: var(--light-gray);
         color: var(--navy);
@@ -1084,8 +1097,51 @@
           </div>
         </div>
         ${s.memo ? `<div style="margin-top:6px;font-size:13px;color:var(--gray)">${escapeHtml(s.memo)}</div>` : ""}
+        ${mockReportButtonHtml(examId)}
       </div>
     </div>`;
+      }
+
+      // ── 모의고사 분석지 (학생별 PDF) ──
+      // parent-login이 '학부모에게 공개'된 시험 중 이 학생 파일이 있는 시험 id만 mockReports로 보낸다.
+      // 서버가 아직 이 값을 안 보내면(배포 전) 버튼이 생기지 않는다.
+      function hasMockReport(examId) {
+        return (
+          Array.isArray(loginData?.mockReports) &&
+          loginData.mockReports.includes(examId)
+        );
+      }
+
+      function mockReportButtonHtml(examId) {
+        if (!hasMockReport(examId)) return "";
+        return `<button class="btn btn-primary" style="margin-top:14px" onclick="openMockReport(${examId}, this)">📄 상세 분석지 보기</button>
+        <div class="mock-report-msg" id="mock-report-msg"></div>`;
+      }
+
+      // 링크는 누를 때마다 새로 받는다 (5분 뒤 만료 — 문자·카톡으로 퍼져도 곧 열리지 않게).
+      // 새 창을 먼저 열어 두고 주소를 나중에 넣어야 휴대폰 사파리의 팝업 차단에 걸리지 않는다.
+      async function openMockReport(examId, btn) {
+        const msg = document.getElementById("mock-report-msg");
+        if (msg) msg.textContent = "";
+        if (btn) btn.disabled = true;
+        const w = window.open("", "_blank");
+        try {
+          const res = await fetch(
+            `${PARENT_LOGIN_URL}?report=${encodeURIComponent(examId)}`,
+            { method: "GET" },
+          );
+          const data = res.ok ? await res.json() : null;
+          if (!data || !data.url) throw new Error(String(res.status));
+          if (w) w.location.href = data.url;
+          else location.href = data.url;
+        } catch (e) {
+          if (w) w.close();
+          if (msg)
+            msg.textContent =
+              "분석지를 열지 못했습니다. 잠시 후 다시 시도해 주세요.";
+        } finally {
+          if (btn) btn.disabled = false;
+        }
       }
 
       function renderChart() {
