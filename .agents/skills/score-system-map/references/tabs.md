@@ -8,6 +8,7 @@
 | 점수 입력 | `tab-score` | 219~ | 1101~1893 | `loadScoreInputs` 1349 · `renderScoreInputs` 1783 · `saveAllScores` 1840 · `saveItemConfig` 1670 · `refreshGroupInfo` 1425 |
 | 주차 관리 | `tab-week` | 299~ | 939~1100 | `addWeek` 1045 · `loadWeekList` 1074 · `deleteWeek` 1084 · `renderWeekPreview` 1024 |
 | 학생 관리 | `tab-student` | 338~ | 3668~3807 | `addStudent` 3668 · `loadStudentList` 3720 · `searchStudents` 3734 · `deleteStudent` 3787 · 반 이동 모달 2056~2281 |
+| 퇴원생 (학생 관리 하단 카드) | `tab-student` 안 `#withdrawn-card` | 학생 목록 카드 아래 | `// ── 퇴원생` 블록 | `toggleWithdrawnCard` · `refreshWithdrawnCard` · `loadWithdrawnStudents` · `toggleWithdrawnRecords` · `restoreWithdrawn` — `is_active=false` 학생만, 접혀 있으면 인원만 센다. 퇴원일은 `data_history`에서 찾음. 학생 목록·검색은 재원생만 보여준다 |
 | 모의고사 | `tab-mock` | 371~ | 3211~3667 | `addMockExam` 3227 · `loadMockScoreInputs` 3292 · `saveMockScores` 3596 · `deleteMockExam` 3651 |
 | 학부모 문자 발송 | `tab-sms` | 463~ | 2831~2955 | `loadSmsTargets` 2842 · `makeSmsText` 2885 · `sendAllSms` 2920 |
 | 반 관리 | `tab-class` | 504~ | 2697~2830 | `loadClassList` 2697 · `addClass` 2778 · `deleteClass` 2801 · `refreshClassSelects` 2729 |

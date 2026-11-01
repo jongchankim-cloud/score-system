@@ -168,11 +168,15 @@
   .move-how { font-size:10px; color:var(--gray); margin-top:2px; }
   .move-how.auto { color:var(--green); }
   .move-how.warn { color:var(--red); }
+  .move-how.new { color:var(--orange); }
   /* 접을 수 있는 설정 영역 */
   .cfg-toggle { display:flex; align-items:center; gap:6px; padding:0; border:none; background:none; cursor:pointer; font-family:'Noto Sans KR',sans-serif; font-size:11px; color:var(--gray); font-weight:500; letter-spacing:0.5px; text-align:left; }
   .cfg-toggle:hover { color:var(--navy); }
   .cfg-toggle .chev { display:inline-block; font-size:10px; color:var(--gold); transition:transform 0.15s; }
   .cfg-toggle.collapsed .chev { transform:rotate(-90deg); }
+  .withdrawn-toggle { display:flex; align-items:center; gap:8px; padding:0; border:none; background:none; cursor:pointer; font-family:'Noto Sans KR',sans-serif; font-size:14px; font-weight:700; color:var(--navy); }
+  .withdrawn-toggle .chev { display:inline-block; font-size:11px; color:var(--gold); transition:transform 0.15s; }
+  .withdrawn-toggle.collapsed .chev { transform:rotate(-90deg); }
   /* 만점 초과·음수 입력 강조 — 커트라인 미달(빨강)과 구분되도록 주황 */
   .score-input-row input.over-max, .mock-input-row input.over-max { color:var(--orange); border-color:var(--orange); font-weight:700; background:var(--orange-light); }
   .range-warn { font-size:12px; color:var(--orange); font-weight:600; margin:10px 0 4px; }
@@ -225,6 +229,8 @@
   .item-config-hint { font-size:11px; color:var(--gray); margin-top:6px; line-height:1.6; }
   .item-config-total { font-size:12px; color:var(--gray); margin-top:8px; }
   .item-config-total strong { color:var(--navy); }
+  .cfg-cut-share { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:12px; color:var(--navy); margin-top:8px; cursor:pointer; }
+  .cfg-cut-share span { color:var(--gray); }
   /* 비교 그룹 반 선택 (체크박스) */
   .btn-light { background:var(--cream); color:var(--navy); border:1.5px solid var(--border); }
   .btn-light:hover { background:var(--white); border-color:var(--gold); }
@@ -352,6 +358,7 @@
             <div class="item-config-editor" id="item-config-editor"></div>
           </div>
           <div class="item-config-total" id="item-config-total"></div>
+          <label class="cfg-cut-share" id="item-config-cut-share" style="display:none"><input type="checkbox" id="item-config-cut-all"> 커트라인도 비교 그룹의 모든 반에 똑같이 적용 <span>(끄면 항목·만점만 함께 바뀌고 커트라인은 이 반에만 저장됩니다)</span></label>
           <div class="group-avg-info" id="group-avg-info"></div>
           <div style="margin-top:8px">
             <button class="btn btn-light btn-sm" id="group-edit-btn" onclick="toggleGroupEdit('week', true)" style="display:none">비교 그룹 수정</button>
@@ -447,6 +454,23 @@
         <div id="student-list" style="overflow-x:auto"><p style="font-size:13px;color:var(--gray)">반을 선택하거나 이름으로 검색하세요.</p></div>
       </div>
     </div>
+    <!-- 퇴원생: 학생 목록에서 빠진 퇴원생을 따로 모아 본다. 평소엔 접어 두고 펼칠 때만 불러온다. -->
+    <div class="section-card" id="withdrawn-card">
+      <div class="section-head">
+        <button type="button" class="withdrawn-toggle collapsed" id="withdrawn-toggle" onclick="toggleWithdrawnCard()">
+          <span class="chev">▾</span><span id="withdrawn-title">퇴원생</span>
+        </button>
+        <button class="btn btn-light btn-sm" id="withdrawn-refresh" onclick="loadWithdrawnStudents()" style="display:none">새로고침</button>
+      </div>
+      <div class="section-body" id="withdrawn-body" style="display:none">
+        <p style="font-size:12px;color:var(--gray);margin:0 0 12px;line-height:1.7">퇴원 처리한 학생만 모아 봅니다. 위 학생 목록·점수 입력·문자 발송·학부모 화면에는 나오지 않지만 점수 기록은 그대로 남아 있습니다. <strong>[복귀]</strong>하면 원래 반으로 돌아갑니다.</p>
+        <div class="form-row">
+          <div class="form-group"><label>반</label><select id="withdrawn-class" onchange="renderWithdrawnList()"><option value="">전체 반</option></select></div>
+          <div class="form-group"><label>이름 검색</label><input type="text" id="withdrawn-search" placeholder="학생 이름" oninput="renderWithdrawnList()"></div>
+        </div>
+        <div id="withdrawn-list" style="overflow-x:auto"><p style="font-size:13px;color:var(--gray)">펼치면 불러옵니다.</p></div>
+      </div>
+    </div>
   </div>
 
   <!-- 탭4: 모의고사 -->
@@ -496,6 +520,7 @@
               <div class="item-config-editor" id="mock-item-config-editor"></div>
             </div>
             <div class="item-config-total" id="mock-item-config-total"></div>
+            <label class="cfg-cut-share" id="mock-item-config-cut-share" style="display:none"><input type="checkbox" id="mock-item-config-cut-all"> 커트라인도 비교 그룹의 모든 반에 똑같이 적용 <span>(끄면 항목·만점만 함께 바뀌고 커트라인은 이 반에만 저장됩니다)</span></label>
             <div class="group-avg-info" id="mock-group-avg-info"></div>
             <div style="margin-top:8px">
               <button class="btn btn-light btn-sm" id="mock-group-edit-btn" onclick="toggleGroupEdit('mock', true)" style="display:none">비교 그룹 수정</button>
@@ -1146,7 +1171,7 @@ async function adminLogin() {
 }
 
 let classes = [];
-const CLASS_SELECT_IDS = ['score-class','week-list-class','new-class','student-list-class','mock-score-class','mock-list-class','sms-class','uncert-class','student-sms-class','absent-class','clinic-sms-class','score-sms-class','history-class'];
+const CLASS_SELECT_IDS = ['score-class','week-list-class','new-class','student-list-class','mock-score-class','mock-list-class','sms-class','uncert-class','student-sms-class','absent-class','clinic-sms-class','score-sms-class','history-class','withdrawn-class'];
 
 // 숫자 입력칸(type=number)은 포커스된 채 마우스 휠을 굴리면 브라우저가 값을 올리내려
 // 방금 입력한 점수가 눈치채지 못한 사이에 바뀐다. 동적으로 생성되는 칸까지 전부 막기 위해
@@ -1183,6 +1208,7 @@ function switchTab(tabId) {
   if (tabId === 'tab-class') loadClassList();
   if (tabId === 'tab-memo') loadMemos();
   if (tabId === 'tab-clinic-schedule') loadClinicSchedule(false);
+  if (tabId === 'tab-student') refreshWithdrawnCard();
 }
 
 // ── 주차 관리
@@ -1668,6 +1694,13 @@ function sumScores(vals) {
   return nums.reduce((a, b) => a + parseFloat(b), 0);
 }
 
+// 표를 다시 불러오는 동안 높이를 붙잡아 둔다. 표를 '불러오는 중' 한 줄로 바꾸면 페이지가 확 줄어
+// 아래로 내려가 있던 화면이 맨 위로 튕긴다(2026-11 제보: 반을 바꾸고 내려가서 칸을 누르려 하면 위로 올라감).
+function holdTableHeight(el) { if (el && el.offsetHeight) el.style.minHeight = el.offsetHeight + 'px'; }
+function releaseTableHeight(el) { if (el) el.style.minHeight = ''; }
+let _scoreLoadSeq = 0;   // 반·주차를 빠르게 바꿀 때 먼저 시작한 조회가 늦게 끝나 새 표를 덮지 않게
+let _mockLoadSeq = 0;
+
 async function loadWeeksForScore() {
   const classId = document.getElementById('score-class').value;
   const sel = document.getElementById('score-week');
@@ -1681,14 +1714,27 @@ async function loadWeeksForScore() {
   }
 
   sel.innerHTML = '<option value="">주차를 선택하세요</option>';
-  if (!classId) return;
+  // 반을 바꾸면 이전 반 표를 바로 내린다. 주차 목록을 받는 동안 이전 반 학생 칸이 그대로 보여
+  // 조교가 내려가서 누르려는 순간 표가 통째로 바뀌며 화면이 튀었다.
+  const seq = ++_scoreLoadSeq;
+  const container = document.getElementById('score-inputs-container');
+  if (container && container.querySelector('.score-input-row')) {
+    holdTableHeight(container);
+    container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
+    container.dataset.weekId = '';
+  }
+  if (!classId) { releaseTableHeight(container); return; }
   const weeks = sortByTestDate(await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`));
+  if (seq !== _scoreLoadSeq) return;   // 그 사이 다른 반을 골랐다
   weeks.forEach(w => { const opt = document.createElement('option'); opt.value = w.id; opt.textContent = w.label || w.test_date; sel.appendChild(opt); });
 
   // 가장 최근 주차 자동 선택
   if (weeks.length > 0) {
     sel.value = weeks[0].id;
     loadScoreInputs();
+  } else {
+    document.getElementById('score-input-card').style.display = 'none';
+    releaseTableHeight(container);
   }
 }
 
@@ -1813,13 +1859,16 @@ async function loadScoreInputs() {
   const container = document.getElementById('score-inputs-container');
   card.style.display = 'block';
   // 주차를 바꾸는 즉시 이전 주차 행을 지운다. 불러오기가 실패해도 옛 행이 남아
-  // 다른 주차에 저장되는 일이 없어야 한다.
+  // 다른 주차에 저장되는 일이 없어야 한다. 높이는 붙잡아 둬서 스크롤이 위로 튀지 않게 한다.
+  const seq = ++_scoreLoadSeq;
+  holdTableHeight(container);
   container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
   container.dataset.weekId = '';
 
   try {
   // 주차 메모 + 항목 설정 불러오기
   const weekData = await api(`weeks?id=eq.${weekId}&select=memo,item_config,group_id`);
+  if (seq !== _scoreLoadSeq) return;   // 그 사이 다른 반·주차를 골랐다 — 늦게 온 응답으로 화면을 덮지 않는다
   const memoEl = document.getElementById('week-memo');
   memoEl.value = weekData?.[0]?.memo || '';
   memoEl.style.height = 'auto';
@@ -1834,7 +1883,6 @@ async function loadScoreInputs() {
 
   // 캐시가 있어도 항상 DB를 새로 읽는다. 예전엔 한 번 연 주차를 캐시로 다시 그렸는데, 그 사이
   // 다른 사람이 입력한 과제%·평가·메모가 화면에 없는 채로 '전체 저장'되어 지워진 사고가 있었다(8.31 주차).
-  container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
   if (!studentCache[classId]) {
     studentCache[classId] = await api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`) || [];
   }
@@ -1842,6 +1890,7 @@ async function loadScoreInputs() {
     api(`scores?week_id=eq.${weekId}&select=*`),
     fetchCarriedEvals(classId, weekId)
   ]);
+  if (seq !== _scoreLoadSeq) return;
   // 응답이 배열이 아니면(네트워크 오류·서버 오류로 값이 안 온 상태) 표를 그리지 않는다.
   // 예전엔 이때 빈 표가 떠서, 그대로 '전체 저장'하면 모든 칸이 빈 값으로 덮어써졌다.
   if (!Array.isArray(scores)) throw new Error('scores_not_loaded');
@@ -1849,7 +1898,10 @@ async function loadScoreInputs() {
   scores.forEach(s => { scoreCache[weekId][s.student_id] = s; });
   currentNoHomework = hasNoHomework(scoreCache[weekId]);
   renderScoreInputs(classId, weekId, scoreCache[weekId]);
+  releaseTableHeight(container);
   } catch (e) {
+    if (seq !== _scoreLoadSeq) return;
+    releaseTableHeight(container);
     // 네트워크 끊김·서버 오류 등 어떤 이유로든 값이 안 왔으면 표를 그리지 않는다.
     // 예전엔 빈 표(또는 이전 주차 표)가 남아, 그대로 '전체 저장'하면 모든 칸이 빈 값으로 덮어써졌다.
     container.innerHTML = '<p style="font-size:13px;color:var(--red);padding:12px 0">❌ 점수를 불러오지 못했어요. 인터넷 연결을 확인하고 페이지를 새로고침한 뒤 다시 열어주세요.<br><span style="color:var(--gray);font-size:12px">빈 화면이 그대로 저장되는 사고를 막기 위해 표를 그리지 않았습니다.</span></p>';
@@ -1959,13 +2011,16 @@ async function refreshGroupInfo() {
     let html = `비교 그룹 <strong>${currentGroupWeeks.length}개 반</strong> (${escapeHtml(classNames.join(', '))})<br>`
       + `그룹 평균 <strong>${avg === null ? '–' : avg + '점'}</strong>`
       + `${avg === null ? '' : ` / ${totalMax}점`} · 표본 <strong>${totals.length}명</strong>`
-      + ` <span style="color:var(--gray)">— 학부모 화면에 이 값이 표시됩니다.</span>`;
+      + ` <span style="color:var(--gray)">— 학부모 화면에 이 값이 표시됩니다.</span>`
+      + groupCutSummary(currentGroupWeeks, currentItemConfig, DEFAULT_ITEM_CONFIG);
+    { const share = document.getElementById('item-config-cut-share');
+      if (share) share.style.display = (currentWeekGroupId && currentGroupWeeks.length > 1) ? '' : 'none'; }
     if (!currentWeekGroupId) {
       html += `<br><span class="warn">이 주차는 비교 그룹(group_id)이 없어 이 반만으로 평균이 계산됩니다.</span>`;
     }
     if (mismatched.length) {
       html += `<br><span class="warn">⚠️ 항목 구성(활성 항목·만점)이 다른 반: ${escapeHtml(mismatched.join(', '))}`
-        + ` — [항목 설정 저장]을 누르면 그룹 전체가 현재 설정으로 통일됩니다.</span>`;
+        + ` — [항목 설정 저장]을 누르면 그룹 전체의 항목·만점이 현재 설정으로 통일됩니다.</span>`;
     }
     el.innerHTML = html;
   } catch (e) {
@@ -2169,6 +2224,34 @@ function updateItemConfigTotal() {
   totalEl.innerHTML = `사용 항목 <strong>${active.length}개</strong> · 총점 만점 <strong>${totalMax}</strong>점`;
 }
 
+// 비교 그룹에 같은 항목 설정을 쓰되, 커트라인은 반마다 다를 수 있다 (2026-11 요청: 하위 반은 커트를 낮춤).
+// 평균·석차는 활성 항목·만점만 쓰므로(학부모 화면도 같다) 커트가 반마다 달라도 비교는 깨지지 않는다.
+// cutAll=false면 다른 반은 각자 지금 커트를 유지하고, 그 반에 없던 새 항목만 이번 커트를 기본값으로 받는다.
+function groupItemConfigs(rows, selfId, items, cutAll, defaults) {
+  return rows.map(r => {
+    if (cutAll || r.id === selfId) return { id: r.id, items };
+    const own = normalizeItemConfig(r.item_config, defaults);
+    const cutOf = {}; own.forEach(it => { cutOf[it.key] = it.cut; });
+    return { id: r.id, items: items.map(it => ({ ...it, cut: (it.key in cutOf) ? cutOf[it.key] : it.cut })) };
+  });
+}
+
+// 그룹 안 반마다 커트가 다르면 반별로 한 줄씩 보여준다 (같으면 빈 문자열)
+function groupCutSummary(rows, myItems, defaults) {
+  if (!rows || rows.length < 2) return '';
+  const labelOf = {}; myItems.forEach(it => { labelOf[it.key] = it.label || it.key; });
+  const keys = myItems.filter(it => it.active).map(it => it.key);
+  const lines = rows.map(r => {
+    const cfg = normalizeItemConfig(r.item_config, defaults);
+    const cut = {}; cfg.forEach(it => { cut[it.key] = it.cut; });
+    return { name: classes.find(c => c.id === r.class_id)?.name || `반 #${r.class_id}`,
+             sig: keys.map(k => cut[k] ?? '–').join('/'),
+             text: keys.map(k => `${labelOf[k]} ${cut[k] ?? '–'}`).join(', ') };
+  });
+  if (new Set(lines.map(l => l.sig)).size < 2) return '';
+  return `<br>반별 커트라인: ` + lines.map(l => `<strong>${escapeHtml(l.name)}</strong> ${escapeHtml(l.text)}`).join(' · ');
+}
+
 async function saveItemConfig() {
   const weekId = document.getElementById('week-memo').dataset.weekId;
   if (!weekId) { showToast('먼저 주차를 선택하세요.'); return; }
@@ -2180,16 +2263,21 @@ async function saveItemConfig() {
   // 열 구성이 바뀌므로 입력 중이던 점수를 보존한 뒤 재렌더
   const preserved = collectCurrentScores();
   const classId = document.getElementById('score-class').value;
-  // 항목 설정은 비교 그룹 전체에 동일하게 적용한다.
+  // 항목·만점은 비교 그룹 전체에 동일하게 적용한다.
   // 그룹 내 주차마다 활성 항목·만점이 다르면 학부모 화면의 평균·석차가
   // 서로 다른 기준의 총점을 섞어 계산하게 되므로(다른 반 학생이 모집단에서
-  // 조용히 빠지거나 총점이 낮게 잡힘) group_id 단위로 통일한다.
-  const target = currentWeekGroupId
-    ? `weeks?group_id=eq.${encodeURIComponent(currentWeekGroupId)}`
-    : `weeks?id=eq.${weekId}`;
+  // 조용히 빠지거나 총점이 낮게 잡힘) group_id 단위로 통일한다. 커트라인은 체크했을 때만 함께 맞춘다.
+  const cutAll = !!document.getElementById('item-config-cut-all')?.checked;
   try {
-    const res = await apiRaw(target, 'PATCH', { item_config: { items } });
-    if (!res.ok) { showToast('❌ 항목 설정 저장 실패'); return; }
+    // 저장 직전에 그룹 주차를 새로 읽는다 — 다른 반이 그사이 커트를 바꿨을 수 있다
+    const rows = currentWeekGroupId
+      ? await api(`weeks?group_id=eq.${encodeURIComponent(currentWeekGroupId)}&select=id,class_id,item_config`)
+      : [{ id: parseInt(weekId), item_config: null }];
+    if (!Array.isArray(rows) || !rows.length) { showToast('❌ 비교 그룹 정보를 확인하지 못해 저장을 중단했어요.'); return; }
+    const plans = groupItemConfigs(rows, parseInt(weekId), items, cutAll, DEFAULT_ITEM_CONFIG);
+    const results = await Promise.all(plans.map(pl => apiRaw(`weeks?id=eq.${pl.id}`, 'PATCH', { item_config: { items: pl.items } })));
+    const failed = results.filter(r => !r.ok).length;
+    if (failed) { showToast(`❌ 항목 설정 저장 실패 (${failed}개 반)`); refreshGroupInfo(); return; }
     currentItemConfig = normalizeItemConfig({ items });
     renderItemConfigEditor();
     // 캐시된 점수 위에 입력 중이던 값 병합 후 재렌더 (미저장 점수 유지)
@@ -2197,10 +2285,11 @@ async function saveItemConfig() {
     Object.keys(preserved).forEach(sid => { base[sid] = { ...(base[sid] || {}), ...preserved[sid] }; });
     renderScoreInputs(classId, weekId, base);
     refreshGroupInfo();
-    const n = currentGroupWeeks.length;
+    const n = rows.length;
     showToast(currentWeekGroupId && n > 1
-      ? `✅ 항목 설정이 저장됐어요! (비교 그룹 ${n}개 반 공통 적용)`
-      : '✅ 항목 설정이 저장됐어요!');
+      ? (cutAll ? `✅ 항목 설정이 저장됐어요! (커트라인 포함 비교 그룹 ${n}개 반 공통 적용)`
+                : `✅ 항목 설정이 저장됐어요! (항목·만점은 ${n}개 반 공통, 커트라인은 이 반만)`)
+      : '✅ 항목 설정이 저장됐어요!', 3500);
   } catch (e) { showToast('❌ 오류 발생: ' + e.message); }
 }
 
@@ -2730,44 +2819,68 @@ function renderMoveMatch() {
     return { fw, tw, how };
   });
 
+  // 대응 주차가 없으면 이동할 반에 같은 주의 주차를 새로 만들어 옮기는 것을 기본으로 한다 (2026-11 요청).
+  // 날짜는 이동할 반의 수업 요일로 맞춘다 (주차 관리의 '주차 추가'와 같은 규칙).
+  const toClass = classes.find(c => c.id === window._moveToClassId);
   preview.innerHTML = rows.map(({ fw, tw, how }) => {
+    const newLabel = moveNewWeekLabel(fw, toClass);
     const opts = `<option value="">— 이전하지 않음 —</option>` +
+      `<option value="new"${tw ? '' : ' selected'}>＋ 새 주차 만들어 옮기기 (${escapeHtml(newLabel)})</option>` +
       toWeeks.map(w => `<option value="${w.id}"${tw && w.id === tw.id ? ' selected' : ''}>${escapeHtml(labelOf(w))}</option>`).join('');
     return `<div class="move-row" data-from-week="${fw.id}">
       <div>
         <div class="from">${escapeHtml(labelOf(fw))}</div>
-        <div class="move-how ${tw ? 'auto' : 'warn'}">${tw ? how : '자동 매칭 없음 — 직접 선택'}</div>
+        <div class="move-how ${tw ? 'auto' : 'new'}">${tw ? how : `대응 주차 없음 — 새 주차 ${escapeHtml(newLabel)} 생성`}</div>
       </div>
       <div class="arrow">→</div>
-      <select class="move-target${tw ? '' : ' none'}" onchange="onMoveTargetChange(this)">${opts}</select>
+      <select class="move-target" onchange="onMoveTargetChange(this)">${opts}</select>
     </div>`;
   }).join('') + `<div id="move-match-summary" style="margin-top:8px"></div>`;
 
   updateMoveMatchSummary();
 }
 
+// 새로 만들 주차의 날짜: 원래 주차가 속한 주(월~일)에서 이동할 반의 수업 요일. 요일이 없으면 원래 날짜.
+function moveNewWeekLabel(fw, toClass) {
+  const label = fw.label || fw.test_date || '';
+  const base = resolveBaseDate(fw.test_date || fw.label);
+  const d = base && toClass && toClass.day ? dateForDay(base, toClass.day) : null;
+  return d ? fmtMD(d) : label;
+}
+
 function onMoveTargetChange(sel) {
   sel.classList.toggle('none', !sel.value);
   const how = sel.closest('.move-row').querySelector('.move-how');
-  if (how) { how.textContent = sel.value ? '직접 선택' : '이전하지 않음'; how.className = `move-how ${sel.value ? 'auto' : 'warn'}`; }
+  if (how) {
+    const isNew = sel.value === 'new';
+    how.textContent = isNew ? '새 주차 생성' : sel.value ? '직접 선택' : '이전하지 않음';
+    how.className = `move-how ${isNew ? 'new' : sel.value ? 'auto' : 'warn'}`;
+  }
   updateMoveMatchSummary();
 }
 
 // 화면에서 선택된 매칭을 읽는다
+// create=true면 이동할 반에 주차를 새로 만들어 그 주차로 옮긴다 (to_week_id는 만든 뒤 채운다)
 function collectMoveMapping() {
-  return Array.from(document.querySelectorAll('#move-match-preview .move-row')).map(row => ({
-    from_week_id: parseInt(row.dataset.fromWeek),
-    to_week_id: row.querySelector('.move-target').value ? parseInt(row.querySelector('.move-target').value) : null
-  }));
+  return Array.from(document.querySelectorAll('#move-match-preview .move-row')).map(row => {
+    const v = row.querySelector('.move-target').value;
+    return {
+      from_week_id: parseInt(row.dataset.fromWeek),
+      create: v === 'new',
+      to_week_id: v && v !== 'new' ? parseInt(v) : null
+    };
+  });
 }
 
 function updateMoveMatchSummary() {
   const el = document.getElementById('move-match-summary');
   if (!el) return;
   const map = collectMoveMapping();
-  const matched = map.filter(m => m.to_week_id !== null);
-  const dupes = matched.map(m => m.to_week_id).filter((v, i, a) => a.indexOf(v) !== i);
-  el.innerHTML = `<strong style="color:var(--navy)">이전 ${matched.length}건 / 제외 ${map.length - matched.length}건</strong>`
+  const matched = map.filter(m => m.to_week_id !== null || m.create);
+  const created = map.filter(m => m.create).length;
+  const dupes = matched.filter(m => !m.create).map(m => m.to_week_id).filter((v, i, a) => a.indexOf(v) !== i);
+  el.innerHTML = `<strong style="color:var(--navy)">이전 ${matched.length}건${created ? ` (새 주차 ${created}개 생성)` : ''} / 제외 ${map.length - matched.length}건</strong>`
+    + (created ? `<br><span style="color:var(--gray)">새 주차는 원래 주차의 비교 그룹·채점 항목·과제 내용을 그대로 이어받습니다. 이동할 반의 다른 학생에게는 점수 없는 주차로 보입니다.</span>` : '')
     + (dupes.length ? `<br><span style="color:var(--red)">⚠️ 같은 주차를 두 번 선택했습니다. 하나만 남겨주세요.</span>` : '');
 }
 
@@ -2786,7 +2899,7 @@ async function confirmMoveStudent() {
 
   // 같은 주차를 두 번 고르면 점수가 겹쳐 저장되므로 막는다
   const mapping = collectMoveMapping();
-  const picked = mapping.filter(m => m.to_week_id !== null).map(m => m.to_week_id);
+  const picked = mapping.filter(m => m.to_week_id !== null && !m.create).map(m => m.to_week_id);
   if (picked.length !== new Set(picked).size) {
     showToast('❌ 같은 주차를 두 번 선택했습니다. 하나만 남겨주세요.');
     return;
@@ -2800,14 +2913,24 @@ async function confirmMoveStudent() {
     destHas = new Set(rows.map(r => r.week_id));
   }
 
-  const updates = [], orphans = [], conflicts = [];
+  const updates = [], orphans = [], conflicts = [], creates = [];
   mapping.forEach(m => {
     const fw = fromWeeks.find(w => w.id === m.from_week_id);
     const label = labelOf(fw);
-    if (m.to_week_id === null)        orphans.push(label);
+    if (m.create)                     { creates.push({ ...m, fw }); updates.push(m); }
+    else if (m.to_week_id === null)   orphans.push(label);
     else if (destHas.has(m.to_week_id)) conflicts.push(label);
     else                              updates.push(m);
   });
+  const toClass = classes.find(c => c.id === toClassId);
+
+  if (creates.length) {
+    const lines = creates.map(c => `${labelOf(c.fw)} → ${moveNewWeekLabel(c.fw, toClass)}`);
+    if (!confirm(`${toClass?.name || '이동할 반'}에 주차 ${creates.length}개를 새로 만들어 점수를 옮깁니다.\n`
+      + lines.map(l => ` · ${l}`).join('\n')
+      + `\n\n새 주차는 원래 주차의 비교 그룹·채점 항목·과제 내용을 이어받습니다.\n`
+      + `이 반의 다른 학생에게는 점수가 없는 주차로 보입니다.\n\n계속할까요?`)) return;
+  }
 
   if (orphans.length || conflicts.length) {
     let msg = '';
@@ -2815,8 +2938,7 @@ async function confirmMoveStudent() {
       msg += `⚠️ 이전하지 않는 기록 ${orphans.length}건\n`
            + `   (${orphans.join(', ')})\n`
            + `   → 그대로 이동하면 관리자 화면에서 보이지 않게 됩니다.\n`
-           + `   → 대응 주차가 있다면 목록에서 직접 선택하고, 없다면\n`
-           + `      [주차 관리]에서 먼저 만든 뒤 이동하세요.\n\n`;
+           + `   → 대응 주차를 직접 고르거나 '＋ 새 주차 만들어 옮기기'를 선택하세요.\n\n`;
     }
     if (conflicts.length) {
       msg += `⚠️ 이동할 반에 이미 점수가 입력된 주차 ${conflicts.length}건\n`
@@ -2828,11 +2950,37 @@ async function confirmMoveStudent() {
   }
 
   try {
-    for (const u of updates) {
-      await api(`scores?student_id=eq.${_moveStudentId}&week_id=eq.${u.from_week_id}`,
-                'PATCH', { week_id: u.to_week_id });
+    // ① 대응 주차가 없는 기록은 이동할 반에 주차를 먼저 만든다. 하나라도 실패하면 학생은 옮기지 않는다.
+    const madeLabels = [];
+    for (const c of creates) {
+      const label = moveNewWeekLabel(c.fw, toClass);
+      const body = { class_id: toClassId, test_date: label, label, group_id: c.fw.group_id || null };
+      if (c.fw.item_config) body.item_config = c.fw.item_config;
+      if (c.fw.memo) body.memo = c.fw.memo;
+      const made = await api('weeks', 'POST', body);
+      const row = Array.isArray(made) ? made[0] : null;
+      if (!row || !row.id) {
+        showToast(`❌ ${label} 주차를 만들지 못해 반 이동을 중단했어요.${madeLabels.length ? ` (이미 만든 주차: ${madeLabels.join(', ')})` : ''}`, 5000);
+        return;
+      }
+      c.to_week_id = row.id;
+      updates.find(u => u.from_week_id === c.from_week_id).to_week_id = row.id;
+      madeLabels.push(label);
     }
-    await api(`students?id=eq.${_moveStudentId}`, 'PATCH', { class_id: toClassId });
+    // ② 점수 행을 옮긴다. 실패하면 학생의 반은 바꾸지 않는다(점수와 반이 어긋나지 않게).
+    const failedMoves = [];
+    for (const u of updates) {
+      const res = await apiRaw(`scores?student_id=eq.${_moveStudentId}&week_id=eq.${u.from_week_id}`,
+                'PATCH', { week_id: u.to_week_id });
+      if (!res.ok) failedMoves.push(labelOf(fromWeeks.find(w => w.id === u.from_week_id)));
+    }
+    if (failedMoves.length) {
+      showToast(`❌ 점수 ${failedMoves.length}건(${failedMoves.join(', ')})을 옮기지 못해 반 이동을 중단했어요. 다시 시도해주세요.`, 5000);
+      return;
+    }
+    const stRes = await apiRaw(`students?id=eq.${_moveStudentId}`, 'PATCH', { class_id: toClassId });
+    if (!stRes.ok) { showToast('❌ 점수는 옮겼지만 학생의 반을 바꾸지 못했어요. 다시 시도해주세요.', 5000); return; }
+    if (creates.length) Object.keys(_prevEvalCache).forEach(k => delete _prevEvalCache[k]);
 
     // 캐시 무효화 (안 하면 새로고침 전까지 옛 명단이 보임)
     [studentCache, scoreCache, mockScoreCache, _uncertScoreData, _prevEvalCache]
@@ -2840,7 +2988,8 @@ async function confirmMoveStudent() {
 
     const tail = (orphans.length + conflicts.length)
       ? ` / 미이전 ${orphans.length + conflicts.length}건` : '';
-    showToast(`✅ 반 이동 완료 — ${updates.length}건 이전${tail}`, 4000);
+    const madeTail = creates.length ? ` (새 주차 ${creates.length}개 생성)` : '';
+    showToast(`✅ 반 이동 완료 — ${updates.length}건 이전${madeTail}${tail}`, 4500);
     closeMoveModal();
     loadStudentList();
   } catch(e) {
@@ -3101,9 +3250,26 @@ function pickClinicRecipient(btn) {
   document.querySelectorAll('#clinic-sms-recipient-btns .memo-author-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   _clinicRecipient = btn.dataset.recipient;
-  // 발송처가 바뀌면 대상 목록의 연락처/상태를 다시 렌더
+  // 발송처가 바뀌면 대상 목록의 연락처/상태를 다시 렌더.
+  // 골라둔 학생과 저장 전 과제평가·메모는 그대로 살린다 (성적 문자 탭과 같은 요청)
   if (document.getElementById('clinic-sms-class').value && document.getElementById('clinic-sms-week').value) {
-    loadClinicSmsTargets();
+    const keep = {};
+    document.querySelectorAll('#clinic-sms-list tr[data-student-id]').forEach(tr => {
+      keep[tr.dataset.studentId] = {
+        checked: !!tr.querySelector('.clinic-sms-check')?.checked,
+        eval: tr.querySelector('.clinic-eval')?.value, memo: tr.querySelector('.clinic-memo')?.value
+      };
+    });
+    loadClinicSmsTargets().then(() => {
+      document.querySelectorAll('#clinic-sms-list tr[data-student-id]').forEach(tr => {
+        const k = keep[tr.dataset.studentId];
+        if (!k) return;
+        const cb = tr.querySelector('.clinic-sms-check');
+        if (cb && !cb.disabled) cb.checked = k.checked;
+        if (k.eval !== undefined && tr.querySelector('.clinic-eval')) tr.querySelector('.clinic-eval').value = k.eval;
+        if (k.memo !== undefined && tr.querySelector('.clinic-memo')) tr.querySelector('.clinic-memo').value = k.memo;
+      });
+    });
   }
 }
 
@@ -4627,8 +4793,10 @@ function pickScoreSmsRecipient(btn) {
   btn.classList.add('active');
   _scoreSmsRecipient = btn.dataset.recipient;
   saveScoreSmsSettings();
-  // 발송처가 바뀌면 쓰는 연락처가 달라지므로 기본 선택부터 다시 잡는다
-  if (window._scoreSmsTargets) renderScoreSmsList(true);
+  // 발송처를 바꿔도 조교가 골라둔 학생은 그대로 둔다 (2026-11 요청: 학부모에게 한 명 보낸 뒤
+  // 학생으로 바꾸면 전원이 다시 체크돼, 전체 해제 후 그 학생을 다시 찾아야 했다).
+  // 새 발송처 연락처가 없는 학생만 체크가 빠진다.
+  if (window._scoreSmsTargets) renderScoreSmsList(false);
 }
 const DEFAULT_SCORE_SMS_TEMPLATE = `[용산대성N학원 영어과]
 {이름} 학생 {주차} 테스트 결과입니다.
@@ -5252,8 +5420,9 @@ function renderScoreSmsList(first) {
 
   const prev = {};
   if (!first) {
+    // 학생 id로 기억한다 — 연락처가 없어 비활성이던 칸도 체크 상태는 그대로 넘겨 받는다
     document.querySelectorAll('#score-sms-list .score-sms-check')
-      .forEach(cb => { prev[cb.dataset.idx] = cb.checked; });
+      .forEach(cb => { const id = cb.closest('tr')?.dataset.studentId; if (id) prev[id] = cb.checked; });
   }
 
   const phoneLabel = _scoreSmsRecipient === 'parent' ? '학부모 연락처' : '학생 연락처';
@@ -5267,7 +5436,7 @@ function renderScoreSmsList(first) {
       const text = composeScoreSms(t);
       const bytes = smsByteLength(text);
       const phone = scoreSmsPhone(t);
-      const checked = first ? (!!phone && !t.absent && !t.notTarget) : !!prev[i];
+      const checked = first ? (!!phone && !t.absent && !t.notTarget) : (!!prev[t.id] && !!phone);
       const badge = !phone ? '<span class="badge badge-inactive">번호없음</span>'
         : t.notTarget ? '<span class="badge badge-inactive">대상 아님</span>'
         : t.absent ? `<span class="badge badge-inactive">미응시${t.attendanceFalse ? ' · 결석' : ''}</span>`
@@ -5385,8 +5554,10 @@ async function loadMockExams() {
   const sel = document.getElementById('mock-score-exam');
   sel.innerHTML = '<option value="">모의고사를 선택하세요</option>';
   document.getElementById('mock-score-card').style.display = 'none';
+  const seq = ++_mockLoadSeq;
   if (!classId) return;
   const exams = sortByTestDate(await api(`mock_exams?class_id=eq.${classId}&order=id.desc&select=*`));
+  if (seq !== _mockLoadSeq) return;   // 그 사이 다른 반을 골랐다
   exams.forEach(e => { const opt = document.createElement('option'); opt.value = e.id; opt.textContent = e.label || e.exam_date; sel.appendChild(opt); });
   // 최근 회차 자동 선택
   if (exams.length > 0) { sel.value = exams[0].id; loadMockScoreInputs(); }
@@ -5425,23 +5596,29 @@ async function loadMockScoreInputs() {
   if (!classId || !examId) return;
   const card = document.getElementById('mock-score-card');
   const container = document.getElementById('mock-score-inputs');
+  // 이전 반·시험 행을 먼저 내린다 — 설정을 받는 동안 옛 행이 보이다가 갑자기 바뀌면 화면이 튄다
+  const seq = ++_mockLoadSeq;
+  holdTableHeight(container);
+  container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
   card.style.display = 'block';
 
   // 시험별 항목 설정 + 비교 그룹 불러오기
   const examRow = await api(`mock_exams?id=eq.${examId}&select=item_config,group_id`);
+  if (seq !== _mockLoadSeq) return;
   currentMockItemConfig = normalizeItemConfig(examRow?.[0]?.item_config, DEFAULT_MOCK_ITEM_CONFIG);
   currentMockGroupId = examRow?.[0]?.group_id || null;
   renderMockItemConfigEditor();
   toggleGroupEdit('mock', false);  // 시험이 바뀌면 편집 중이던 그룹 선택은 닫는다
   refreshMockGroupInfo();
 
-  if (mockScoreCache[examId]) { renderMockInputs(classId, examId, mockScoreCache[examId]); return; }
-  container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
+  if (mockScoreCache[examId]) { renderMockInputs(classId, examId, mockScoreCache[examId]); releaseTableHeight(container); return; }
   if (!studentCache[classId]) { studentCache[classId] = await api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`) || []; }
   const scores = await api(`mock_scores?exam_id=eq.${examId}&select=*`) || [];
+  if (seq !== _mockLoadSeq) return;
   mockScoreCache[examId] = {};
   scores.forEach(s => { mockScoreCache[examId][s.student_id] = s; });
   renderMockInputs(classId, examId, mockScoreCache[examId]);
+  releaseTableHeight(container);
 }
 
 // ── 모의고사 항목 설정 편집기 ───────────────────────────
@@ -5531,25 +5708,30 @@ async function saveMockItemConfig() {
   const noName = items.map((it, i) => ({ ...it, no: i + 1 })).filter(it => it.active && !it.label);
   if (noName.length) { showToast(`❌ ${noName.map(it => it.no + '번째').join(', ')} 항목의 이름을 입력하세요.`); return; }
 
-  // 주차와 같은 이유로 비교 그룹 전체에 동일 설정을 적용한다 (총점 기준 통일)
-  const target = currentMockGroupId
-    ? `mock_exams?group_id=eq.${encodeURIComponent(currentMockGroupId)}`
-    : `mock_exams?id=eq.${examId}`;
+  // 주차와 같은 이유로 항목·만점은 비교 그룹 전체에 맞춘다 (총점 기준 통일). 커트라인은 체크했을 때만 함께.
+  const cutAll = !!document.getElementById('mock-item-config-cut-all')?.checked;
   const preserved = collectCurrentMockScores();
   const classId = document.getElementById('mock-score-class').value;
   try {
-    const res = await apiRaw(target, 'PATCH', { item_config: { items } });
-    if (!res.ok) { showToast('❌ 항목 설정 저장 실패'); return; }
+    const rows = currentMockGroupId
+      ? await api(`mock_exams?group_id=eq.${encodeURIComponent(currentMockGroupId)}&select=id,class_id,item_config`)
+      : [{ id: examId, item_config: null }];
+    if (!Array.isArray(rows) || !rows.length) { showToast('❌ 비교 그룹 정보를 확인하지 못해 저장을 중단했어요.'); return; }
+    const plans = groupItemConfigs(rows, examId, items, cutAll, DEFAULT_MOCK_ITEM_CONFIG);
+    const results = await Promise.all(plans.map(pl => apiRaw(`mock_exams?id=eq.${pl.id}`, 'PATCH', { item_config: { items: pl.items } })));
+    const failed = results.filter(r => !r.ok).length;
+    if (failed) { showToast(`❌ 항목 설정 저장 실패 (${failed}개 반)`); refreshMockGroupInfo(); return; }
     currentMockItemConfig = normalizeItemConfig({ items }, DEFAULT_MOCK_ITEM_CONFIG);
     renderMockItemConfigEditor();
     const base = mockScoreCache[examId] ? JSON.parse(JSON.stringify(mockScoreCache[examId])) : {};
     Object.keys(preserved).forEach(sid => { base[sid] = { ...(base[sid] || {}), ...preserved[sid] }; });
     renderMockInputs(classId, examId, base);
     refreshMockGroupInfo();
-    const n = currentMockGroupExams.length;
+    const n = rows.length;
     showToast(currentMockGroupId && n > 1
-      ? `✅ 항목 설정이 저장됐어요! (비교 그룹 ${n}개 반 공통 적용)`
-      : '✅ 항목 설정이 저장됐어요!');
+      ? (cutAll ? `✅ 항목 설정이 저장됐어요! (커트라인 포함 비교 그룹 ${n}개 반 공통 적용)`
+                : `✅ 항목 설정이 저장됐어요! (항목·만점은 ${n}개 반 공통, 커트라인은 이 반만)`)
+      : '✅ 항목 설정이 저장됐어요!', 3500);
   } catch (e) { showToast('❌ 오류 발생: ' + e.message); }
 }
 
@@ -5605,13 +5787,16 @@ async function refreshMockGroupInfo() {
     let html = `비교 그룹 <strong>${currentMockGroupExams.length}개 반</strong> (${escapeHtml(classNames.join(', '))})<br>`
       + `그룹 평균 <strong>${avg === null ? '–' : avg + '점'}</strong>`
       + `${avg === null ? '' : ` / ${totalMax}점`} · 표본 <strong>${totals.length}명</strong>`
-      + ` <span style="color:var(--gray)">— 학부모 화면에 이 값이 표시됩니다.</span>`;
+      + ` <span style="color:var(--gray)">— 학부모 화면에 이 값이 표시됩니다.</span>`
+      + groupCutSummary(currentMockGroupExams, currentMockItemConfig, DEFAULT_MOCK_ITEM_CONFIG);
+    { const share = document.getElementById('mock-item-config-cut-share');
+      if (share) share.style.display = (currentMockGroupId && currentMockGroupExams.length > 1) ? '' : 'none'; }
     if (!currentMockGroupId) {
       html += `<br><span class="warn">이 모의고사는 비교 그룹(group_id)이 없어 이 반만으로 평균이 계산됩니다.</span>`;
     }
     if (mismatched.length) {
       html += `<br><span class="warn">⚠️ 항목 구성(활성 항목·만점)이 다른 반: ${escapeHtml(mismatched.join(', '))}`
-        + ` — [항목 설정 저장]을 누르면 그룹 전체가 현재 설정으로 통일됩니다.</span>`;
+        + ` — [항목 설정 저장]을 누르면 그룹 전체의 항목·만점이 현재 설정으로 통일됩니다.</span>`;
     }
     el.innerHTML = html;
   } catch (e) {
@@ -5866,6 +6051,173 @@ function initNoteHeights() {
   }, 30);
 }
 
+// ── 퇴원생 (학생 관리 탭 맨 아래 접이식 카드) ─────────────────
+// 2026-11: 처음엔 별도 탭이었으나 탭이 너무 많아 학생 관리 아래로 합쳤다.
+let _withdrawn = [];   // 퇴원생 + left_at(변경 이력에서 찾은 퇴원 시각, 2026-09 이전 퇴원은 null)
+
+function isWithdrawnOpen() {
+  return document.getElementById('withdrawn-body')?.style.display !== 'none';
+}
+
+function toggleWithdrawnCard(open) {
+  const body = document.getElementById('withdrawn-body');
+  if (!body) return;
+  const willOpen = open === undefined ? !isWithdrawnOpen() : !!open;
+  body.style.display = willOpen ? '' : 'none';
+  document.getElementById('withdrawn-toggle').classList.toggle('collapsed', !willOpen);
+  document.getElementById('withdrawn-refresh').style.display = willOpen ? '' : 'none';
+  if (willOpen) loadWithdrawnStudents();
+}
+
+// 접혀 있으면 인원만 세고, 펼쳐져 있으면 목록을 다시 불러온다 (퇴원·복귀·삭제 뒤에 부른다)
+async function refreshWithdrawnCard() {
+  if (isWithdrawnOpen()) { loadWithdrawnStudents(); return; }
+  try {
+    const rows = await api('students?is_active=eq.false&select=id');
+    if (Array.isArray(rows)) document.getElementById('withdrawn-title').textContent = `퇴원생 ${rows.length}명`;
+  } catch (e) { if (e && e.message === 'unauthorized') throw e; }
+}
+
+async function loadWithdrawnStudents() {
+  const box = document.getElementById('withdrawn-list');
+  const sel = document.getElementById('withdrawn-class');
+  const prevClass = sel.value;
+  sel.innerHTML = '<option value="">전체 반</option>' + classes.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+  if (classes.some(c => String(c.id) === prevClass)) sel.value = prevClass;
+  box.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
+  try {
+    const students = await api('students?is_active=eq.false&order=name.asc&select=*');
+    if (!Array.isArray(students)) throw new Error('not_loaded');
+    const leftAt = {};
+    if (students.length) {
+      // 퇴원 시각은 변경 이력(data_history)의 '재원→퇴원' 기록에서 찾는다. 못 읽어도 목록은 보여준다.
+      try {
+        const hist = await api(`data_history?table_name=eq.students&op=eq.UPDATE&row_id=in.(${students.map(s => s.id).join(',')})`
+          + `&old_row->>is_active=eq.true&new_row->>is_active=eq.false&order=changed_at.desc&select=row_id,changed_at`);
+        if (Array.isArray(hist)) hist.forEach(h => { if (!leftAt[h.row_id]) leftAt[h.row_id] = h.changed_at; });
+      } catch (e) {}
+    }
+    _withdrawn = students.map(s => ({ ...s, left_at: leftAt[s.id] || null }));
+    renderWithdrawnList();
+  } catch (e) {
+    box.innerHTML = '<p style="font-size:13px;color:var(--red)">❌ 퇴원생 목록을 불러오지 못했어요. [새로고침]을 눌러 다시 시도해주세요.</p>';
+    if (e && e.message === 'unauthorized') throw e;
+  }
+}
+
+function fmtLeftAt(iso) {
+  if (!iso) return '<span style="color:var(--gray)">기록 없음</span>';
+  const d = new Date(iso);
+  return isNaN(d) ? '' : `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
+}
+
+function renderWithdrawnList() {
+  const box = document.getElementById('withdrawn-list');
+  const classId = document.getElementById('withdrawn-class').value;
+  const q = document.getElementById('withdrawn-search').value.trim();
+  const className = id => classes.find(c => c.id === id)?.name || '반 미지정';
+  const rows = _withdrawn
+    .filter(s => !classId || String(s.class_id) === classId)
+    .filter(s => !q || (s.name || '').includes(q))
+    // 최근 퇴원한 학생이 위로, 퇴원 시각을 모르면 아래로
+    .sort((a, b) => (!a.left_at) - (!b.left_at) || String(b.left_at || '').localeCompare(String(a.left_at || '')) || a.name.localeCompare(b.name));
+  document.getElementById('withdrawn-title').textContent = `퇴원생 ${_withdrawn.length}명`;
+  if (!_withdrawn.length) { box.innerHTML = '<p style="font-size:13px;color:var(--gray)">퇴원 처리된 학생이 없습니다.</p>'; return; }
+  if (!rows.length) { box.innerHTML = '<p style="font-size:13px;color:var(--gray)">조건에 맞는 퇴원생이 없습니다.</p>'; return; }
+  box.innerHTML = `<table class="data-table" style="min-width:820px"><thead><tr>
+      <th style="white-space:nowrap">이전 반</th><th>이름</th><th style="white-space:nowrap">퇴원일</th>
+      <th>학부모 연락처</th><th>학생 연락처</th><th>특이사항</th><th></th></tr></thead>
+    <tbody>${rows.map(s => `
+      <tr data-withdrawn-id="${s.id}">
+        <td style="white-space:nowrap;font-size:12px;color:var(--gold);font-weight:600">${escapeHtml(className(s.class_id))}</td>
+        <td style="white-space:nowrap"><strong>${escapeHtml(s.name)}</strong></td>
+        <td style="white-space:nowrap;font-size:12px">${fmtLeftAt(s.left_at)}</td>
+        <td style="font-size:12px;font-family:monospace">${escapeHtml(s.phone || '')}</td>
+        <td style="font-size:12px;font-family:monospace">${escapeHtml(s.student_phone || '')}</td>
+        <td style="font-size:12px;white-space:pre-wrap;max-width:220px">${escapeHtml(s.note || '')}</td>
+        <td style="white-space:nowrap"><div style="display:flex;gap:6px">
+          <button class="btn btn-light btn-sm" onclick="toggleWithdrawnRecords(${s.id})">성적 기록</button>
+          <button class="btn btn-sm" style="background:var(--green-light);color:var(--green);border:1px solid #b7efd1" onclick="restoreWithdrawn(${s.id})">복귀</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteWithdrawn(${s.id})">삭제</button>
+        </div></td>
+      </tr>
+      <tr class="withdrawn-records" data-records-for="${s.id}" style="display:none"><td colspan="7"></td></tr>`).join('')}</tbody></table>`;
+}
+
+async function restoreWithdrawn(id) {
+  const s = _withdrawn.find(x => x.id === id);
+  if (!s) return;
+  const cname = classes.find(c => c.id === s.class_id)?.name || '원래 반';
+  if (!confirm(`${s.name} 학생을 ${cname}으로 복귀할까요?\n학생 목록·점수 입력·문자 발송에 다시 나타납니다.`)) return;
+  const res = await apiRaw(`students?id=eq.${id}`, 'PATCH', { is_active: true });
+  if (!res.ok) { showToast(`❌ 복귀 처리에 실패했어요. (${res.status})`, 4000); return; }
+  clearAdminCaches();
+  showToast(`✅ ${s.name} 학생이 ${cname}으로 복귀했어요.`);
+  loadWithdrawnStudents();
+  refreshStudentList();   // 위 학생 목록에도 바로 나타나게
+}
+
+async function deleteWithdrawn(id) {
+  const s = _withdrawn.find(x => x.id === id);
+  if (!s) return;
+  await deleteStudent(s.id, s.name);   // 확인창·점수 삭제 순서는 학생 관리의 삭제와 같다
+  loadWithdrawnStudents();
+}
+
+// 퇴원생의 주차·모의고사 점수를 펼쳐 본다 (읽기 전용)
+async function toggleWithdrawnRecords(id) {
+  const tr = document.querySelector(`#withdrawn-list tr[data-records-for="${id}"]`);
+  if (!tr) return;
+  if (tr.style.display !== 'none') { tr.style.display = 'none'; return; }
+  tr.style.display = '';
+  const td = tr.firstElementChild;
+  td.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
+  try {
+    const [sc, ms] = await Promise.all([
+      api(`scores?student_id=eq.${id}&select=*`),
+      api(`mock_scores?student_id=eq.${id}&select=*`)
+    ]);
+    if (!Array.isArray(sc) || !Array.isArray(ms)) throw new Error('not_loaded');
+    const weekIds = [...new Set(sc.map(r => r.week_id))], examIds = [...new Set(ms.map(r => r.exam_id))];
+    const [weeks, exams] = await Promise.all([
+      weekIds.length ? api(`weeks?id=in.(${weekIds.join(',')})&select=id,class_id,label,test_date,item_config,created_at`) : [],
+      examIds.length ? api(`mock_exams?id=in.(${examIds.join(',')})&select=id,class_id,label,exam_date,item_config,created_at`) : []
+    ]);
+    const cname = cid => classes.find(c => c.id === cid)?.name || '';
+    const fmt = v => (v === null || v === undefined || v === '') ? '' : String(v);
+    const weekRows = sortByTestDate(weeks).map(w => {
+      const r = sc.find(x => x.week_id === w.id);
+      const items = normalizeItemConfig(w.item_config).filter(it => it.active);
+      const vals = items.map(it => ({ it, v: itemVal(r, it.key) })).filter(x => x.v !== null && x.v !== undefined && x.v !== '');
+      const total = vals.length ? vals.reduce((a, x) => a + parseFloat(x.v), 0) : null;
+      return `<tr><td style="white-space:nowrap"><strong>${escapeHtml(w.label || w.test_date || '')}</strong></td>
+        <td style="white-space:nowrap;font-size:11px;color:var(--gray)">${escapeHtml(cname(w.class_id))}</td>
+        <td style="font-size:12px">${vals.map(x => `${escapeHtml(x.it.label || '항목')} ${escapeHtml(fmt(x.v))}`).join(', ') || '<span style="color:var(--gray)">미응시</span>'}</td>
+        <td style="white-space:nowrap">${total === null ? '' : `<strong>${fmtSmsNum(total)}</strong>`}</td>
+        <td style="white-space:nowrap">${r && r.homework_rate !== null && r.homework_rate !== undefined ? escapeHtml(String(r.homework_rate)) + '%' : ''}</td>
+        <td style="font-size:12px">${escapeHtml(r?.homework_eval || '')}</td>
+        <td style="font-size:12px">${escapeHtml(r?.clinic_memo || '')}</td></tr>`;
+    }).join('');
+    const mockRows = sortByTestDate(exams).map(e => {
+      const r = ms.find(x => x.exam_id === e.id);
+      const items = normalizeItemConfig(e.item_config, DEFAULT_MOCK_ITEM_CONFIG).filter(it => it.active);
+      const total = r ? mockRowTotal(r, items) : null;
+      return `<tr><td><strong>${escapeHtml(mockSmsExamName(e))}</strong></td>
+        <td style="white-space:nowrap;font-size:11px;color:var(--gray)">${escapeHtml(cname(e.class_id))}</td>
+        <td style="white-space:nowrap">${total === null ? `<span style="color:var(--gray)">${r && r.absent ? '미응시' : '점수 없음'}</span>` : `<strong>${fmtSmsNum(total)}</strong>`}</td></tr>`;
+    }).join('');
+    td.innerHTML = `<div style="background:var(--cream);border-radius:8px;padding:12px">
+      <div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:6px">주간 테스트 ${weeks.length}회</div>
+      ${weeks.length ? `<table class="data-table"><thead><tr><th>주차</th><th>반</th><th>점수</th><th>총점</th><th>과제</th><th>과제평가</th><th>클리닉 메모</th></tr></thead><tbody>${weekRows}</tbody></table>` : '<p style="font-size:12px;color:var(--gray)">기록 없음</p>'}
+      <div style="font-size:12px;font-weight:700;color:var(--navy);margin:12px 0 6px">모의고사 ${exams.length}회</div>
+      ${exams.length ? `<table class="data-table"><thead><tr><th>시험</th><th>반</th><th>총점</th></tr></thead><tbody>${mockRows}</tbody></table>` : '<p style="font-size:12px;color:var(--gray)">기록 없음</p>'}
+    </div>`;
+  } catch (e) {
+    td.innerHTML = '<p style="font-size:12px;color:var(--red)">❌ 성적 기록을 불러오지 못했어요.</p>';
+    if (e && e.message === 'unauthorized') throw e;
+  }
+}
+
 function refreshStudentList() {
   const q = document.getElementById('student-search').value.trim();
   if (q) { searchStudents(); } else { loadStudentList(); }
@@ -5900,10 +6252,24 @@ async function loadStudentList() {
   document.getElementById('student-search').value = '';
   if (!classId) { container.innerHTML = '<p style="font-size:13px;color:var(--gray)">반을 선택하거나 이름으로 검색하세요.</p>'; return; }
   container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
-  const students = await api(`students?class_id=eq.${classId}&order=name.asc&select=*`) || [];
-  if (!students.length) { container.innerHTML = '<p style="font-size:13px;color:var(--gray)">등록된 학생이 없습니다.</p>'; return; }
-  container.innerHTML = renderStudentTable(students, false);
+  const all = await api(`students?class_id=eq.${classId}&order=name.asc&select=*`) || [];
+  // 퇴원생은 이 목록에서 빼고 '퇴원생' 탭에서 따로 본다 (2026-11 요청)
+  const students = all.filter(s => s.is_active !== false);
+  const hint = withdrawnHint(all.length - students.length, '이 반');
+  if (!students.length) { container.innerHTML = '<p style="font-size:13px;color:var(--gray)">등록된 재원생이 없습니다.</p>' + hint; return; }
+  container.innerHTML = renderStudentTable(students, false) + hint;
   initNoteHeights();
+}
+
+// 학생 목록 아래 '퇴원생 N명은 숨겼어요' 안내. 누르면 맨 아래 퇴원생 카드를 펼치고 그 위치로 내려간다.
+function withdrawnHint(n, where) {
+  if (!n) return '';
+  return `<p style="font-size:12px;color:var(--gray);margin:10px 0 0">${where} 퇴원생 ${n}명은 목록에서 숨겼어요. `
+    + `<a href="#" onclick="openWithdrawnCard();return false" style="color:var(--navy);font-weight:600">아래 퇴원생 목록에서 보기</a></p>`;
+}
+function openWithdrawnCard() {
+  if (!isWithdrawnOpen()) toggleWithdrawnCard(true);
+  document.getElementById('withdrawn-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 let _searchTimer = null;
@@ -5920,9 +6286,11 @@ async function searchStudents() {
   clearTimeout(_searchTimer);
   _searchTimer = setTimeout(async () => {
     container.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>검색 중...</div>';
-    const students = await api(`students?name=ilike.*${encodeURIComponent(q)}*&order=name.asc&select=*`) || [];
-    if (!students.length) { container.innerHTML = '<p style="font-size:13px;color:var(--gray)">검색 결과가 없습니다.</p>'; return; }
-    container.innerHTML = renderStudentTable(students, true);
+    const all = await api(`students?name=ilike.*${encodeURIComponent(q)}*&order=name.asc&select=*`) || [];
+    const students = all.filter(s => s.is_active !== false);
+    const hint = withdrawnHint(all.length - students.length, '검색된');
+    if (!students.length) { container.innerHTML = '<p style="font-size:13px;color:var(--gray)">검색 결과가 없습니다.</p>' + hint; return; }
+    container.innerHTML = renderStudentTable(students, true) + hint;
     initNoteHeights();
   }, 300);
 }
@@ -5955,9 +6323,13 @@ async function updateStudentPhone(id, phone) {
 }
 
 async function toggleStudent(id, active) {
-  await api(`students?id=eq.${id}`, 'PATCH', { is_active: active });
-  showToast(active ? '✅ 복귀 처리됐어요.' : '퇴원 처리됐어요.');
+  if (!active && !confirm('퇴원 처리할까요?\n학생 목록에서 사라지고 맨 아래 [퇴원생] 목록으로 옮겨집니다.\n점수 기록은 그대로 남고, 언제든 복귀할 수 있습니다.')) return;
+  const res = await apiRaw(`students?id=eq.${id}`, 'PATCH', { is_active: active });
+  if (!res.ok) { showToast(`❌ ${active ? '복귀' : '퇴원'} 처리에 실패했어요. (${res.status})`, 4000); return; }
+  clearAdminCaches();   // 점수 탭 명단 캐시에 퇴원생이 남지 않게
+  showToast(active ? '✅ 복귀 처리됐어요.' : '퇴원 처리됐어요. 맨 아래 [퇴원생] 목록에서 볼 수 있어요.', 3500);
   refreshStudentList();
+  refreshWithdrawnCard();
 }
 
 async function deleteStudent(id, name) {
