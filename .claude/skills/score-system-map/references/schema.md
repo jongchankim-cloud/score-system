@@ -54,6 +54,7 @@
 - 경로 `{mock_exams.id}/{students.id}.pdf` — 학생 반의 시험 id 밑에 둔다(비교 그룹이어도 반별 시험 id).
 - 정책 없음 → service_role만 접근. 관리자는 admin-api v16 `storage: { op: list | sign_upload | sign | remove }`, 학부모는 parent-login이
   `report_published=true`인 본인 반 시험만 `mockReports`(시험 id 목록)로 알려 주고 `GET ?report=<시험id>`로 5분짜리 링크를 준다.
+- 기능 스위치 `app_settings.mockReports.enabled`(없으면 켜짐). 끄기는 모든 시험 공개를 내리고 관리자 칸을 접는다. 되돌리기 절차: `supabase/mock-reports-rollback.md`.
 - `deleteMockExam`·`deleteClass`는 DB 삭제 뒤 해당 시험 파일을 지운다(실패 무시). `deleteStudent`는 파일을 지우지 않는다 — 시험·학생이 없으면 링크가 발급될 길이 없다.
 
 ## mock_scores
