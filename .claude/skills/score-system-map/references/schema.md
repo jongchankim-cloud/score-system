@@ -38,6 +38,7 @@
 | `homework_eval`, `hw_cert` | 과제 평가 / 과제 인증 문자열 |
 | `attendance` | 출석 |
 | `clinic_target`, `clinic_attend`, `clinic_memo` | 클리닉 대상 여부 / 참석 / 메모 |
+- `clinic_attend`: 2026-09에 점수 탭 체크박스를 없앴다가 2026-11부터 클리닉 배정표 이름 앞 동그라미(출석, 한 주에 한 번)로 다시 쓴다. 클리닉 미참석 문자 탭이 배정표 대상 중 이 값이 없는 학생을 기본 체크한다.
 
 **저장 방식(`saveAllScores` L1840):** `week_id`로 기존 행을 조회해 `existMap`을 만들고,
 있으면 PATCH(`student_id`, `week_id` 제외), 없으면 POST. 비활성 항목 컬럼은 payload에서 빠지므로 기존 값이 보존된다.
