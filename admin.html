@@ -130,6 +130,20 @@
   /* 배정표·명단의 학생 이름 — 누르면 클리닉 메모 수정 창이 열린다 */
   .clinic-memo-link { color:inherit; text-decoration:underline dotted var(--gray); text-underline-offset:3px; cursor:pointer; }
   .clinic-memo-link:hover { color:var(--gold); }
+  /* 클리닉 출석 체크 (배정표 이름 앞 동그라미, 2026-11) — 누르면 초록 ✓, 한 주에 한 번 */
+  .clinic-att { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%;
+    border:1.6px solid #b8b2a7; color:transparent; font-size:10px; font-weight:800; margin-right:4px; vertical-align:-3px;
+    cursor:pointer; background:var(--white); user-select:none; }
+  .clinic-att:hover { border-color:var(--green); }
+  .clinic-att.on { background:var(--green); border-color:var(--green); color:#fff; }
+  .clinic-att.busy { opacity:.5; }
+  .clinic-chip.came, .clinic-unassigned.came { background:var(--green-light); border-radius:6px; }
+  .clinic-chip.came .clinic-memo-link, .clinic-unassigned.came .clinic-memo-link { color:var(--green); font-weight:700; }
+  .clinic-att-count { display:block; font-size:11px; font-weight:600; color:var(--green); margin-top:3px; }
+  .clinic-attend-btn { display:inline-flex; align-items:center; gap:6px; padding:7px 12px; border:1.5px solid var(--border); border-radius:20px;
+    background:var(--white); color:var(--navy); font-size:13px; font-family:'Noto Sans KR',sans-serif; cursor:pointer; margin-bottom:14px; }
+  .clinic-attend-btn.on { border-color:var(--green); background:var(--green-light); color:var(--green); font-weight:700; }
+  .clinic-attend-btn .clinic-att { margin-right:0; }
   /* 메모 수정 창 오른쪽 '문자 보내기' 구역 — 좁은 화면에서는 메모 아래로 내려간다 */
   .clinic-modal-cols { display:flex; gap:24px; flex-wrap:wrap; align-items:flex-start; }
   .clinic-modal-col { flex:1 1 360px; min-width:0; }
@@ -1071,7 +1085,8 @@
    <div class="clinic-modal-cols">
    <div class="clinic-modal-col">
     <h3 style="font-size:16px;font-weight:700;color:var(--navy);margin-bottom:6px" id="clinic-memo-modal-title">클리닉 메모 수정</h3>
-    <p style="font-size:13px;color:var(--gray);margin-bottom:16px" id="clinic-memo-modal-info"></p>
+    <p style="font-size:13px;color:var(--gray);margin-bottom:10px" id="clinic-memo-modal-info"></p>
+    <div id="clinic-memo-attend"></div>
     <div style="margin-bottom:12px">
       <label style="display:block;font-size:11px;color:var(--gray);font-weight:500;margin-bottom:5px">클리닉 메모 <span style="font-weight:400">(점수 입력·성적 문자에 쓰이는 메모와 같은 값입니다)</span></label>
       <textarea id="clinic-memo-modal-text" rows="4" oninput="previewClinicMemoEdit();renderClinicMemoSms()" placeholder="예) 월요일 3시 / 수요일 하교 후" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7"></textarea>
@@ -3904,14 +3919,16 @@ async function loadClinicSmsTargets() {
   const weekId = document.getElementById('clinic-sms-week').value;
   if (!classId || !weekId) return;
 
-  const [students, scores] = await Promise.all([
+  const [students, scores, weekRows] = await Promise.all([
     api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`),
-    api(`scores?week_id=eq.${weekId}&select=*`)
+    api(`scores?week_id=eq.${weekId}&select=*`),
+    api(`weeks?id=eq.${weekId}&select=item_config`)
   ]);
 
   const scoreMap = {};
   (scores || []).forEach(s => { scoreMap[s.student_id] = s; });
   const carried = await fetchCarriedEvals(classId, weekId);
+  const weekCfg = Array.isArray(weekRows) && weekRows[0] ? weekRows[0].item_config : null;
 
   // 반 전체 학생을 띄우고, 보낼 학생은 조교가 체크해서 고른다.
   // (예전엔 점수 탭의 '클리닉 대상/참석' 체크로 걸렀지만 그 체크박스는 2026-09에 없앴다)
@@ -3924,8 +3941,12 @@ async function loadClinicSmsTargets() {
     homework_rate: (scoreMap[st.id] && scoreMap[st.id].homework_rate !== null && scoreMap[st.id].homework_rate !== undefined)
       ? scoreMap[st.id].homework_rate
       : (carriedRateFor(scoreMap[st.id], carried, st.id) === '' ? null : carriedRateFor(scoreMap[st.id], carried, st.id)),
-    homework_eval: (scoreMap[st.id] && scoreMap[st.id].homework_eval) || carriedEvalFor(scoreMap[st.id], carried, st.id)
+    homework_eval: (scoreMap[st.id] && scoreMap[st.id].homework_eval) || carriedEvalFor(scoreMap[st.id], carried, st.id),
+    // 클리닉 배정표에 오르는 학생(와야 하는 학생)인지, 배정표에서 '왔음' 체크가 됐는지 (2026-11)
+    expected: clinicExpectedOf(scoreMap[st.id], weekCfg),
+    attended: !!(scoreMap[st.id] && scoreMap[st.id].clinic_attend === true)
   }));
+  const missedCount = targets.filter(t => t.expected && !t.attended).length;
 
   const weekSel = document.getElementById('clinic-sms-week');
   const weekLabel = weekSel.options[weekSel.selectedIndex]?.text || '';
@@ -3936,7 +3957,10 @@ async function loadClinicSmsTargets() {
   const listEl = document.getElementById('clinic-sms-list');
 
   card.style.display = 'block';
-  titleEl.textContent = `${className} ${weekLabel} — 반 전체 ${targets.length}명 · 보낼 학생을 체크하세요`;
+  // 배정표 대상인데 '왔음' 체크가 없는 학생을 미리 체크해 둔다 — 그대로 보내도 되고, 조교가 고쳐도 된다
+  titleEl.textContent = missedCount
+    ? `${className} ${weekLabel} — 반 전체 ${targets.length}명 · 클리닉 미참석 ${missedCount}명을 체크해 두었어요`
+    : `${className} ${weekLabel} — 반 전체 ${targets.length}명 · 보낼 학생을 체크하세요`;
 
   if (!targets.length) {
     listEl.innerHTML = '<p style="font-size:13px;color:var(--gray)">이 반에 학생이 없습니다.</p>';
@@ -3949,12 +3973,17 @@ async function loadClinicSmsTargets() {
   const phoneLabel = isParent ? '학부모 연락처' : '학생 연락처';
 
   listEl.innerHTML = `<table class="data-table">
-    <thead><tr><th style="width:36px"><input type="checkbox" id="check-all-clinic-sms" onchange="toggleAllClinicSms(this.checked)"></th><th style="white-space:nowrap">이름</th><th>${phoneLabel}</th><th>과제(%)</th><th>과제평가</th><th>클리닉 메모</th><th style="white-space:nowrap">상태</th></tr></thead>
+    <thead><tr><th style="width:36px"><input type="checkbox" id="check-all-clinic-sms" onchange="toggleAllClinicSms(this.checked)"></th><th style="white-space:nowrap">이름</th><th style="white-space:nowrap">클리닉 출석</th><th>${phoneLabel}</th><th>과제(%)</th><th>과제평가</th><th>클리닉 메모</th><th style="white-space:nowrap">상태</th></tr></thead>
     <tbody>${targets.map((t, i) => {
       const phone = isParent ? t.phone : t.student_phone;
+      const preCheck = !!phone && t.expected && !t.attended;
+      const att = t.attended ? '<span class="badge badge-active">✓ 왔음</span>'
+        : t.expected ? '<span class="badge badge-inactive">안 옴</span>'
+        : '<span style="font-size:12px;color:var(--gray)">대상 아님</span>';
       return `<tr data-student-id="${t.id}">
-        <td><input type="checkbox" class="clinic-sms-check" data-idx="${i}" ${!phone ? 'disabled' : ''}></td>
+        <td><input type="checkbox" class="clinic-sms-check" data-idx="${i}" ${!phone ? 'disabled' : ''} ${preCheck ? 'checked' : ''}></td>
         <td style="white-space:nowrap"><strong>${t.name}</strong></td>
+        <td style="white-space:nowrap">${att}</td>
         <td style="font-size:12px;font-family:monospace">${phone || '번호없음'}</td>
         <td>${(t.homework_rate !== null && t.homework_rate !== undefined) ? t.homework_rate + '%' : '미기재'}</td>
         <td><input type="text" class="clinic-eval" value="${attrEsc(t.homework_eval)}" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;outline:none;width:100%;min-width:120px"></td>
@@ -4261,6 +4290,96 @@ function renderClinicGradeChips(grades) {
   applyClinicGradeFilter();
 }
 
+// ── 클리닉 출석 체크 (2026-11) ─────────────────────────────
+// 배정표 이름 앞 동그라미를 한 번 누르면 '왔음'(scores.clinic_attend = true)으로 바로 저장한다. 한 주에 한 번.
+// 두 요일에 배정된 학생은 칩이 두 개지만 같은 행이라 함께 바뀐다. 이 값은 클리닉 미참석 문자 탭의 기본 체크에 쓰인다.
+const _clinicAttendBusy = new Set();
+
+function clinicAttendBox(sid) {
+  const on = !!_clinicMemoRows[sid]?.attend;
+  return `<span class="clinic-att${on ? ' on' : ''}" data-att-sid="${parseInt(sid)}" role="button" tabindex="0"`
+    + ` title="클리닉 출석 — 누르면 '왔음' 표시, 다시 누르면 취소" onclick="toggleClinicAttend(${parseInt(sid)})"`
+    + ` onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleClinicAttend(${parseInt(sid)})}">✓</span>`;
+}
+
+function updateClinicAttendCounts() {
+  const countOf = root => {
+    const sids = new Set(Array.from(root.querySelectorAll('.clinic-att[data-att-sid]')).map(x => x.dataset.attSid));
+    return { all: sids.size, on: [...sids].filter(x => _clinicMemoRows[x]?.attend).length };
+  };
+  document.querySelectorAll('#clinic-schedule-body .clinic-grid tbody tr').forEach(tr => {
+    const el = tr.querySelector('.clinic-att-count'); if (!el) return;
+    const c = countOf(tr);
+    el.textContent = c.all ? `출석 ${c.on}/${c.all}` : '';
+  });
+  document.querySelectorAll('#clinic-schedule-body .clinic-card').forEach(card => {
+    const el = card.querySelector('.clinic-att-total'); if (!el) return;
+    const c = countOf(card);
+    el.textContent = c.all ? ` · 출석 ${c.on}명` : '';
+  });
+}
+
+function setClinicAttendUI(sid, on, busy) {
+  document.querySelectorAll(`[data-att-sid="${sid}"]`).forEach(b => { b.classList.toggle('on', on); b.classList.toggle('busy', !!busy); });
+  document.querySelectorAll(`[data-chip-sid="${sid}"]`).forEach(c => c.classList.toggle('came', on));
+  if (String(_clinicMemoEditId) === String(sid)) renderClinicMemoAttend();
+  updateClinicAttendCounts();
+}
+
+async function toggleClinicAttend(sid) {
+  const row = _clinicMemoRows[sid];
+  if (!row || _clinicAttendBusy.has(sid)) return;
+  const prev = !!row.attend, want = !prev;
+  _clinicAttendBusy.add(sid);
+  row.attend = want;                       // 화면은 바로 바꾸고, 저장이 실패하면 되돌린다
+  setClinicAttendUI(sid, want, true);
+  const res = await apiReqRetry(`scores?id=eq.${parseInt(sid)}`, 'PATCH', { clinic_attend: want });
+  _clinicAttendBusy.delete(sid);
+  if (!res.ok) {
+    row.attend = prev;
+    setClinicAttendUI(sid, prev, false);
+    showToast(`❌ ${row.name} 출석 표시를 저장하지 못했어요. 다시 눌러주세요.`, 4000);
+    return;
+  }
+  setClinicAttendUI(sid, want, false);
+  if (scoreCache[row.weekId] && scoreCache[row.weekId][row.studentId]) scoreCache[row.weekId][row.studentId].clinic_attend = want;
+}
+
+// 메모 창 위쪽의 출석 버튼 (배정표 동그라미와 같은 값)
+function renderClinicMemoAttend() {
+  const box = document.getElementById('clinic-memo-attend');
+  const sid = _clinicMemoEditId;
+  const row = sid !== null && sid !== undefined ? _clinicMemoRows[sid] : null;
+  if (!box || !row) { if (box) box.innerHTML = ''; return; }
+  const on = !!row.attend;
+  box.innerHTML = `<button type="button" class="clinic-attend-btn${on ? ' on' : ''}" onclick="toggleClinicAttend(${parseInt(sid)})">`
+    + `<span class="clinic-att${on ? ' on' : ''}">✓</span>${on ? '이번 주 클리닉 왔음 (누르면 취소)' : '이번 주 클리닉 아직 안 옴 — 누르면 왔음으로 표시'}</button>`;
+}
+
+// 이 점수 행의 학생이 클리닉 배정표에 오르는지(= 이번 주 클리닉에 와야 하는 학생).
+// loadClinicSchedule의 분류와 같은 규칙이다 — 남은 재시험이 있거나, 메모에 일정이 있거나, 대상 체크·메모가 있는 학생.
+// 남은 재시험이 없고 메모에 일정도 없으면(과제 기한만 등) 오지 않아도 되는 학생이다. 클리닉 미참석 문자 탭에서 쓴다.
+function clinicExpectedOf(sc, itemConfig) {
+  if (!sc) return false;
+  const memo = (sc.clinic_memo || '').trim();
+  if (!(sc.clinic_target === true || memo !== '')) return false;
+  const cfgItems = normalizeItemConfig(itemConfig).filter(it => it.active);
+  const scored = cfgItems.map(it => {
+    const raw = itemVal(sc, it.key);
+    const val = (raw === null || raw === undefined || raw === '') ? null : parseFloat(raw);
+    return { ...it, value: val };
+  }).filter(x => x.value !== null && !isNaN(x.value));
+  const hasCut = cfgItems.some(it => it.cut !== null && it.cut !== undefined);
+  const pass = sc.retest_pass || {};
+  const retestLeft = scored.some(x => isBelowCut(x.value, x.cut) && pass[x.key] !== true);
+  const hwOnly = hasCut && scored.length > 0 && !retestLeft;
+  const parsed = parseClinicMemo(memo);
+  if (hwOnly && !parsed.length) return false;
+  if (parsed.length) return true;
+  if (sc.clinic_target === true) return true;
+  return !/통과/.test(memo);
+}
+
 function clinicNameLink(sid, name) {
   return `<a href="#" class="clinic-memo-link" title="클리닉 메모 수정" onclick="openClinicMemoEdit(${parseInt(sid)});return false">${escapeHtml(name)}</a>`;
 }
@@ -4280,6 +4399,7 @@ function openClinicMemoEdit(sid) {
   loadClinicMemoSmsInfo(sid);
   loadClinicMemoRetest(sid);
   loadClinicMemoHomework(sid);
+  renderClinicMemoAttend();
   document.getElementById('clinic-memo-modal').style.display = 'flex';
   ta.focus();
 }
@@ -4659,7 +4779,7 @@ async function loadClinicSchedule(force = true) {
   recentWeeks.forEach((w, i) => { weekById[w.id] = w; weekRecency[w.id] = i; });
   const allWeekIds = recentWeeks.map(w => w.id);
   const allRows = allWeekIds.length
-    ? await api(`scores?week_id=in.(${allWeekIds.join(',')})&select=id,student_id,week_id,clinic_memo,clinic_target,retest_pass,item_scores,homework_rate,${ITEM_KEYS.join(',')}`) || []
+    ? await api(`scores?week_id=in.(${allWeekIds.join(',')})&select=id,student_id,week_id,clinic_memo,clinic_target,clinic_attend,retest_pass,item_scores,homework_rate,${ITEM_KEYS.join(',')}`) || []
     : [];
   if (seq !== _clinicLoadSeq) return;
   const hasClinic = sc => sc.clinic_target === true || (sc.clinic_memo || '').trim() !== '';
@@ -4718,7 +4838,8 @@ async function loadClinicSchedule(force = true) {
     const sid = sc.id; // 이름을 눌러 메모를 고칠 때 PATCH할 scores 행
     _clinicMemoRows[sid] = { name: st.name, cls: cls ? cls.name : '', week: g.weekOf[cls ? cls.name : ''] || '', memo: sc.clinic_memo || '',
       // 문자 보내기 구역용 — 연락처·과제%·과제평가는 창을 열 때 새로 읽는다 (이 화면의 조회엔 과제평가가 없다)
-      studentId: sc.student_id, classId: weekById[sc.week_id].class_id, weekId: sc.week_id };
+      studentId: sc.student_id, classId: weekById[sc.week_id].class_id, weekId: sc.week_id,
+      attend: sc.clinic_attend === true };   // 클리닉 출석(한 주에 한 번). 이름 앞 동그라미로 바꾼다
     // 과제 수행률은 이름 뒤 괄호로 표기. NULL(미기재·과제 없음)이면 붙이지 않는다.
     const hw = (sc.homework_rate === null || sc.homework_rate === undefined) ? null : sc.homework_rate;
 
@@ -4827,7 +4948,7 @@ async function loadClinicSchedule(force = true) {
     // 남은 재시험이 없는데 메모 일정으로 올라온 학생 — 재시험 배지가 없어 왜 표에 있는지 알 수 없으므로 표시한다
     const hwOnlyTag = e => e.hwOnly ? `<span class="clinic-hwonly" title="남은 재시험 없음 — 메모에 적힌 일정(과제 클리닉 등)">과제</span>` : '';
     // 학생 하나를 block 칩으로 감싼다 — 몰린 칸이 가로로 늘어나지 않고 아래로 쌓이는 근거
-    const chip = e => `<span class="clinic-chip">${clinicNameLink(e.sid, e.name)}${exactTag(e)}${hwTag(e)}${itemTag(e)}${hwOnlyTag(e)}${noteTag(e)}</span>`;
+    const chip = e => `<span class="clinic-chip${_clinicMemoRows[e.sid]?.attend ? ' came' : ''}" data-chip-sid="${e.sid}">${clinicAttendBox(e.sid)}${clinicNameLink(e.sid, e.name)}${exactTag(e)}${hwTag(e)}${itemTag(e)}${hwOnlyTag(e)}${noteTag(e)}</span>`;
     // 요일을 여러 개 적은 학생("수 / 목 시간 미정")은 해당 요일 행마다 나온다 — 시간 있는 일정과 같은 규칙
     const cell = (day, key) => g.entries
       .filter(e => e.day === day && e.min === key)
@@ -4850,7 +4971,7 @@ async function loadClinicSchedule(force = true) {
       + `</p>`;
 
     let html = `<div class="clinic-card" data-clinic-grade="${attrEsc(grade)}">
-      <h4 class="clinic-card-head">■ ${escapeHtml(grade)} <span>(클리닉 대상 ${total}명)</span></h4>
+      <h4 class="clinic-card-head">■ ${escapeHtml(grade)} <span>(클리닉 대상 ${total}명<b class="clinic-att-total" style="color:var(--green)"></b>)</span></h4>
       <p style="font-size:11px;color:var(--gray);margin:0 0 8px">기준 주차 — ${weekInfo || '-'}</p>`;
     (staleByGrade[grade] || []).forEach(sc => {
       html += `<p style="font-size:12px;color:var(--orange);margin:0 0 8px">⚠️ ${escapeHtml(sc.name)}은 이번 주차가 아직 없어 포함하지 않았습니다. (마지막 클리닉 기록: ${escapeHtml(sc.label)})</p>`;
@@ -4860,7 +4981,7 @@ async function loadClinicSchedule(force = true) {
       const untimedCls = k => k === null ? ' class="clinic-untimed"' : '';
       html += `<div style="overflow-x:auto"><table class="data-table clinic-grid">
         <thead><tr><th style="white-space:nowrap">요일</th>${colKeys.map(k => `<th${untimedCls(k)} style="white-space:nowrap">${escapeHtml(clinicColLabel(k))}</th>`).join('')}</tr></thead>
-        <tbody>${days.map(d => `<tr><td style="white-space:nowrap"><strong>${d}요일</strong></td>${colKeys.map(k => `<td${untimedCls(k)}>${cell(d, k)}</td>`).join('')}</tr>`).join('')}</tbody>
+        <tbody>${days.map(d => `<tr><td style="white-space:nowrap"><strong>${d}요일</strong><span class="clinic-att-count"></span></td>${colKeys.map(k => `<td${untimedCls(k)}>${cell(d, k)}</td>`).join('')}</tr>`).join('')}</tbody>
       </table></div>`;
     } else {
       html += `<p style="font-size:13px;color:var(--gray)">요일을 읽을 수 있는 클리닉 메모가 없습니다.</p>`;
@@ -4871,7 +4992,7 @@ async function loadClinicSchedule(force = true) {
     if (hasLists) html += `<div class="clinic-sec"><p class="clinic-sec-title">▸ 명단</p>`;
     if (g.unassigned.length) {
       html += `<p style="font-size:12px;color:var(--navy);margin:10px 0 0;line-height:1.8"><strong>요일·시간 미기재 (${g.unassigned.length}명):</strong> `
-        + g.unassigned.map(u => clinicNameLink(u.sid, u.name) + hwTag(u) + itemTag(u) + (u.memo ? ` <span style="color:var(--gray);font-size:11px">(${escapeHtml(u.memo.length > 20 ? u.memo.slice(0, 20) + '…' : u.memo)})</span>` : ''))
+        + g.unassigned.map(u => `<span class="clinic-unassigned${_clinicMemoRows[u.sid]?.attend ? ' came' : ''}" data-chip-sid="${u.sid}">` + clinicAttendBox(u.sid) + clinicNameLink(u.sid, u.name) + hwTag(u) + itemTag(u) + `</span>` + (u.memo ? ` <span style="color:var(--gray);font-size:11px">(${escapeHtml(u.memo.length > 20 ? u.memo.slice(0, 20) + '…' : u.memo)})</span>` : ''))
           .join(', ') + `</p>`;
     }
     if (hasLists) html += `</div>`;
@@ -4922,6 +5043,7 @@ async function loadClinicSchedule(force = true) {
     return html + '</div>';
   }).join('');
 
+  updateClinicAttendCounts();   // 요일별 '출석 n/m'과 학년별 출석 합계
   // 칩은 학년 블록을 다 그린 뒤에 만든다 — applyClinicGradeFilter가 그 블록들을 찾아 켜고 끄기 때문
   renderClinicGradeChips(grades);
   // 여기까지 와야 화면이 온전하다. 중간에 실패하면 캐시로 잡지 않고 다음 진입에서 다시 받는다.
