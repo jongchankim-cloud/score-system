@@ -148,6 +148,8 @@
   .score-input-row { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 275px minmax(150px,1fr); gap:6px; align-items:center; padding:8px 0; border-bottom:1px solid var(--light-gray); min-width:max-content; }
   .score-input-row .total-cell { font-size:15px; font-weight:700; color:var(--navy); text-align:center; }
   .score-input-row:last-child { border-bottom:none; }
+  /* 이름 검색으로 찾은 학생 행을 잠깐 강조 */
+  .score-input-row.row-flash { background:var(--orange-light); transition:background 0.3s; }
   .score-input-row .student-name { font-size:13px; font-weight:500; color:var(--navy); line-height:1.4; word-break:break-all; padding-right:4px; }
   .score-input-row input { padding:8px; border:1.5px solid var(--border); border-radius:6px; font-size:13px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); text-align:center; outline:none; width:100%; transition:border-color 0.2s; }
   .score-input-row input:focus { border-color:var(--gold); background:var(--white); }
@@ -1728,10 +1730,10 @@ async function loadWeeksForScore() {
   if (seq !== _scoreLoadSeq) return;   // 그 사이 다른 반을 골랐다
   weeks.forEach(w => { const opt = document.createElement('option'); opt.value = w.id; opt.textContent = w.label || w.test_date; sel.appendChild(opt); });
 
-  // 가장 최근 주차 자동 선택
+  // 가장 최근 주차 자동 선택. 표를 다 그린 뒤에 끝나야 이름 검색이 그 학생 행으로 이동할 수 있다.
   if (weeks.length > 0) {
     sel.value = weeks[0].id;
-    loadScoreInputs();
+    await loadScoreInputs();
   } else {
     document.getElementById('score-input-card').style.display = 'none';
     releaseTableHeight(container);
@@ -2230,8 +2232,16 @@ function updateItemConfigTotal() {
 function groupItemConfigs(rows, selfId, items, cutAll, defaults) {
   return rows.map(r => {
     if (cutAll || r.id === selfId) return { id: r.id, items };
-    const own = normalizeItemConfig(r.item_config, defaults);
-    const cutOf = {}; own.forEach(it => { cutOf[it.key] = it.cut; });
+    // 항목 설정을 한 번도 저장하지 않은 주차(주차 관리에서 막 만든 주차)는 커트도 이번 값을 그대로 받는다.
+    // 기본 설정의 '커트 없음'을 그 반이 정한 커트로 보면, 한 반에서 처음 저장할 때 나머지 반의 커트가 빈칸이 된다.
+    // 그래서 기본값으로 채운 normalizeItemConfig가 아니라 DB에 실제로 저장된 항목만 본다.
+    const saved = r.item_config && Array.isArray(r.item_config.items) ? r.item_config.items : null;
+    if (!saved || !saved.length) return { id: r.id, items };
+    const cutOf = {};
+    saved.forEach(it => {
+      if (!it || !it.key) return;
+      cutOf[it.key] = (it.cut === undefined || it.cut === null || it.cut === '') ? null : parseFloat(it.cut);
+    });
     return { id: r.id, items: items.map(it => ({ ...it, cut: (it.key in cutOf) ? cutOf[it.key] : it.cut })) };
   });
 }
@@ -6354,10 +6364,19 @@ async function deleteStudent(id, name) {
 
 // ── 점수 탭 학생 검색 (이름으로 반·주차 자동 선택)
 let _scoreSearchTimer = null;
+// 마지막으로 처리한 검색 { q, classId }. 같은 이름으로 같은 반이 이미 열려 있으면 다시 검색하지 않는다.
+// 한글은 마지막 글자가 검색칸에서 포커스가 빠질 때 확정되며 input 이벤트가 한 번 더 난다.
+// 예전엔 그 때문에 학생 칸을 누르는 순간 검색이 다시 돌아 표 전체를 새로 그렸고,
+// 화면이 맨 위로 튀고 누른 칸도 풀렸다 (2026-11 제보). Enter를 한 번 더 눌러도 같은 일이 있었다.
+let _scoreSearchDone = { q: '', classId: '' };
 async function searchScoreStudent() {
   const q = document.getElementById('score-student-search').value.trim();
   const resultEl = document.getElementById('score-student-result');
-  if (!q) { resultEl.innerHTML = ''; return; }
+  if (!q) { resultEl.innerHTML = ''; _scoreSearchDone = { q: '', classId: '' }; clearTimeout(_scoreSearchTimer); return; }
+  if (q === _scoreSearchDone.q && document.getElementById('score-class').value === _scoreSearchDone.classId) {
+    clearTimeout(_scoreSearchTimer);   // 같은 검색이 이미 반영돼 있다 — 표를 다시 그리지 않는다
+    return;
+  }
   clearTimeout(_scoreSearchTimer);
   _scoreSearchTimer = setTimeout(async () => {
     resultEl.innerHTML = '<span style="color:var(--gray)">검색 중...</span>';
@@ -6371,24 +6390,44 @@ async function searchScoreStudent() {
     if (students.length === 1) {
       const st = students[0];
       resultEl.innerHTML = `<span style="color:var(--green);font-weight:600">${st.name} — ${classMap[st.class_id] || '반 미지정'}</span>`;
-      await selectScoreClass(st.class_id);
+      _scoreSearchDone = { q, classId: String(st.class_id) };
+      await selectScoreClass(st.class_id, st.id);
     } else {
+      _scoreSearchDone = { q, classId: document.getElementById('score-class').value };
       resultEl.innerHTML = students.map(st =>
-        `<button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy);margin:3px 3px 0 0" onclick="pickScoreStudent(${st.class_id},'${st.name.replace(/'/g,"\\'")}')">${st.name} · ${classMap[st.class_id] || '반 미지정'}</button>`
+        `<button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy);margin:3px 3px 0 0" onclick="pickScoreStudent(${st.class_id},'${st.name.replace(/'/g,"\\'")}',${st.id})">${st.name} · ${classMap[st.class_id] || '반 미지정'}</button>`
       ).join('');
     }
   }, 300);
 }
 
-async function pickScoreStudent(classId, name) {
+async function pickScoreStudent(classId, name, studentId) {
   document.getElementById('score-student-result').innerHTML = `<span style="color:var(--green);font-weight:600">${name} 반 선택됨</span>`;
-  await selectScoreClass(classId);
+  _scoreSearchDone = { q: document.getElementById('score-student-search').value.trim(), classId: String(classId) };
+  await selectScoreClass(classId, studentId);
 }
 
-async function selectScoreClass(classId) {
+// 검색한 학생의 반을 연다. 이미 그 반 표가 떠 있으면 다시 불러오지 않고(입력 중인 값·스크롤 유지) 그 학생 행으로만 이동한다.
+async function selectScoreClass(classId, studentId) {
   if (!classId) return;
-  document.getElementById('score-class').value = classId;
-  await loadWeeksForScore();
+  const sel = document.getElementById('score-class');
+  const container = document.getElementById('score-inputs-container');
+  const loaded = sel.value === String(classId) && container.querySelector('.score-input-row')
+    && container.dataset.weekId === document.getElementById('score-week').value;
+  if (!loaded) {
+    sel.value = classId;
+    await loadWeeksForScore();
+  }
+  if (studentId) focusScoreStudentRow(studentId);
+}
+
+// 찾은 학생 행을 화면 가운데로 가져오고 잠깐 강조한다 (이름 검색 → 그 학생 칸을 바로 누를 수 있게)
+function focusScoreStudentRow(studentId) {
+  const row = document.querySelector(`#score-inputs-container .score-input-row[data-student-id="${studentId}"]`);
+  if (!row) return;
+  row.scrollIntoView({ block: 'center' });
+  row.classList.add('row-flash');
+  setTimeout(() => row.classList.remove('row-flash'), 1800);
 }
 
 // ── 조교 메모 ─────────────────────────────────────────────
