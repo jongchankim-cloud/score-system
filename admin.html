@@ -176,6 +176,8 @@
   .cfg-toggle:hover { color:var(--navy); }
   .cfg-toggle .chev { display:inline-block; font-size:10px; color:var(--gold); transition:transform 0.15s; }
   .cfg-toggle.collapsed .chev { transform:rotate(-90deg); }
+  .cfg-toggle.collapsed::after { content:'— 눌러서 펼치기'; margin-left:4px; color:var(--gold); }
+  .cut-tag { font-weight:600; color:var(--red); font-size:10px; }
   .withdrawn-toggle { display:flex; align-items:center; gap:8px; padding:0; border:none; background:none; cursor:pointer; font-family:'Noto Sans KR',sans-serif; font-size:14px; font-weight:700; color:var(--navy); }
   .withdrawn-toggle .chev { display:inline-block; font-size:11px; color:var(--gold); transition:transform 0.15s; }
   .withdrawn-toggle.collapsed .chev { transform:rotate(-90deg); }
@@ -2223,7 +2225,7 @@ function updateItemConfigTotal() {
   const items = readItemConfigFromEditor();
   const active = items.filter(it => it.active);
   const totalMax = active.reduce((a, it) => a + (it.max || 0), 0);
-  totalEl.innerHTML = `사용 항목 <strong>${active.length}개</strong> · 총점 만점 <strong>${totalMax}</strong>점`;
+  totalEl.innerHTML = `사용 항목 <strong>${active.length}개</strong> · 총점 만점 <strong>${totalMax}</strong>점` + cutSummaryText(active);
 }
 
 // 비교 그룹에 같은 항목 설정을 쓰되, 커트라인은 반마다 다를 수 있다 (2026-11 요청: 하위 반은 커트를 낮춤).
@@ -2361,6 +2363,18 @@ function recalcTotal(inputEl) {
   if (cell) cell.textContent = sumScores(vals);
 }
 
+// 2026-11: '채점 항목 설정' 칸은 접을 수 있고 접힌 상태가 브라우저에 기억된다. 접혀 있으면 커트라인 칸이 안 보여
+// '커트가 안 보인다'는 제보가 있었다. 칸을 접어 둬도 커트를 알 수 있게 점수표 머리줄과 합계 줄에 항상 적는다.
+function cutHeaderTag(it) {
+  return (it.cut === null || it.cut === undefined || it.cut === '') ? ''
+    : `<br><small class="cut-tag">커트 ${escapeHtml(String(it.cut))}</small>`;
+}
+function cutSummaryText(items) {
+  const withCut = items.filter(it => it.cut !== null && it.cut !== undefined && it.cut !== '');
+  if (!withCut.length) return ' · 커트라인 <strong>없음</strong>';
+  return ' · 커트라인 ' + withCut.map(it => `${escapeHtml(it.label || '항목')} <strong>${escapeHtml(String(it.cut))}</strong>`).join(', ');
+}
+
 function renderScoreHeader() {
   const items = activeItems();
   const totalMax = items.reduce((a, it) => a + (it.max || 0), 0);
@@ -2372,7 +2386,7 @@ function renderScoreHeader() {
     `<span>이름</span>` +
     `<span style="text-align:center">총점<br><small style="font-weight:400">/${totalMax}</small></span>` +
     `<span style="text-align:center">출석</span>` +
-    items.map(it => `<span style="text-align:center">${escapeHtml(it.label) || '-'}<br><small style="font-weight:400">/${it.max ?? ''}</small></span>`).join('') +
+    items.map(it => `<span style="text-align:center">${escapeHtml(it.label) || '-'}<br><small style="font-weight:400">/${it.max ?? ''}</small>${cutHeaderTag(it)}</span>`).join('') +
     `<span style="text-align:center">과제<br><small style="font-weight:400">%</small></span>` +
     `<span style="text-align:center">과제평가</span>` +
     `<span style="text-align:center">클리닉메모</span>`;
@@ -5707,7 +5721,7 @@ function updateMockItemConfigTotal() {
   if (!el) return;
   const items = readMockItemConfigFromEditor().filter(it => it.active);
   const totalMax = items.reduce((a, it) => a + (it.max || 0), 0);
-  el.innerHTML = `사용 항목 <strong>${items.length}개</strong> · 총점 만점 <strong>${totalMax}</strong>점`;
+  el.innerHTML = `사용 항목 <strong>${items.length}개</strong> · 총점 만점 <strong>${totalMax}</strong>점` + cutSummaryText(items);
 }
 
 async function saveMockItemConfig() {
@@ -5832,7 +5846,7 @@ function renderMockScoreHeader() {
     `<span>이름</span>` +
     `<span style="text-align:center">총점<br><small style="font-weight:400">/${totalMax}</small></span>` +
     `<span style="text-align:center">미응시</span>` +
-    items.map(it => `<span style="text-align:center">${escapeHtml(it.label) || '-'}<br><small style="font-weight:400">/${it.max ?? ''}</small></span>`).join('') +
+    items.map(it => `<span style="text-align:center">${escapeHtml(it.label) || '-'}<br><small style="font-weight:400">/${it.max ?? ''}</small>${cutHeaderTag(it)}</span>`).join('') +
     `<span style="text-align:center">메모</span>`;
 }
 
