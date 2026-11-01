@@ -6,6 +6,7 @@
 | 탭 라벨 | id | HTML | JS 함수 블록 | 주요 함수 |
 |---------|-----|------|-------------|----------|
 | 점수 입력 | `tab-score` | 219~ | 1101~1893 | `loadScoreInputs` 1349 · `renderScoreInputs` 1783 · `saveAllScores` 1840 · `saveItemConfig` 1670 · `refreshGroupInfo` 1425 |
+| 점수 입력 · 자동 저장 / 다른 반 학생 입력 | `tab-score` | 점수 입력 탭 | `// ── 점수 입력 탭 자동 저장`, `// ── 다른 반 학생 점수 입력` 블록 | 칸 `change` 때 `queueScoreAutoSave` → `autoSaveScoreRow`(학생별 순서, 저장 직전 DB 재조회·충돌 확인, 바뀐 칸만 PATCH, 행 없으면 POST). 공용: `scoreFieldsOf`·`scoreDiff`·`scoreConflicts`·`scoreWritePlan`·`apiReqRetry`(429·5xx 3회 재시도). 다른 반 학생: `openGuestModal`·`guestPick`(같은 비교 그룹 → 같은 주 주차, 없으면 지금 주차 그룹·항목으로 새 주차)·`guestSave` |
 | 주차 관리 | `tab-week` | 299~ | 939~1100 | `addWeek` 1045 · `loadWeekList` 1074 · `deleteWeek` 1084 · `renderWeekPreview` 1024 |
 | 학생 관리 | `tab-student` | 338~ | 3668~3807 | `addStudent` 3668 · `loadStudentList` 3720 · `searchStudents` 3734 · `deleteStudent` 3787 · 반 이동 모달 2056~2281 |
 | 퇴원생 (학생 관리 하단 카드) | `tab-student` 안 `#withdrawn-card` | 학생 목록 카드 아래 | `// ── 퇴원생` 블록 | `toggleWithdrawnCard` · `refreshWithdrawnCard` · `loadWithdrawnStudents` · `toggleWithdrawnRecords` · `restoreWithdrawn` — `is_active=false` 학생만, 접혀 있으면 인원만 센다. 퇴원일은 `data_history`에서 찾음. 학생 목록·검색은 재원생만 보여준다 |
