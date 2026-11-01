@@ -7,6 +7,7 @@
 //  POST   { name, pin } → PIN 검증, 쿠키 발급, 성적 데이터, vocab_key(단어 사이트 기록용 학생 키)
 //  GET    (쿠키)        → 세션 검증, 성적 데이터, vocab_key (새로고침·뒤로 가기·다른 페이지)
 //  DELETE               → 쿠키 삭제 (로그아웃)
+//  GET ?report=<시험id> (쿠키) → 공개된 본인 모의고사 분석지 PDF의 5분짜리 서명 링크 { url }
 //
 // vocab_key 는 PIN 을 확인한 POST 에서만 단어 사이트 DB 에 받아, 서명된 세션 토큰에 넣어 둔다.
 // 그래서 자동 입장(GET)에서도 PIN 없이 단어 사이트 기록을 이어 쓸 수 있다.
@@ -20,6 +21,9 @@ const VOCAB_ANON = Deno.env.get("VOCAB_ANON") || "";
 const VOCAB_BRIDGE_SECRET = Deno.env.get("VOCAB_BRIDGE_SECRET") || "";
 const SESSION_TTL_SEC = 60 * 60 * 12; // 12시간
 const COOKIE_NAME = "parent_session";
+// 모의고사 학생별 분석지 (2026-11, supabase/mock-reports.sql). 경로: {mock_exams.id}/{students.id}.pdf
+const REPORT_BUCKET = "mock-reports";
+const REPORT_LINK_SEC = 300; // 학부모가 받는 링크 유효 시간 — 문자·카톡으로 퍼져도 곧 열리지 않게
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -150,6 +154,43 @@ async function vocabKeyFor(name: string, pin: string): Promise<string | null> {
   }
 }
 
+// ── 모의고사 분석지 ──
+// 서명 링크 여러 개를 한 번에 만든다. 파일이 없는 경로는 signedURL 없이 돌아온다.
+async function signReports(paths: string[], expiresIn: number): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  if (!paths.length) return out;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/${REPORT_BUCKET}`, {
+    method: "POST",
+    headers: { apikey: SERVICE_ROLE, Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ expiresIn, paths }),
+  });
+  if (!res.ok) return out;
+  const rows = await res.json();
+  if (!Array.isArray(rows)) return out;
+  for (const r of rows) {
+    const u = r?.signedURL || r?.signedUrl;
+    if (r?.path && u && !r.error) out[r.path] = `${SUPABASE_URL}/storage/v1${u}`;
+  }
+  return out;
+}
+
+// 학부모 화면에 '분석지 보기' 버튼을 띄울 시험 id 목록.
+// 조교가 '학부모에게 공개'(mock_exams.report_published)를 켠 시험 중 이 학생 파일이 있는 것만.
+// 컬럼·보관함이 아직 없거나 오류가 나도 로그인은 그대로 되도록 빈 목록으로 넘긴다.
+async function publishedReportExamIds(student: any): Promise<number[]> {
+  try {
+    const pub = await rest(
+      `mock_exams?class_id=eq.${student.class_id}&report_published=is.true&select=id`,
+    );
+    if (!Array.isArray(pub) || !pub.length) return [];
+    const paths = pub.map((e: any) => `${e.id}/${student.id}.pdf`);
+    const signed = await signReports(paths, 60);
+    return pub.map((e: any) => e.id).filter((id: number) => signed[`${id}/${student.id}.pdf`]);
+  } catch {
+    return [];
+  }
+}
+
 // ── 학생 성적 데이터 묶음 (기존 로직 그대로) ──
 
 async function loadStudentData(student: any) {
@@ -235,6 +276,7 @@ async function loadStudentData(student: any) {
     myMockScores,
     mockRankScores,
     mockGroupExamMap,
+    mockReports: await publishedReportExamIds(student),
   };
 }
 
@@ -258,6 +300,22 @@ Deno.serve(async (req) => {
     const rows = await rest(`students?id=eq.${sess.sid}&is_active=eq.true&${STUDENT_SELECT}`);
     if (!rows || !rows.length) {
       return json({ error: "session_expired" }, 401, { "Set-Cookie": clearCookie() });
+    }
+    // 분석지 열기: 링크는 누를 때마다 새로 만든다 (로그인 응답에 넣으면 12시간 세션 중에 만료된다).
+    // 같은 반 시험 + 공개된 시험 + 본인 파일일 때만 — 시험 id를 바꿔 넣어도 남의 분석지는 못 연다.
+    const reportParam = new URL(req.url).searchParams.get("report");
+    if (reportParam !== null) {
+      const examId = Number(reportParam);
+      if (!Number.isInteger(examId) || examId <= 0) return json({ error: "bad_report" }, 400);
+      const st = rows[0];
+      const exam = await rest(
+        `mock_exams?id=eq.${examId}&class_id=eq.${st.class_id}&report_published=is.true&select=id`,
+      );
+      if (!Array.isArray(exam) || !exam.length) return json({ error: "report_not_found" }, 404);
+      const path = `${examId}/${st.id}.pdf`;
+      const signed = await signReports([path], REPORT_LINK_SEC);
+      if (!signed[path]) return json({ error: "report_not_found" }, 404);
+      return json({ url: signed[path] });
     }
     return json({ ...(await loadStudentData(rows[0])), vocab_key: sess.vk });
   }

@@ -21,6 +21,7 @@ grep 없이 "어디를 고쳐야 하는가"를 알 수 없고, 함수 하나가 
 
 빌드 없음. 파일을 직접 수정하고 커밋하면 그대로 배포된다.
 외부 의존성은 `index.html`의 Chart.js CDN 하나뿐 (`chart.umd.min.js@4.4.0`).
+`admin.html`은 모의고사 분석지 합본을 고를 때만 pdf.js(`pdfjs-dist@3.11.174`)·pdf-lib(`1.17.1`)을 jsdelivr에서 불러온다(`loadPdfTools`).
 
 ## 백엔드 (레포 밖)
 

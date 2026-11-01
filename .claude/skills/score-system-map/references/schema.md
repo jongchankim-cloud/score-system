@@ -47,6 +47,15 @@
 ## mock_exams
 모의고사. `id, class_id, exam_date, label, group_id, item_config`
 
+- `report_published` (2026-11, `supabase/mock-reports.sql`): 학생별 분석지 PDF를 학부모 화면에 공개할지. 기본 false.
+  관리자 화면은 비교 그룹 전체 반을 한꺼번에 켜고 끈다. 이 컬럼이 없으면(SQL 실행 전) 관리자 분석지 칸은 '준비 전' 안내만 띄운다.
+
+## 분석지 보관함 (Supabase Storage `mock-reports`, 비공개)
+- 경로 `{mock_exams.id}/{students.id}.pdf` — 학생 반의 시험 id 밑에 둔다(비교 그룹이어도 반별 시험 id).
+- 정책 없음 → service_role만 접근. 관리자는 admin-api v16 `storage: { op: list | sign_upload | sign | remove }`, 학부모는 parent-login이
+  `report_published=true`인 본인 반 시험만 `mockReports`(시험 id 목록)로 알려 주고 `GET ?report=<시험id>`로 5분짜리 링크를 준다.
+- `deleteMockExam`·`deleteClass`는 DB 삭제 뒤 해당 시험 파일을 지운다(실패 무시). `deleteStudent`는 파일을 지우지 않는다 — 시험·학생이 없으면 링크가 발급될 길이 없다.
+
 ## mock_scores
 `id, exam_id, student_id, item1_score~item4_score, score, absent, memo, retest_pass`
 - `score`는 **레거시 총점 컬럼이지만 계속 채운다.** 학부모 화면이 항목 컬럼 없이도 총점·평균을 계산할 수 있게 하기 위함(L3605 주석). 항목 점수를 저장할 때 합계를 반드시 `score`에도 넣을 것.

@@ -241,6 +241,30 @@
   .mock-visibility-info { font-size:12px; color:var(--gray); margin:10px 0 4px; }
   .mock-visibility-info strong { color:var(--navy); }
   .mock-visibility-info .warn { color:var(--red); }
+  /* 모의고사 학생별 분석지(PDF) — 점수 입력 카드 맨 아래 */
+  .mrep { border-top:1px solid var(--light-gray); margin-top:18px; padding-top:14px; }
+  .mrep-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .mrep-head h4 { font-size:14px; color:var(--navy); margin:0; }
+  .mrep-note { font-size:12px; color:var(--gray); line-height:1.6; }
+  .mrep-summary { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; font-size:13px; color:var(--navy); margin-bottom:8px; line-height:1.7; }
+  .mrep-actions { display:flex; gap:6px; flex-wrap:wrap; }
+  .mrep-drop { display:block; border:1.5px dashed var(--border); border-radius:10px; padding:16px; text-align:center; font-size:12px; color:var(--gray); cursor:pointer; margin:10px 0; background:var(--cream); line-height:1.6; }
+  .mrep-drop strong { color:var(--navy); }
+  .mrep-drop:hover, .mrep-drop.over { border-color:var(--gold); color:var(--navy); }
+  .mrep-drop input { display:none; }
+  .mrep-list { max-height:320px; overflow-y:auto; border:1px solid var(--light-gray); border-radius:8px; margin-bottom:8px; }
+  .mrep-list .data-table td { padding:6px 10px; }
+  .mrep-list select { font-size:12px; padding:4px 6px; max-width:220px; }
+  .mrep-thumb { width:44px; border:1px solid var(--border); border-radius:3px; cursor:zoom-in; display:block; background:var(--white); }
+  .mrep-thumb.empty { height:62px; }
+  .mrep-list tr.mrep-row-warn td { background:var(--orange-light); }
+  .mrep-ok { color:var(--green); font-weight:600; }
+  .mrep-warn { color:var(--orange); font-weight:600; }
+  .mrep-muted { color:var(--gray); }
+  .mrep-progress { font-size:12px; color:var(--navy); margin-top:8px; }
+  .mrep-preview { margin-top:12px; border:1px solid var(--border); border-radius:10px; padding:10px; background:var(--white); }
+  .mrep-preview-head { display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--navy); }
+  .mrep-preview canvas { max-width:100%; height:auto; display:block; margin:8px auto 0; box-shadow:0 1px 4px rgba(0,0,0,.12); }
   .mock-header { padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; }
   .mock-input-row { padding:8px 0; border-bottom:1px solid var(--light-gray); }
   .mock-input-row .student-name { font-size:13px; font-weight:500; color:var(--navy); }
@@ -597,6 +621,21 @@
           <div style="overflow-x:auto">
             <div class="mock-header" id="mock-score-header"></div>
             <div id="mock-score-inputs"></div>
+          </div>
+          <!-- 학생별 분석지(PDF). 함수: '// ── 모의고사 분석지' 블록 -->
+          <div class="mrep" id="mock-report-box">
+            <div class="mrep-head">
+              <h4>학생별 분석지 (PDF)</h4>
+              <span class="badge" id="mock-report-pub-badge"></span>
+            </div>
+            <div id="mock-report-status"></div>
+            <label class="mrep-drop" id="mock-report-drop" style="display:none">
+              <input type="file" accept="application/pdf,.pdf" id="mock-report-file" onchange="onMockReportFile(this.files)">
+              <strong>합본 PDF 선택</strong> 또는 여기로 끌어다 놓기<br>
+              페이지마다 '학생 ○○○'을 읽어 학생별 파일로 나눕니다 · 비교 그룹의 모든 반 학생과 한 번에 맞춥니다
+            </label>
+            <div id="mock-report-review"></div>
+            <div class="mrep-preview" id="mock-report-preview" style="display:none"></div>
           </div>
         </div>
       </div>
@@ -5358,6 +5397,8 @@ async function deleteClass(id, name) {
     await apiDelete(`weeks?class_id=eq.${id}`);
     await apiDelete(`mock_exams?class_id=eq.${id}`);
     await apiDelete(`classes?id=eq.${id}`);
+    // 그 반 시험들의 분석지 파일도 지운다 (deleteMockExam과 같은 이유로 실패는 무시)
+    for (const e of exams) reportStorage({ op: 'remove', exam_id: e.id }).catch(() => {});
   } catch (e) {
     showToast(`❌ ${name} 반 삭제에 실패했어요. 남아 있는 기록이 있는지 확인이 필요합니다.`, 4500);
     console.error('deleteClass 실패:', e);
@@ -6348,6 +6389,7 @@ async function loadMockScoreInputs() {
   renderMockItemConfigEditor();
   toggleGroupEdit('mock', false);  // 시험이 바뀌면 편집 중이던 그룹 선택은 닫는다
   refreshMockGroupInfo();
+  loadMockReportPanel();
 
   if (mockScoreCache[examId]) { renderMockInputs(classId, examId, mockScoreCache[examId]); releaseTableHeight(container); return; }
   if (!studentCache[classId]) { studentCache[classId] = await api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`) || []; }
@@ -6757,10 +6799,534 @@ async function deleteMockExam(id) {
     console.error('deleteMockExam 실패:', e);
     return;
   }
+  // 분석지 파일도 지운다. 실패해도(보관함 준비 전 등) 시험 삭제는 이미 끝났으므로 조용히 넘어간다 —
+  // 남은 파일은 시험이 없어 학부모 화면에 나올 길이 없다.
+  reportStorage({ op: 'remove', exam_id: id }).catch(() => {});
   clearAdminCaches();
   showToast('🗑 모의고사가 삭제됐어요.');
   loadMockList();
   refreshMockExamOptions();
+}
+
+// ── 모의고사 분석지 (학생별 PDF) ──────────────────────────
+// 2026-11: 조교가 반 전체 분석지를 합본 PDF 하나로 올리면, 페이지마다 '학생 ○○○' 머리글을 읽어
+// 학생별 파일로 나눠 비공개 보관함(mock-reports)에 {시험id}/{학생id}.pdf 로 올린다.
+// - 학생 한 명이 몇 쪽인지는 정해져 있지 않다 → 머리글이 없는 쪽은 앞 쪽 학생에 이어 붙인다.
+// - 비교 그룹(같은 group_id)의 모든 반 학생과 한 번에 맞추고, 파일은 각 학생 반의 시험 id 밑에 둔다.
+// - 올리기만 해서는 학부모에게 안 보인다. 시험별 '학부모에게 공개'(mock_exams.report_published)를 켜야
+//   parent-login이 그 시험의 '분석지 보기' 버튼을 내려보낸다.
+// - 서버 준비(supabase/mock-reports.sql → admin-api v16 → parent-login) 전에는 안내 문구만 띄운다.
+// PDF 도구(pdf.js·pdf-lib)는 관리자 화면 첫 로딩을 무겁게 하지 않도록 합본을 고를 때 처음 불러온다.
+const PDFJS_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+const PDFJS_WORKER_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+const PDFJS_CMAP_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/';
+const PDFLIB_URL = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+const MREP_SKIP = '';       // 이 쪽은 올리지 않음
+const MREP_PREV = 'prev';   // 앞 쪽 학생에 이어서
+const MREP_RENDER_WIDTH = 1240;  // 다시 그릴 때 가로 픽셀 (A4 약 150dpi — 휴대폰·인쇄 모두 충분)
+let _mrepCtx = null;   // { examId, groupExams, students, examOfClass, files:Set('시험id/학생id') , fileInfo }
+let _mrepDoc = null;   // { examId, name, bytes, pdf(pdf.js 문서), pages:[{no, read, matches, assign, kind, thumb}] }
+let _mrepSeq = 0;
+let _mrepBusy = false;
+let _mrepListOpen = false;
+let _mrepDropReady = false;
+const _scriptPromises = {};
+
+function loadScriptOnce(src) {
+  if (!_scriptPromises[src]) {
+    _scriptPromises[src] = new Promise((resolve, reject) => {
+      const el = document.createElement('script');
+      el.src = src;
+      el.onload = resolve;
+      el.onerror = () => { delete _scriptPromises[src]; el.remove(); reject(new Error('PDF 도구를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.')); };
+      document.head.appendChild(el);
+    });
+  }
+  return _scriptPromises[src];
+}
+
+async function loadPdfTools() {
+  await Promise.all([loadScriptOnce(PDFJS_URL), loadScriptOnce(PDFLIB_URL)]);
+  pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+}
+
+// admin-api v16의 보관함 작업. api()와 같은 인증·401 처리, 결과는 {ok, status, data}.
+async function reportStorage(storage) {
+  const res = await fetch(ADMIN_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
+    body: JSON.stringify({ password: adminPassword, storage })
+  });
+  if (res.status === 401) { handleAuthError(); throw new Error('unauthorized'); }
+  let data = null;
+  try { const t = await res.text(); data = t ? JSON.parse(t) : null; } catch (e) {}
+  return { ok: res.ok, status: res.status, data };
+}
+
+// ctx를 넘기면 그 시점의 시험 기준으로 계산한다 — 올리는 도중 다른 시험을 골라도 경로가 바뀌지 않게
+function mrepStudent(sid, ctx = _mrepCtx) { return ctx?.students.find(s => s.id === sid) || null; }
+function mrepClassName(classId) { return classes.find(c => c.id === classId)?.name || ''; }
+function mrepPathOf(st, ctx = _mrepCtx) { return `${ctx.examOfClass[st.class_id]}/${st.id}.pdf`; }
+function mrepSize(bytes) {
+  if (bytes == null) return '';
+  return bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(bytes / 1024)) + 'KB';
+}
+
+function initMockReportDrop() {
+  if (_mrepDropReady) return;
+  const el = document.getElementById('mock-report-drop');
+  if (!el) return;
+  _mrepDropReady = true;
+  el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('over'); });
+  el.addEventListener('dragleave', () => el.classList.remove('over'));
+  el.addEventListener('drop', e => { e.preventDefault(); el.classList.remove('over'); onMockReportFile(e.dataTransfer?.files); });
+}
+
+function setMockReportNotReady() {
+  _mrepCtx = null;
+  clearMockReportReview();
+  document.getElementById('mock-report-pub-badge').textContent = '';
+  document.getElementById('mock-report-drop').style.display = 'none';
+  document.getElementById('mock-report-status').innerHTML =
+    '<div class="mrep-note">분석지 보관함이 아직 준비되지 않았어요. 서버 설정이 끝나면 여기서 합본 PDF를 올릴 수 있어요.</div>';
+}
+
+// 점수 입력에서 시험을 고를 때마다 부른다 (loadMockScoreInputs).
+async function loadMockReportPanel() {
+  const examId = parseInt(document.getElementById('mock-score-exam').value);
+  if (!examId || !document.getElementById('mock-report-box')) return;
+  const seq = ++_mrepSeq;
+  initMockReportDrop();
+  // 다른 시험으로 바뀌면 검토 중이던 합본은 버린다 — 다른 시험 밑에 잘못 올리는 사고를 막는다
+  if (_mrepDoc && _mrepDoc.examId !== examId && !_mrepBusy) clearMockReportReview();
+  const status = document.getElementById('mock-report-status');
+  status.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>분석지 현황 확인 중...</div>';
+  let groupExams = null;
+  try {
+    groupExams = currentMockGroupId
+      ? await api(`mock_exams?group_id=eq.${encodeURIComponent(currentMockGroupId)}&select=id,class_id,report_published`)
+      : await api(`mock_exams?id=eq.${examId}&select=id,class_id,report_published`);
+  } catch (e) { groupExams = null; }
+  if (seq !== _mrepSeq) return;
+  // report_published 컬럼이 아직 없으면 PostgREST가 오류 객체를 돌려준다 → 준비 전
+  if (!Array.isArray(groupExams) || !groupExams.length) { setMockReportNotReady(); return; }
+  const classIds = [...new Set(groupExams.map(e => e.class_id))];
+  let studs = null, listRes = null;
+  try {
+    [studs, listRes] = await Promise.all([
+      api(`students?class_id=in.(${classIds.join(',')})&is_active=eq.true&order=name.asc&select=id,name,class_id`),
+      reportStorage({ op: 'list', exam_ids: groupExams.map(e => e.id) })
+    ]);
+  } catch (e) { listRes = null; }
+  if (seq !== _mrepSeq) return;
+  if (!listRes?.ok || !listRes.data?.files || !Array.isArray(studs)) { setMockReportNotReady(); return; }
+
+  const examOfClass = {};
+  groupExams.forEach(e => { examOfClass[e.class_id] = e.id; });
+  const fileInfo = {};
+  for (const [eid, list] of Object.entries(listRes.data.files)) {
+    (list || []).forEach(f => { fileInfo[`${eid}/${f.student_id}.pdf`] = f; });
+  }
+  _mrepCtx = { examId, groupExams, students: studs, examOfClass, fileInfo };
+  document.getElementById('mock-report-drop').style.display = '';
+  renderMockReportStatus();
+  if (_mrepDoc) renderMockReportReview();
+}
+
+function renderMockReportStatus() {
+  const ctx = _mrepCtx;
+  if (!ctx) return;
+  const badge = document.getElementById('mock-report-pub-badge');
+  const pubCount = ctx.groupExams.filter(e => e.report_published).length;
+  if (pubCount === 0) { badge.className = 'badge'; badge.style.cssText = 'background:var(--light-gray);color:var(--gray)'; badge.textContent = '학부모 비공개'; }
+  else { badge.className = 'badge badge-active'; badge.style.cssText = ''; badge.textContent = pubCount === ctx.groupExams.length ? '학부모 공개 중' : `일부 반만 공개 (${pubCount}/${ctx.groupExams.length})`; }
+
+  const have = ctx.students.filter(st => ctx.fileInfo[mrepPathOf(st)]);
+  const missing = ctx.students.filter(st => !ctx.fileInfo[mrepPathOf(st)]);
+  const groupNote = ctx.groupExams.length > 1 ? ` <span class="mrep-muted">(비교 그룹 ${ctx.groupExams.length}개 반)</span>` : '';
+  const pubBtn = pubCount === ctx.groupExams.length
+    ? `<button class="btn btn-light btn-sm" onclick="setMockReportPublished(false)">공개 중단</button>`
+    : `<button class="btn btn-gold btn-sm" onclick="setMockReportPublished(true)" ${have.length ? '' : 'disabled title="먼저 분석지를 올려 주세요"'}>학부모에게 공개</button>`;
+  const rows = ctx.students.map(st => {
+    const f = ctx.fileInfo[mrepPathOf(st)];
+    const path = mrepPathOf(st);
+    return `<tr>
+      <td class="mrep-muted" style="font-size:12px">${escapeHtml(mrepClassName(st.class_id))}</td>
+      <td><strong>${escapeHtml(st.name)}</strong></td>
+      <td>${f ? `<span class="mrep-ok">올림</span> <span class="mrep-muted" style="font-size:11px">${f.updated_at ? escapeHtml(new Date(f.updated_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })) : ''} · ${mrepSize(f.size)}</span>` : '<span class="mrep-muted">—</span>'}</td>
+      <td style="text-align:right;white-space:nowrap">${f ? `<button class="btn btn-light btn-sm" onclick="openStoredMockReport('${escapeAttr(path)}')">보기</button> <button class="btn btn-danger btn-sm" onclick="deleteStoredMockReport('${escapeAttr(path)}', '${escapeAttr(st.name)}')">삭제</button>` : ''}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('mock-report-status').innerHTML = `
+    <div class="mrep-summary">
+      <div>분석지 올라간 학생 <strong>${have.length}</strong> / ${ctx.students.length}명${groupNote}
+        ${missing.length && have.length ? `<br><span class="mrep-muted" style="font-size:12px">없는 학생: ${missing.slice(0, 12).map(st => escapeHtml(st.name)).join(', ')}${missing.length > 12 ? ` 외 ${missing.length - 12}명` : ''}</span>` : ''}
+      </div>
+      <div class="mrep-actions">
+        <button class="btn btn-light btn-sm" onclick="toggleMockReportList()">${_mrepListOpen ? '목록 접기' : '학생별 목록'}</button>
+        ${pubBtn}
+      </div>
+    </div>
+    ${_mrepListOpen ? `<div class="mrep-list"><table class="data-table"><tbody>${rows}</tbody></table></div>` : ''}
+    <div class="mrep-note">올리기만 해서는 학부모에게 보이지 않아요. 검수 후 '학부모에게 공개'를 누르면 점수 화면에 '분석지 보기' 버튼이 생깁니다.</div>`;
+}
+
+function toggleMockReportList() { _mrepListOpen = !_mrepListOpen; renderMockReportStatus(); }
+
+async function setMockReportPublished(on) {
+  const ctx = _mrepCtx;
+  if (!ctx) return;
+  const have = ctx.students.filter(st => ctx.fileInfo[mrepPathOf(st)]).length;
+  const scope = ctx.groupExams.length > 1 ? `비교 그룹 ${ctx.groupExams.length}개 반 전체` : '이 반';
+  const msg = on
+    ? `${scope}에 분석지를 공개할까요?\n분석지가 올라간 학생 ${have}명의 학부모·학생 화면에 '분석지 보기' 버튼이 나타납니다.`
+    : `${scope}의 분석지 공개를 중단할까요?\n학부모 화면에서 '분석지 보기' 버튼이 사라집니다. (파일은 그대로 남아요)`;
+  if (!confirm(msg)) return;
+  const results = await Promise.all(ctx.groupExams.map(e => apiRaw(`mock_exams?id=eq.${e.id}`, 'PATCH', { report_published: on })));
+  const failed = results.filter(r => !r.ok).length;
+  if (failed) showToast(`❌ ${failed}개 반 ${on ? '공개' : '공개 중단'}에 실패했어요. 다시 시도해 주세요.`, 4000);
+  else showToast(on ? '✅ 분석지를 학부모에게 공개했어요!' : '✅ 분석지 공개를 중단했어요.');
+  loadMockReportPanel();
+}
+
+// 새 창을 먼저 열어 두고 주소를 나중에 넣는다 — 응답을 기다린 뒤 열면 팝업 차단에 걸린다
+async function openStoredMockReport(path) {
+  const w = window.open('', '_blank');
+  const r = await reportStorage({ op: 'sign', path }).catch(() => null);
+  if (!r?.ok || !r.data?.url) { if (w) w.close(); showToast('❌ 분석지를 열지 못했어요.'); return; }
+  if (w) w.location.href = r.data.url; else window.open(r.data.url, '_blank');
+}
+
+async function deleteStoredMockReport(path, name) {
+  if (!confirm(`${name} 학생의 분석지를 삭제할까요?`)) return;
+  const r = await reportStorage({ op: 'remove', paths: [path] }).catch(() => null);
+  if (!r?.ok) { showToast('❌ 분석지 삭제에 실패했어요.'); return; }
+  showToast(`🗑 ${name} 학생 분석지를 삭제했어요.`);
+  loadMockReportPanel();
+}
+
+// ── 합본 읽기 · 학생 매칭
+// 페이지 글자에서 '학생 ○○○' 머리글을 찾아 명단과 맞춘다.
+// 양식에는 '○○○ 학생'(그래프 범례), '학생 vs 수강반 평균' 같은 말도 있으므로 '학생' 바로 뒤에
+// 명단 이름이 오는 곳만 인정한다. 사진 위에 글자 인식층을 얹은 PDF는 띄어쓰기가 들쭉날쭉해서 공백을 지우고 비교한다.
+function readReportHeader(text, students) {
+  const flat = (text || '').replace(/\s+/g, '');
+  let read = '';
+  for (let idx = flat.indexOf('학생'); idx >= 0; idx = flat.indexOf('학생', idx + 2)) {
+    const after = flat.slice(idx + 2, idx + 16).replace(/^[:：]/, '');
+    let best = '';
+    for (const st of students) {
+      const n = (st.name || '').replace(/\s+/g, '');
+      if (n && after.startsWith(n) && n.length > best.length) best = n;
+    }
+    if (best) return { read: best, matches: students.filter(st => (st.name || '').replace(/\s+/g, '') === best).map(st => st.id) };
+    // 명단에 없는 이름이라도 화면에 보여 주려고, '학교·시험·담당' 앞까지를 읽은 이름으로 남긴다
+    if (!read) { const m = after.match(/^(.{2,6}?)(?=학교|시험|담당)/); if (m) read = m[1]; }
+  }
+  return { read, matches: [] };
+}
+
+function clearMockReportReview() {
+  if (_mrepDoc?.pdf) { try { _mrepDoc.pdf.destroy(); } catch (e) {} }
+  _mrepDoc = null;
+  const review = document.getElementById('mock-report-review');
+  if (review) review.innerHTML = '';
+  closeMockReportPreview();
+}
+
+async function onMockReportFile(fileList) {
+  const input = document.getElementById('mock-report-file');
+  const file = fileList && fileList[0];
+  if (input) input.value = '';   // 같은 파일을 다시 골라도 onchange가 오도록
+  if (!file || _mrepBusy) return;
+  const ctx = _mrepCtx;
+  if (!ctx) { showToast('❌ 분석지 보관함이 아직 준비되지 않았어요.'); return; }
+  if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) { showToast('❌ PDF 파일만 올릴 수 있어요.'); return; }
+  clearMockReportReview();
+  const review = document.getElementById('mock-report-review');
+  review.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>합본을 읽는 중...</div>';
+  _mrepBusy = true;
+  try {
+    await loadPdfTools();
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    // pdf.js는 받은 버퍼를 작업 스레드로 넘겨 비워 버리므로 사본을 준다 (원본은 pdf-lib 분할용)
+    const pdf = await pdfjsLib.getDocument({ data: bytes.slice(), cMapUrl: PDFJS_CMAP_URL, cMapPacked: true }).promise;
+    const pages = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const tc = await page.getTextContent();
+      pages.push({ no: i, ...readReportHeader(tc.items.map(it => it.str).join(' '), ctx.students) });
+      if (i % 5 === 0) review.innerHTML = `<div class="mini-loading"><span class="spinner-sm"></span>합본을 읽는 중... ${i} / ${pdf.numPages}쪽</div>`;
+    }
+    if (_mrepCtx !== ctx) { pdf.destroy(); review.innerHTML = ''; return; }   // 읽는 사이 시험을 바꿨다
+    // 처음 배정: 머리글 이름이 명단의 한 명과 맞으면 그 학생, 동명이인·명단에 없음은 직접 고르게 비워 두고,
+    // 머리글이 없는 쪽은 앞 쪽 학생에 이어 붙인다 (학생 한 명이 여러 쪽인 경우)
+    pages.forEach((p, i) => {
+      if (p.matches.length === 1) { p.assign = String(p.matches[0]); p.kind = 'auto'; }
+      else if (p.matches.length > 1) { p.assign = MREP_SKIP; p.kind = 'dup'; }
+      else if (p.read) { p.assign = MREP_SKIP; p.kind = 'unknown'; }
+      else { p.assign = i === 0 ? MREP_SKIP : MREP_PREV; p.kind = i === 0 ? 'noname' : 'cont'; }
+    });
+    _mrepDoc = { examId: ctx.examId, name: file.name, bytes, pdf, pages };
+    renderMockReportReview();
+    renderMockReportThumbs();
+  } catch (e) {
+    review.innerHTML = '';
+    showToast('❌ PDF를 읽지 못했어요: ' + (e.message || e), 4000);
+    console.error('onMockReportFile 실패:', e);
+  } finally {
+    _mrepBusy = false;
+  }
+}
+
+// 각 쪽이 실제로 어느 학생에게 가는지 (앞 쪽 이어서 → 앞 쪽의 결과를 따라간다)
+function resolveMockReportPages() {
+  let cur = null;
+  return (_mrepDoc?.pages || []).map(p => {
+    if (p.assign === MREP_PREV) return cur;
+    cur = p.assign ? parseInt(p.assign) : null;
+    return cur;
+  });
+}
+
+// 올릴 단위: [{ sid, pages:[쪽 번호] }] — 같은 학생에게 간 쪽은 순서대로 한 파일에 담는다
+function mockReportSegments() {
+  const resolved = resolveMockReportPages();
+  const map = new Map();
+  resolved.forEach((sid, i) => { if (sid) { if (!map.has(sid)) map.set(sid, []); map.get(sid).push(_mrepDoc.pages[i].no); } });
+  return [...map.entries()].map(([sid, pages]) => ({ sid, pages }));
+}
+
+function mockReportOptionsHtml() {
+  const byClass = {};
+  _mrepCtx.students.forEach(st => { (byClass[st.class_id] ||= []).push(st); });
+  return `<option value="${MREP_SKIP}">올리지 않음</option><option value="${MREP_PREV}">↪ 앞 쪽 학생에 이어서</option>` +
+    Object.entries(byClass).map(([cid, list]) =>
+      `<optgroup label="${escapeAttr(mrepClassName(parseInt(cid)))}">${list.map(st => `<option value="${st.id}">${escapeHtml(st.name)}</option>`).join('')}</optgroup>`
+    ).join('');
+}
+
+function renderMockReportReview() {
+  const doc = _mrepDoc, ctx = _mrepCtx;
+  const review = document.getElementById('mock-report-review');
+  if (!doc || !ctx || doc.examId !== ctx.examId) { if (review) review.innerHTML = ''; return; }
+  const resolved = resolveMockReportPages();
+  const segs = mockReportSegments();
+  // 같은 학생이 떨어진 두 곳에 배정됐으면(머리글 두 번) 실수일 가능성이 크다
+  const starts = {};
+  doc.pages.forEach((p, i) => { if (p.assign && p.assign !== MREP_PREV) (starts[p.assign] ||= []).push(i); });
+  const dupStart = new Set(Object.values(starts).filter(a => a.length > 1).flat());
+
+  let warnCount = 0, contCount = 0;
+  const rows = doc.pages.map((p, i) => {
+    const sid = resolved[i];
+    const st = sid ? mrepStudent(sid) : null;
+    let state;
+    if (dupStart.has(i)) { state = '<span class="mrep-warn">⚠️ 같은 학생이 여러 곳에 배정됨</span>'; warnCount++; }
+    else if (p.assign === MREP_PREV) {
+      state = st ? `<span class="mrep-muted">↪ ${escapeHtml(st.name)} 분석지의 다음 쪽</span>` : '<span class="mrep-muted">올리지 않음 (앞 쪽이 비어 있음)</span>';
+      if (st) contCount++;
+    }
+    else if (!p.assign) {
+      if (p.kind === 'dup') { state = '<span class="mrep-warn">⚠️ 동명이인 — 학생을 골라 주세요</span>'; warnCount++; }
+      else if (p.kind === 'unknown') { state = '<span class="mrep-warn">⚠️ 명단에 없는 이름</span>'; warnCount++; }
+      else if (p.kind === 'noname') { state = '<span class="mrep-warn">⚠️ 이름을 못 읽음</span>'; warnCount++; }
+      else state = '<span class="mrep-muted">올리지 않음</span>';
+    }
+    else state = p.kind === 'auto' && String(p.matches[0]) === p.assign ? '<span class="mrep-ok">✅ 자동 매칭</span>' : '<span class="mrep-ok">직접 지정</span>';
+    const warnRow = state.includes('mrep-warn');
+    return `<tr class="${warnRow ? 'mrep-row-warn' : ''}">
+      <td>${p.thumb ? `<img class="mrep-thumb" src="${p.thumb}" alt="${p.no}쪽" onclick="previewMockReportPage(${p.no})">` : `<div class="mrep-thumb empty" onclick="previewMockReportPage(${p.no})"></div>`}</td>
+      <td style="white-space:nowrap">${p.no}쪽</td>
+      <td>${p.read ? escapeHtml(p.read) : '<span class="mrep-muted">—</span>'}</td>
+      <td><select data-i="${i}" onchange="setMockReportAssign(${i}, this.value)">${mockReportOptionsHtml()}</select>${st && p.assign !== MREP_PREV ? ` <span class="mrep-muted" style="font-size:11px">${escapeHtml(mrepClassName(st.class_id))}</span>` : ''}</td>
+      <td>${state}</td>
+    </tr>`;
+  }).join('');
+
+  const overwrite = segs.filter(sg => { const st = mrepStudent(sg.sid); return st && ctx.fileInfo[mrepPathOf(st)]; }).length;
+  const got = new Set(segs.map(sg => sg.sid));
+  const without = ctx.students.filter(st => !got.has(st.id));
+  const multi = segs.filter(sg => sg.pages.length > 1).length;
+  review.innerHTML = `
+    <div class="mrep-summary">
+      <div>
+        <strong>${escapeHtml(doc.name)}</strong> · ${doc.pages.length}쪽 → 학생 <strong>${segs.length}</strong>명${multi ? ` <span class="mrep-muted">(2쪽 이상 ${multi}명)</span>` : ''}<br>
+        ${warnCount ? `<span class="mrep-warn">⚠️ 확인할 쪽 ${warnCount}개</span> · ` : '<span class="mrep-ok">모든 쪽 매칭됨</span> · '}
+        ${contCount ? `앞 학생에 이어 붙인 쪽 ${contCount}개 · ` : ''}
+        ${overwrite ? `이미 올라간 ${overwrite}명은 새 파일로 바뀜 · ` : ''}
+        <span class="mrep-muted">합본에 없는 학생 ${without.length}명${without.length && without.length <= 10 ? ` (${without.map(st => escapeHtml(st.name)).join(', ')})` : ''}</span>
+      </div>
+      <div class="mrep-actions">
+        <button class="btn btn-light btn-sm" onclick="clearMockReportReview()" id="mock-report-cancel-btn">취소</button>
+        <button class="btn btn-primary btn-sm" onclick="uploadMockReports()" id="mock-report-upload-btn" ${segs.length ? '' : 'disabled'}>학생 ${segs.length}명 분석지 올리기</button>
+      </div>
+    </div>
+    <div class="mrep-list"><table class="data-table">
+      <thead><tr><th></th><th>쪽</th><th>읽은 이름</th><th>배정</th><th>상태</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    <div class="mrep-note">머리글('학생 ○○○')이 없는 쪽은 앞 학생 분석지의 다음 쪽으로 붙습니다. 이름을 못 읽은 첫 쪽이 다른 학생 분석지에 붙지 않았는지, 썸네일을 눌러 확인해 주세요.</div>
+    <div class="mrep-progress" id="mock-report-progress">${doc.lastFail?.length ? `<span class="mrep-warn">지난번 실패: ${doc.lastFail.map(n => escapeHtml(n)).join(', ')}</span> — 다시 올리면 실패한 학생까지 함께 올라갑니다 (성공한 학생은 같은 파일로 덮어씀).` : ''}</div>`;
+  review.querySelectorAll('select[data-i]').forEach(sel => { sel.value = doc.pages[parseInt(sel.dataset.i)].assign; });
+}
+
+function setMockReportAssign(i, value) {
+  if (!_mrepDoc || _mrepBusy) return;
+  _mrepDoc.pages[i].assign = value;
+  renderMockReportReview();
+}
+
+// 확인용 작은 썸네일. 한 번 그린 것은 데이터 주소로 보관해서 다시 그리지 않는다.
+async function renderMockReportThumbs() {
+  const doc = _mrepDoc;
+  if (!doc) return;
+  for (const p of doc.pages) {
+    if (_mrepDoc !== doc) return;
+    if (p.thumb) continue;
+    try {
+      const page = await doc.pdf.getPage(p.no);
+      const vp1 = page.getViewport({ scale: 1 });
+      const vp = page.getViewport({ scale: 88 / vp1.width });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+      p.thumb = canvas.toDataURL('image/jpeg', 0.7);
+      if (_mrepDoc !== doc) return;
+      const cell = document.querySelector(`#mock-report-review select[data-i="${p.no - 1}"]`)?.closest('tr')?.firstElementChild;
+      if (cell) cell.innerHTML = `<img class="mrep-thumb" src="${p.thumb}" alt="${p.no}쪽" onclick="previewMockReportPage(${p.no})">`;
+    } catch (e) { /* 썸네일은 확인용이라 실패해도 진행 */ }
+  }
+}
+
+async function previewMockReportPage(no) {
+  const doc = _mrepDoc;
+  const box = document.getElementById('mock-report-preview');
+  if (!doc || !box) return;
+  const i = no - 1;
+  const sid = resolveMockReportPages()[i];
+  const st = sid ? mrepStudent(sid) : null;
+  box.style.display = 'block';
+  box.innerHTML = `<div class="mrep-preview-head"><span><strong>${no}쪽</strong> → ${st ? escapeHtml(st.name) : '올리지 않음'}</span>
+    <span><button class="btn btn-light btn-sm" onclick="previewMockReportPage(${no - 1})" ${no > 1 ? '' : 'disabled'}>◀</button>
+    <button class="btn btn-light btn-sm" onclick="previewMockReportPage(${no + 1})" ${no < doc.pages.length ? '' : 'disabled'}>▶</button>
+    <button class="btn btn-light btn-sm" onclick="closeMockReportPreview()">닫기</button></span></div><canvas></canvas>`;
+  try {
+    const page = await doc.pdf.getPage(no);
+    const vp1 = page.getViewport({ scale: 1 });
+    const vp = page.getViewport({ scale: 760 / vp1.width });
+    const canvas = box.querySelector('canvas');
+    canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+  } catch (e) { console.error('previewMockReportPage 실패:', e); }
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closeMockReportPreview() {
+  const box = document.getElementById('mock-report-preview');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+}
+
+// ── 학생별 파일 만들기 · 올리기
+// 쪽을 그대로 옮긴 파일과, 가로 1240px JPEG로 다시 그린 파일 중 작은 쪽을 올린다.
+// 지금 양식은 쪽마다 288dpi 사진(약 700KB)이라 다시 그리면 크게 준다 — Supabase 무료 저장 용량(1GB) 절약.
+// 글자 위주 PDF라면 원본 쪽이 더 작으므로 원본이 그대로 올라간다.
+async function buildMockReportPdf(src, pdf, pageNos) {
+  const { PDFDocument } = PDFLib;
+  const orig = await PDFDocument.create();
+  (await orig.copyPages(src, pageNos.map(n => n - 1))).forEach(pg => orig.addPage(pg));
+  const origBytes = await orig.save();
+
+  const small = await PDFDocument.create();
+  for (const n of pageNos) {
+    const page = await pdf.getPage(n);
+    const vp1 = page.getViewport({ scale: 1 });
+    const vp = page.getViewport({ scale: MREP_RENDER_WIDTH / vp1.width });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
+    const c2d = canvas.getContext('2d');
+    c2d.fillStyle = '#ffffff';
+    c2d.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: c2d, viewport: vp }).promise;
+    const jpg = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.82));
+    const img = await small.embedJpg(new Uint8Array(await jpg.arrayBuffer()));
+    small.addPage([vp1.width, vp1.height]).drawImage(img, { x: 0, y: 0, width: vp1.width, height: vp1.height });
+  }
+  const smallBytes = await small.save();
+  return new Blob([smallBytes.length < origBytes.length * 0.8 ? smallBytes : origBytes], { type: 'application/pdf' });
+}
+
+// 서명 업로드 주소로 직접 올린다 (supabase-js uploadToSignedUrl과 같은 형식).
+// 잠깐의 오류(429·5xx·네트워크)는 apiReqRetry처럼 조금 기다렸다가 다시 보낸다.
+async function putMockReport(url, blob) {
+  const waits = [800, 1600, 3200];
+  let last = { ok: false, status: 0 };
+  for (let i = 0; i <= waits.length; i++) {
+    try {
+      const fd = new FormData();
+      fd.append('cacheControl', '3600');
+      fd.append('', blob, 'report.pdf');
+      const res = await fetch(url, { method: 'PUT', headers: { 'x-upsert': 'true', apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` }, body: fd });
+      last = { ok: res.ok, status: res.status };
+    } catch (e) { last = { ok: false, status: 0 }; }
+    if (last.ok) return last;
+    if (last.status >= 400 && last.status < 500 && last.status !== 429 && last.status !== 408) return last;
+    if (i < waits.length) await new Promise(r => setTimeout(r, waits[i]));
+  }
+  return last;
+}
+
+async function uploadMockReports() {
+  const doc = _mrepDoc, ctx = _mrepCtx;
+  if (!doc || !ctx || doc.examId !== ctx.examId || _mrepBusy) return;
+  const segs = mockReportSegments();
+  if (!segs.length) { showToast('올릴 분석지가 없어요. 쪽마다 학생을 배정해 주세요.'); return; }
+  const overwrite = segs.filter(sg => ctx.fileInfo[mrepPathOf(mrepStudent(sg.sid, ctx), ctx)]).length;
+  const warnLeft = document.querySelectorAll('#mock-report-review tr.mrep-row-warn').length;
+  if (!confirm(`학생 ${segs.length}명의 분석지를 올릴까요?` +
+    (overwrite ? `\n이미 올라간 ${overwrite}명은 새 파일로 바뀝니다.` : '') +
+    (warnLeft ? `\n⚠️ 확인할 쪽이 ${warnLeft}개 남아 있어요.` : '') +
+    `\n\n올리기만 해서는 학부모에게 보이지 않아요. (공개는 따로)`)) return;
+
+  _mrepBusy = true;
+  document.getElementById('mock-report-upload-btn')?.setAttribute('disabled', '');
+  document.getElementById('mock-report-cancel-btn')?.setAttribute('disabled', '');
+  document.querySelectorAll('#mock-report-review select').forEach(s => { s.disabled = true; });
+  const progress = document.getElementById('mock-report-progress');
+  const failed = [];
+  let done = 0, bytesTotal = 0;
+  try {
+    const src = await PDFLib.PDFDocument.load(doc.bytes);
+    for (const sg of segs) {
+      const st = mrepStudent(sg.sid, ctx);
+      if (progress) progress.innerHTML = `<span class="spinner-sm"></span>올리는 중... ${done + failed.length + 1} / ${segs.length} (${escapeHtml(st.name)})`;
+      try {
+        const blob = await buildMockReportPdf(src, doc.pdf, sg.pages);
+        const sign = await reportStorage({ op: 'sign_upload', path: mrepPathOf(st, ctx) });
+        if (!sign.ok || !sign.data?.url) throw new Error('서명 주소 실패 ' + sign.status);
+        const put = await putMockReport(sign.data.url, blob);
+        if (!put.ok) throw new Error('업로드 실패 ' + put.status);
+        done++; bytesTotal += blob.size;
+      } catch (e) {
+        failed.push(st.name);
+        console.error('분석지 업로드 실패:', st.name, e);
+      }
+    }
+  } catch (e) {
+    showToast('❌ 합본을 나누지 못했어요: ' + (e.message || e), 4000);
+    console.error('uploadMockReports 실패:', e);
+  } finally {
+    _mrepBusy = false;
+  }
+  if (failed.length) {
+    showToast(`❌ ${failed.length}명 실패 (${failed.slice(0, 5).join(', ')}${failed.length > 5 ? ' 외' : ''}) · ${done}명 성공`, 5000);
+    // 검토 표는 그대로 두고(아래 loadMockReportPanel이 다시 그리며 버튼을 되살린다) 실패 명단만 남긴다
+    if (_mrepDoc === doc) doc.lastFail = failed.slice();
+  } else {
+    showToast(`✅ 학생 ${done}명 분석지를 올렸어요! (${mrepSize(bytesTotal)})`);
+    clearMockReportReview();
+  }
+  loadMockReportPanel();
 }
 
 // ── 학생 관리
