@@ -148,6 +148,33 @@
   .score-input-row { display:grid; grid-template-columns:180px 50px 44px repeat(var(--item-count,3),62px) 62px 275px minmax(150px,1fr); gap:6px; align-items:center; padding:8px 0; border-bottom:1px solid var(--light-gray); min-width:max-content; }
   .score-input-row .total-cell { font-size:15px; font-weight:700; color:var(--navy); text-align:center; }
   .score-input-row:last-child { border-bottom:none; }
+  /* 자동 저장 상태 (학생 이름 아래 작은 글씨) */
+  .autosave-st { display:block; font-size:10.5px; font-weight:500; line-height:1.4; margin-top:2px; }
+  .autosave-st.saving { color:var(--gray); }
+  .autosave-st.saved { color:var(--green); }
+  .autosave-st.reverted { color:var(--gray); }
+  .autosave-st.range { color:var(--orange); }
+  .autosave-st.failed { color:var(--red); font-weight:700; cursor:pointer; text-decoration:underline; }
+  .autosave-hint { font-size:11px; color:var(--gray); }
+  /* 다른 반 학생 점수 입력 창 */
+  .guest-results { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+  .guest-results button { padding:6px 12px; border-radius:16px; border:1.5px solid var(--border); background:var(--white); color:var(--navy); font-size:12px; font-family:'Noto Sans KR',sans-serif; cursor:pointer; }
+  .guest-results button.active { background:var(--navy); border-color:var(--navy); color:var(--white); font-weight:700; }
+  .guest-target { background:var(--light-gray); border-radius:10px; padding:10px 14px; font-size:13px; color:var(--navy); margin-bottom:14px; line-height:1.7; }
+  .guest-target small { color:var(--gray); font-size:12px; }
+  .guest-items { display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:8px; margin-bottom:12px; }
+  .guest-items .gi { text-align:center; }
+  .guest-items .gi-label { font-size:12px; font-weight:600; color:var(--navy); }
+  .guest-items .gi-meta { font-size:10.5px; color:var(--gray); margin-bottom:4px; }
+  .guest-items input[type=number] { width:100%; padding:8px; text-align:center; border:1.5px solid var(--border); border-radius:6px; font-size:14px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); outline:none; }
+  .guest-items input.below-cut { border-color:var(--red); background:var(--red-light); color:var(--red); font-weight:700; }
+  .guest-items input.over-max { border-color:var(--orange); background:var(--orange-light); }
+  .guest-items .gi-retest { display:none; font-size:10.5px; color:var(--red); margin-top:3px; cursor:pointer; }
+  .guest-items .gi-retest.show { display:block; }
+  .guest-extra { display:grid; grid-template-columns:60px 90px 1fr 1fr; gap:8px; margin-bottom:12px; align-items:end; }
+  .guest-extra label { display:block; font-size:11px; color:var(--gray); margin-bottom:4px; }
+  .guest-extra input[type=text], .guest-extra input[type=number] { width:100%; padding:8px; border:1.5px solid var(--border); border-radius:6px; font-size:13px; font-family:'Noto Sans KR',sans-serif; outline:none; }
+  @media (max-width:640px) { .guest-extra { grid-template-columns:60px 1fr; } }
   /* 이름 검색으로 찾은 학생 행을 잠깐 강조 */
   .score-input-row.row-flash { background:var(--orange-light); transition:background 0.3s; }
   .score-input-row .student-name { font-size:13px; font-weight:500; color:var(--navy); line-height:1.4; word-break:break-all; padding-right:4px; }
@@ -336,7 +363,11 @@
     <div class="section-card" id="score-input-card" style="display:none">
       <div class="section-head">
         <h3 id="score-input-title">점수 입력</h3>
-        <button class="btn btn-primary btn-sm" onclick="saveAllScores()">전체 저장</button>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+          <span class="autosave-hint">칸에서 나가면 자동 저장돼요</span>
+          <button class="btn btn-sm" style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe" onclick="openGuestModal()">＋ 다른 반 학생 입력</button>
+          <button class="btn btn-primary btn-sm" onclick="saveAllScores()">전체 저장</button>
+        </div>
       </div>
       <div class="section-body">
         <div style="margin-bottom:12px">
@@ -1008,6 +1039,32 @@
   </div>
 </div>
 
+<!-- 다른 반 학생 점수 입력 (점수 입력 탭) — 보고 있는 반 표는 그대로 두고 한 명만 원래 반 주차에 저장 -->
+<div id="guest-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--white);border-radius:16px;padding:26px 28px;width:100%;max-width:780px;max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+    <h3 style="font-size:16px;font-weight:700;color:var(--navy);margin-bottom:4px">다른 반 학생 점수 입력</h3>
+    <p style="font-size:12.5px;color:var(--gray);margin-bottom:16px" id="guest-sub"></p>
+    <label style="display:block;font-size:11px;color:var(--gray);font-weight:500;margin-bottom:5px">학생 이름 검색</label>
+    <input type="text" id="guest-search" oninput="guestSearch()" placeholder="이름 입력" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'Noto Sans KR',sans-serif;outline:none;margin-bottom:8px">
+    <div id="guest-results" class="guest-results"></div>
+    <div id="guest-body" style="display:none">
+      <div id="guest-target" class="guest-target"></div>
+      <div id="guest-items" class="guest-items"></div>
+      <div class="guest-extra">
+        <div><label>출석</label><input type="checkbox" id="guest-attend" style="width:18px;height:18px;margin-top:6px"></div>
+        <div><label>과제 %</label><input type="number" id="guest-hw" min="0" max="100"></div>
+        <div><label>과제평가</label><input type="text" id="guest-eval"></div>
+        <div><label>클리닉메모</label><input type="text" id="guest-memo"></div>
+      </div>
+    </div>
+    <div id="guest-status" style="font-size:12px;margin:0 0 12px;min-height:16px"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" style="flex:1" id="guest-save" onclick="guestSave()" disabled>이 학생만 저장</button>
+      <button class="btn" style="flex:1;background:var(--light-gray);color:var(--navy)" onclick="closeGuestModal()">닫기</button>
+    </div>
+  </div>
+</div>
+
 <!-- 클리닉 메모 수정 모달 (클리닉 배정표 탭) -->
 <div id="clinic-memo-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--white);border-radius:16px;padding:28px;width:100%;max-width:980px;max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
@@ -1133,6 +1190,33 @@ async function apiRaw(path, method, body=null, prefer='return=minimal') {
 // DELETE는 실패해도 조용히 넘어가면 안 된다.
 // 참조 중인 점수가 남아 있으면 외래키 제약으로 거부되는데,
 // api()는 응답 상태를 보지 않아서 실패해도 성공한 것처럼 보였다.
+// 응답 상태와 본문을 함께 돌려준다. 자동 저장·다른 반 학생 입력처럼 결과를 보고 다음 단계를 정해야 하는 곳에서 쓴다.
+async function apiReq(path, method = 'GET', body = null, prefer = null) {
+  const res = await fetch(ADMIN_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
+    body: JSON.stringify({ password: adminPassword, path, method, body, prefer })
+  });
+  if (res.status === 401) handleAuthError();
+  let data = null;
+  try { const t = await res.text(); data = t && t !== 'null' ? JSON.parse(t) : null; } catch (e) {}
+  return { ok: res.ok, status: res.status, data };
+}
+
+// 잠깐의 오류(인터넷 끊김, 서버의 '요청이 너무 많음' 429, 서버 오류 5xx)는 조금 기다렸다가 최대 3번 다시 보낸다.
+// 잘못된 요청(400대)은 다시 보내도 같으므로 바로 돌려준다.
+async function apiReqRetry(path, method = 'GET', body = null, prefer = null) {
+  const waits = [800, 1600, 3200];
+  let last = { ok: false, status: 0, data: null };
+  for (let i = 0; i <= waits.length; i++) {
+    try { last = await apiReq(path, method, body, prefer); } catch (e) { last = { ok: false, status: 0, data: null }; }
+    if (last.ok || last.status === 401) return last;
+    if (last.status >= 400 && last.status < 500 && last.status !== 429 && last.status !== 408) return last;
+    if (i < waits.length) await new Promise(r => setTimeout(r, waits[i]));
+  }
+  return last;
+}
+
 async function apiDelete(path) {
   const res = await apiRaw(path, 'DELETE');
   if (!res.ok) throw new Error(`${path} → status ${res.status}`);
@@ -1860,6 +1944,8 @@ async function loadScoreInputs() {
   const card = document.getElementById('score-input-card');
   const container = document.getElementById('score-inputs-container');
   card.style.display = 'block';
+  // 방금 칸에서 빠져나오며 시작된 자동 저장이 끝난 뒤에 새로 읽어야 방금 입력한 값이 보인다
+  await flushScoreAutoSave();
   // 주차를 바꾸는 즉시 이전 주차 행을 지운다. 불러오기가 실패해도 옛 행이 남아
   // 다른 주차에 저장되는 일이 없어야 한다. 높이는 붙잡아 둬서 스크롤이 위로 튀지 않게 한다.
   const seq = ++_scoreLoadSeq;
@@ -2319,10 +2405,26 @@ function collectCurrentScores() {
 }
 
 // '이번 주 과제 없음' 체크 시 과제 수행률 입력칸을 잠근다 (저장 시 null로 기록)
-function onNoHomeworkToggle() {
-  currentNoHomework = document.getElementById('week-no-homework').checked;
-  scoreDirty = true;
+// 반 전체에 걸리는 설정이라 체크하는 순간 이 주차의 모든 행에 바로 저장한다 (자동 저장, 2026-11)
+async function onNoHomeworkToggle() {
+  const chk = document.getElementById('week-no-homework');
+  const want = chk.checked;
+  const container = document.getElementById('score-inputs-container');
+  const weekId = parseInt(container.dataset.weekId);
+  if (want) {
+    const filled = Array.from(container.querySelectorAll('.inp-hw')).filter(i => i.value !== '').length;
+    if (filled && !confirm(`이번 주 과제 없음으로 바꾸면 입력된 과제% ${filled}건이 지워집니다.\n계속할까요?`)) { chk.checked = false; return; }
+  }
+  currentNoHomework = want;
   applyNoHomeworkState();
+  if (!weekId) return;
+  await flushScoreAutoSave();
+  const res = await apiReqRetry(`scores?week_id=eq.${weekId}`, 'PATCH', want ? { no_homework: true, homework_rate: null } : { no_homework: false });
+  if (!res.ok) { scoreDirty = true; showToast('❌ 과제 없음 설정을 저장하지 못했어요. [전체 저장]을 눌러주세요.', 4500); return; }
+  if (want) Object.values(_autoBase[weekId] || {}).forEach(b => { b.homework_rate = null; });
+  if (scoreCache[weekId]) Object.values(scoreCache[weekId]).forEach(r => { r.no_homework = want; if (want) r.homework_rate = null; });
+  invalidateAfterScoreWrite(weekId);
+  showToast(want ? '✅ 이번 주 과제 없음으로 저장했어요.' : '✅ 과제 없음을 해제했어요.');
 }
 
 function applyNoHomeworkState() {
@@ -2405,7 +2507,7 @@ function renderScoreInputs(classId, weekId, scoreMap) {
         + `</div>`;
     }).join('');
     return `<div class="score-input-row" data-student-id="${st.id}" data-student-name="${escapeAttr(st.name)}">
-      <span class="student-name">${st.name}${st.note ? `<br><small style="color:var(--red);font-weight:400;font-size:11px;line-height:1.4;display:block;margin-top:2px">${st.note}</small>` : ''}</span>
+      <span class="student-name">${st.name}${st.note ? `<br><small style="color:var(--red);font-weight:400;font-size:11px;line-height:1.4;display:block;margin-top:2px">${st.note}</small>` : ''}<span class="autosave-st"></span></span>
       <span class="total-cell">${total}</span>
       <input type="checkbox" class="inp-attend" ${sc.attendance === false ? '' : 'checked'} title="출석" onchange="scoreDirty=true">
       ${itemInputs}
@@ -2415,6 +2517,11 @@ function renderScoreInputs(classId, weekId, scoreMap) {
     </div>`;
   }).join('');
   scoreDirty = false;
+  // 자동 저장 기준값: 화면을 그린 시점의 DB 값. 이와 달라진 칸만 저장한다.
+  // (이전 주차에서 '이어온' 과제평가·과제%는 DB에 없으므로, 그 학생 줄을 저장할 때 함께 기록된다 — 전체 저장과 같다)
+  _autoBase[weekId] = {};
+  students.forEach(st => { _autoBase[weekId][st.id] = scoreFieldsOf(scoreMap[st.id] || null, items); });
+  ensureScoreAutoSave();
   applyNoHomeworkState();
   updateScoreRangeWarn();
 
@@ -2462,6 +2569,7 @@ function confirmBlankOverwrite(conflicts) {
 }
 
 async function saveAllScores() {
+  await flushScoreAutoSave();
   const weekId = parseInt(document.getElementById('score-week').value);
   const rows = document.querySelectorAll('#score-inputs-container .score-input-row');
   if (!rows.length) return;
@@ -2547,9 +2655,506 @@ async function saveAllScores() {
       if (ev) ev.title = savedValueTitle('eval', ev.value, prev);
       if (hw) hw.title = savedValueTitle('rate', hw.value, prev);
     });
+    // 자동 저장 기준값도 지금 화면(= 방금 저장한 값)으로 맞춘다
+    { const items = activeItems(); _autoBase[weekId] = {};
+      document.querySelectorAll('#score-inputs-container .score-input-row').forEach(row => {
+        _autoBase[weekId][row.dataset.studentId] = autoScreenOfRow(row, items);
+        delete _autoFailed[`${weekId}:${row.dataset.studentId}`];
+      }); }
     refreshGroupInfo();  // 저장된 점수를 반영해 그룹 평균 갱신
     showToast('✅ 점수가 저장됐어요!');
   } catch(e) { showToast('❌ 오류 발생: ' + e.message); }
+}
+
+// ── 점수 한 행 비교·저장 (자동 저장과 '다른 반 학생 입력'이 함께 쓴다) ──────────
+// 화면과 DB를 같은 모양 { homework_rate, homework_eval, attendance, clinic_memo, items:{키:점수}, retest:{키:통과} }으로 맞춰
+// 바뀐 칸만 골라 보낸다. 전체 저장처럼 모든 칸을 보내지 않으므로, 그사이 다른 사람이 입력한 다른 칸을 덮어쓰지 않는다.
+const SCORE_SCALAR_FIELDS = { homework_rate: '과제%', homework_eval: '과제평가', attendance: '출석', clinic_memo: '클리닉메모' };
+
+function scoreValEq(a, b) {
+  const n = v => (v === undefined || v === null || (typeof v === 'string' && v.trim() === '')) ? null : v;
+  a = n(a); b = n(b);
+  if (a === null || b === null) return a === b;
+  if (typeof a === 'boolean' || typeof b === 'boolean') return a === b;
+  const num = v => typeof v === 'number' || /^\s*-?\d+(\.\d+)?\s*$/.test(String(v));
+  if (num(a) && num(b)) return parseFloat(a) === parseFloat(b);
+  return String(a).trim() === String(b).trim();
+}
+
+function scoreFieldsOf(sc, items) {
+  const o = {
+    homework_rate: sc ? (sc.homework_rate ?? null) : null,
+    homework_eval: sc ? (sc.homework_eval ?? null) : null,
+    attendance: sc ? sc.attendance !== false : null,
+    clinic_memo: sc ? (sc.clinic_memo ?? null) : null,
+    items: {}, retest: {}
+  };
+  items.forEach(it => {
+    const v = sc ? itemVal(sc, it.key) : null;
+    o.items[it.key] = (v === null || v === undefined || v === '') ? null : parseFloat(v);
+    // 화면과 같은 기준: 재시험 체크는 커트라인 미달 항목에만 보이고 체크된다.
+    // (커트를 넘긴 항목에 남아 있는 옛 통과 표시는 화면에 안 보이므로 '바뀐 칸'으로 보지 않는다)
+    o.retest[it.key] = !!(sc && sc.retest_pass && sc.retest_pass[it.key] === true && isBelowCut(o.items[it.key], it.cut));
+  });
+  return o;
+}
+
+function scoreDiff(base, screen, items) {
+  const d = { scalars: [], items: [], retest: [] };
+  Object.keys(SCORE_SCALAR_FIELDS).forEach(f => { if (!scoreValEq(base ? base[f] : null, screen[f])) d.scalars.push(f); });
+  items.forEach(it => {
+    if (!scoreValEq(base ? base.items[it.key] : null, screen.items[it.key])) d.items.push(it.key);
+    if (!!(base && base.retest[it.key]) !== !!screen.retest[it.key]) d.retest.push(it.key);
+  });
+  d.any = d.scalars.length + d.items.length + d.retest.length > 0;
+  return d;
+}
+
+// 내가 고친 칸 중, 화면을 연 뒤 다른 곳(다른 PC·다른 탭)에서 바뀐 칸
+function scoreConflicts(d, base, screen, db, items) {
+  if (!db) return [];
+  const now = scoreFieldsOf(db, items);
+  const labelOf = k => (items.find(it => it.key === k) || {}).label || '항목';
+  const out = [];
+  d.scalars.forEach(f => {
+    if (!scoreValEq(now[f], base ? base[f] : null) && !scoreValEq(now[f], screen[f])) out.push({ f, label: SCORE_SCALAR_FIELDS[f], db: now[f], mine: screen[f] });
+  });
+  d.items.forEach(k => {
+    if (!scoreValEq(now.items[k], base ? base.items[k] : null) && !scoreValEq(now.items[k], screen.items[k])) out.push({ k, label: labelOf(k), db: now.items[k], mine: screen.items[k] });
+  });
+  return out;
+}
+
+function fmtScoreVal(v) {
+  if (v === null || v === undefined || v === '') return '(비어 있음)';
+  if (v === true) return '출석'; if (v === false) return '결석';
+  return String(v);
+}
+
+// 저장 요청 만들기. DB에 행이 없으면 새로 만들고(POST, 화면 값 전부), 있으면 바뀐 칸만 PATCH.
+// 5번째 이상 항목(item_scores)과 재시험 통과(retest_pass)는 통째로 덮어써지는 칸이라 DB 값 위에 바뀐 키만 합친다.
+function scoreWritePlan(d, screen, db, items, weekId, sid, noHw) {
+  const isExtra = k => !ITEM_KEYS.includes(k);
+  if (!db) {
+    const body = { student_id: sid, week_id: weekId, no_homework: !!noHw, homework_rate: screen.homework_rate,
+      homework_eval: screen.homework_eval ?? '', attendance: screen.attendance !== false, clinic_memo: screen.clinic_memo ?? '' };
+    items.forEach(it => { if (!isExtra(it.key)) body[it.key] = screen.items[it.key]; });
+    const extras = items.filter(it => isExtra(it.key));
+    if (extras.length) { body.item_scores = {}; extras.forEach(it => { body.item_scores[it.key] = screen.items[it.key]; }); }
+    const rp = {}; items.forEach(it => { if (screen.retest[it.key]) rp[it.key] = true; });
+    body.retest_pass = Object.keys(rp).length ? rp : null;
+    return { method: 'POST', path: 'scores', body };
+  }
+  const body = {};
+  d.scalars.forEach(f => { body[f] = (f === 'homework_eval' || f === 'clinic_memo') ? (screen[f] ?? '') : screen[f]; });
+  d.items.filter(k => !isExtra(k)).forEach(k => { body[k] = screen.items[k]; });
+  const extraChanged = d.items.filter(isExtra);
+  if (extraChanged.length) {
+    const bag = { ...(db.item_scores || {}) };
+    extraChanged.forEach(k => { bag[k] = screen.items[k]; });
+    body.item_scores = bag;
+  }
+  if (d.retest.length) {
+    const rp = { ...(db.retest_pass || {}) };
+    d.retest.forEach(k => { if (screen.retest[k]) rp[k] = true; else delete rp[k]; });
+    body.retest_pass = Object.keys(rp).length ? rp : null;
+  }
+  if (!Object.keys(body).length) return null;
+  return { method: 'PATCH', path: `scores?id=eq.${db.id}`, body };
+}
+
+// 다른 탭이 옛 값을 보지 않도록 저장 뒤 비우는 캐시들 (전체 저장과 같은 범위)
+function invalidateAfterScoreWrite(weekId) {
+  Object.keys(_prevEvalCache).forEach(k => delete _prevEvalCache[k]);   // 이후 주차의 '이어오기'가 바뀔 수 있다
+  invalidateClinicSchedule();
+  if (typeof _uncertScoreData === 'object') delete _uncertScoreData[weekId];
+}
+
+// ── 점수 입력 탭 자동 저장 (2026-11) ─────────────────────────
+// 칸에서 빠져나가는 순간(다른 칸 클릭·Tab·Enter, 체크박스는 누르는 순간) 그 학생의 바뀐 칸만 저장한다.
+// 저장 버튼을 누르러 위로 올라갈 필요가 없고, 한꺼번에 16건씩 보내다 '요청이 너무 많음'으로 몇 건이 빠지던 일도 없다.
+// 학생마다 저장을 한 줄로 세워(앞 저장이 끝나야 다음 저장) 새 행이 두 번 만들어지지 않게 한다.
+let _autoBase = {};      // weekId → { studentId → 마지막으로 DB와 맞춘 값(scoreFieldsOf 모양) }
+let _autoChains = {};    // studentId → 진행 중인 저장(Promise)
+let _autoPending = 0;    // 진행 중인 저장 수
+let _autoFailed = {};    // `${weekId}:${studentId}` → 다시 시도할 정보
+const _autoRange = new Set(); // 만점 초과로 저장을 보류한 행 `${weekId}:${studentId}`
+let _autoGroupTimer = null;
+let _autoListening = false;
+
+function ensureScoreAutoSave() {
+  if (_autoListening) return;
+  const c = document.getElementById('score-inputs-container');
+  if (!c) return;
+  c.addEventListener('change', e => {
+    if (!e.target.matches('.inp-item, .inp-attend, .inp-retest, .inp-hw, .inp-eval, .inp-clinic-memo')) return;
+    const row = e.target.closest('.score-input-row');
+    const weekId = parseInt(c.dataset.weekId);
+    if (row && weekId) queueScoreAutoSave(weekId, row);
+  });
+  window.addEventListener('beforeunload', e => {
+    if (_autoPending > 0 || Object.keys(_autoFailed).length) { e.preventDefault(); e.returnValue = ''; }
+  });
+  _autoListening = true;
+}
+
+function autoScreenOfRow(row, items) {
+  const hw = row.querySelector('.inp-hw');
+  const s = {
+    homework_rate: (!currentNoHomework && hw && hw.value !== '') ? parseInt(hw.value) : null,
+    homework_eval: (row.querySelector('.inp-eval')?.value || '').trim(),
+    attendance: !!row.querySelector('.inp-attend')?.checked,
+    clinic_memo: (row.querySelector('.inp-clinic-memo')?.value || '').trim(),
+    items: {}, retest: {}
+  };
+  items.forEach(it => {
+    const inp = row.querySelector(`.inp-item[data-key="${it.key}"]`);
+    s.items[it.key] = inp && inp.value !== '' ? parseFloat(inp.value) : null;
+    const chk = row.querySelector(`.retest-chk.show .inp-retest[data-key="${it.key}"]`);
+    s.retest[it.key] = !!(chk && chk.checked);
+  });
+  return s;
+}
+
+function scoreRowEl(weekId, sid) {
+  const c = document.getElementById('score-inputs-container');
+  if (!c || c.dataset.weekId !== String(weekId)) return null;
+  return c.querySelector(`.score-input-row[data-student-id="${sid}"]`);
+}
+
+// 학생 이름 아래 작은 글씨: 저장 중… / 저장됨 ✓ / 저장 안 됨 · 눌러서 다시 시도
+function setAutoStatus(weekId, sid, state) {
+  const el = scoreRowEl(weekId, sid)?.querySelector('.autosave-st');
+  if (!el) return;
+  clearTimeout(el._t);
+  const text = { saving: '저장 중…', saved: '저장됨 ✓', failed: '저장 안 됨 · 눌러서 다시 시도',
+    range: '만점 초과라 저장 안 함', reverted: '저장된 값으로 되돌림' }[state] || '';
+  el.className = 'autosave-st ' + state;
+  el.textContent = text;
+  el.onclick = state === 'failed' ? () => retryScoreAutoSave(weekId, sid) : null;
+  if (state === 'saved' || state === 'reverted') {
+    el._t = setTimeout(() => { el.className = 'autosave-st'; el.textContent = ''; }, 2500);
+  }
+}
+
+function syncScoreDirty() { scoreDirty = _autoRange.size > 0; }
+
+function queueScoreAutoSave(weekId, row) {
+  const sid = parseInt(row.dataset.studentId);
+  const name = row.dataset.studentName || '';
+  const items = activeItems();
+  const screen = autoScreenOfRow(row, items);   // 지금 화면 값을 바로 떠 둔다 — 저장 중에 화면이 바뀌어도 이 값을 보낸다
+  const noHw = currentNoHomework;
+  const key = `${weekId}:${sid}`;
+  // 만점 초과·0점 미만은 오타일 가능성이 커서 저장하지 않고 표시만 한다 (고치면 그때 저장)
+  if (items.some(it => scoreRangeIssue(screen.items[it.key], it.max))) {
+    _autoRange.add(key); syncScoreDirty();
+    setAutoStatus(weekId, sid, 'range');
+    return;
+  }
+  _autoRange.delete(key); syncScoreDirty();
+  setAutoStatus(weekId, sid, 'saving');
+  _autoPending++;
+  const run = () => autoSaveScoreRow(weekId, sid, name, screen, items, noHw);
+  _autoChains[sid] = (_autoChains[sid] || Promise.resolve()).then(run, run)
+    .catch(() => autoSaveFailed(weekId, sid, name))
+    .finally(() => { _autoPending--; });
+}
+
+function retryScoreAutoSave(weekId, sid) {
+  const row = scoreRowEl(weekId, sid);
+  if (row) queueScoreAutoSave(weekId, row);
+}
+
+function autoSaveFailed(weekId, sid, name) {
+  _autoFailed[`${weekId}:${sid}`] = { weekId, sid, name };
+  setAutoStatus(weekId, sid, 'failed');
+  showToast(`❌ ${name} 저장 실패 — 이름 아래 '눌러서 다시 시도'를 눌러주세요.`, 4500);
+}
+
+async function autoSaveScoreRow(weekId, sid, name, screen, items, noHw) {
+  const key = `${weekId}:${sid}`;
+  const baseMap = _autoBase[weekId] || (_autoBase[weekId] = {});
+  const base = baseMap[sid] || scoreFieldsOf(null, items);
+  const d = scoreDiff(base, screen, items);
+  if (!d.any) { delete _autoFailed[key]; setAutoStatus(weekId, sid, 'idle'); return; }
+  setAutoStatus(weekId, sid, 'saving');
+
+  // 저장 직전 DB 값을 다시 읽는다 — 화면을 연 뒤 다른 곳에서 같은 칸을 바꿨는지 확인
+  const got = await apiReqRetry(`scores?week_id=eq.${weekId}&student_id=eq.${sid}&select=*`, 'GET');
+  if (!got.ok || !Array.isArray(got.data)) { autoSaveFailed(weekId, sid, name); return; }
+  const db = got.data[0] || null;
+
+  const conflicts = scoreConflicts(d, base, screen, db, items);
+  if (conflicts.length) {
+    const lines = conflicts.map(c => ` · ${c.label}: 지금 저장된 값 ${fmtScoreVal(c.db)} / 내가 입력한 값 ${fmtScoreVal(c.mine)}`).join('\n');
+    if (!confirm(`⚠️ ${name} 학생의 칸을 그사이 다른 곳에서 바꿨어요.\n\n${lines}\n\n[확인] 내가 입력한 값으로 덮어쓰기\n[취소] 저장된 값으로 되돌리기`)) {
+      // 충돌 난 칸만 DB 값으로 되돌리고, 나머지 바뀐 칸은 다시 저장한다
+      baseMap[sid] = scoreFieldsOf(db, items);
+      const row = scoreRowEl(weekId, sid);
+      if (row) {
+        const now = baseMap[sid];
+        conflicts.forEach(c => {
+          if (c.k) {
+            const inp = row.querySelector(`.inp-item[data-key="${c.k}"]`);
+            if (inp) { inp.value = now.items[c.k] ?? ''; onScoreInput(inp); }
+          } else if (c.f === 'attendance') row.querySelector('.inp-attend').checked = now.attendance !== false;
+          else if (c.f === 'homework_rate') row.querySelector('.inp-hw').value = now.homework_rate ?? '';
+          else if (c.f === 'homework_eval') row.querySelector('.inp-eval').value = now.homework_eval ?? '';
+          else if (c.f === 'clinic_memo') row.querySelector('.inp-clinic-memo').value = now.clinic_memo ?? '';
+        });
+        setAutoStatus(weekId, sid, 'reverted');
+        queueScoreAutoSave(weekId, row);
+      }
+      return;
+    }
+  }
+
+  const plan = scoreWritePlan(d, screen, db, items, weekId, sid, noHw);
+  if (!plan) { baseMap[sid] = JSON.parse(JSON.stringify(screen)); setAutoStatus(weekId, sid, 'saved'); return; }
+  const res = await apiReqRetry(plan.path, plan.method, plan.body, plan.method === 'POST' ? 'return=representation' : 'return=minimal');
+  if (!res.ok) { autoSaveFailed(weekId, sid, name); return; }
+
+  baseMap[sid] = JSON.parse(JSON.stringify(screen));
+  delete _autoFailed[key];
+  // 항목 설정을 바꿔 표를 다시 그릴 때 쓰는 캐시도 최신으로 맞춘다
+  if (scoreCache[weekId]) {
+    const written = plan.method === 'POST' && Array.isArray(res.data) ? res.data[0] : plan.body;
+    scoreCache[weekId][sid] = { ...(scoreCache[weekId][sid] || {}), ...(written || {}) };
+  }
+  invalidateAfterScoreWrite(weekId);
+  const row = scoreRowEl(weekId, sid);
+  if (row) {
+    ['.inp-eval', '.inp-hw'].forEach(sel => { const el = row.querySelector(sel); if (el) el.title = String(el.value).trim() !== '' ? '이번 주차에 저장된 값' : ''; });
+  }
+  setAutoStatus(weekId, sid, 'saved');
+  if (d.items.length) {
+    clearTimeout(_autoGroupTimer);
+    _autoGroupTimer = setTimeout(() => { if (scoreRowEl(weekId, sid)) refreshGroupInfo(); }, 2500);
+  }
+}
+
+// ── 다른 반 학생 점수 입력 (2026-11) ─────────────────────────
+// 예: 토요일반 표를 입력하다가 수업을 들으러 온 수요일반 학생 한 명을 입력한다.
+// 점수는 그 학생 원래 반의 '같은 주' 주차에 저장한다 → 학부모 화면·평균·석차·클리닉 배정표가 원래 반 기준으로 맞게 나온다.
+// 원래 반에 그 주 주차가 없으면(휴강 주 등) 보고 있는 주차의 비교 그룹·항목 설정으로 주차를 새로 만든다(반 이동과 같은 규칙).
+let _guest = null;   // { hostWeekId, hostClassId, host, list, st, cls, target, how, plan, items, base, row }
+let _guestSearchTimer = null;
+let _guestSeq = 0;
+
+async function openGuestModal() {
+  const c = document.getElementById('score-inputs-container');
+  const weekId = parseInt(c.dataset.weekId);
+  if (!weekId) { showToast('먼저 반과 주차를 선택하세요.'); return; }
+  const hostClassId = parseInt(document.getElementById('score-class').value);
+  _guest = { hostWeekId: weekId, hostClassId, host: null, list: [] };
+  _guestSeq++;
+  document.getElementById('guest-search').value = '';
+  document.getElementById('guest-results').innerHTML = '';
+  document.getElementById('guest-body').style.display = 'none';
+  document.getElementById('guest-status').textContent = '';
+  document.getElementById('guest-save').disabled = true;
+  const hostName = classes.find(x => x.id === hostClassId)?.name || '';
+  const weekSel = document.getElementById('score-week');
+  const hostLabel = weekSel.options[weekSel.selectedIndex]?.text || '';
+  document.getElementById('guest-sub').innerHTML = `보고 있는 <strong>${escapeHtml(hostName)} ${escapeHtml(hostLabel)}</strong> 표는 그대로 두고, 이 학생 한 명만 원래 반 주차에 저장합니다.`;
+  document.getElementById('guest-modal').style.display = 'flex';
+  document.getElementById('guest-search').focus();
+  const hw = await apiReqRetry(`weeks?id=eq.${weekId}&select=id,class_id,label,test_date,group_id,item_config`, 'GET');
+  if (!_guest || _guest.hostWeekId !== weekId) return;
+  _guest.host = hw.ok && Array.isArray(hw.data) ? (hw.data[0] || null) : null;
+  if (!_guest.host) document.getElementById('guest-status').innerHTML = '<span style="color:var(--red)">❌ 지금 주차 정보를 불러오지 못했어요. 창을 닫았다가 다시 열어주세요.</span>';
+}
+
+function closeGuestModal() {
+  document.getElementById('guest-modal').style.display = 'none';
+  _guest = null;
+  _guestSeq++;
+  clearTimeout(_guestSearchTimer);
+}
+
+function guestSearch() {
+  const q = document.getElementById('guest-search').value.trim();
+  const box = document.getElementById('guest-results');
+  clearTimeout(_guestSearchTimer);
+  if (!q || !_guest) { box.innerHTML = ''; return; }
+  _guestSearchTimer = setTimeout(async () => {
+    const seq = ++_guestSeq;
+    const res = await apiReqRetry(`students?name=ilike.*${encodeURIComponent(q)}*&is_active=eq.true&order=name.asc&select=id,name,class_id`, 'GET');
+    if (seq !== _guestSeq || !_guest) return;
+    if (!res.ok || !Array.isArray(res.data)) { box.innerHTML = '<span style="font-size:12px;color:var(--red)">검색하지 못했어요. 다시 입력해 주세요.</span>'; return; }
+    // 보고 있는 반 학생은 표에 이미 있으므로 뺀다
+    _guest.list = res.data.filter(st => st.class_id !== _guest.hostClassId);
+    box.innerHTML = _guest.list.length
+      ? _guest.list.map(st => `<button type="button" data-sid="${st.id}" onclick="guestPick(${st.id})">${escapeHtml(st.name)} · ${escapeHtml(classes.find(c => c.id === st.class_id)?.name || '반 미지정')}</button>`).join('')
+      : '<span style="font-size:12px;color:var(--gray)">다른 반에서 찾은 학생이 없어요.</span>';
+  }, 250);
+}
+
+// 원래 반에서 '같은 주' 주차 찾기: ①같은 비교 그룹 ②같은 주(월~일) — 반 이동 매칭과 같은 기준
+function guestMatchWeek(host, weeks) {
+  if (host.group_id) {
+    const g = weeks.find(w => w.group_id === host.group_id);
+    if (g) return { week: g, how: '같은 비교 그룹' };
+  }
+  const key = weekStartKey(host.test_date || host.label);
+  if (key) {
+    const same = sortByTestDate(weeks.filter(w => weekStartKey(w.test_date || w.label) === key));
+    if (same.length) return { week: same[0], how: '같은 주' };
+  }
+  return null;
+}
+
+async function guestPick(sid) {
+  if (!_guest) return;
+  const seq = ++_guestSeq;
+  const st = (_guest.list || []).find(x => x.id === sid);
+  const cls = st && classes.find(c => c.id === st.class_id);
+  document.querySelectorAll('#guest-results button').forEach(b => b.classList.toggle('active', +b.dataset.sid === sid));
+  const status = document.getElementById('guest-status');
+  document.getElementById('guest-body').style.display = 'none';
+  document.getElementById('guest-save').disabled = true;
+  if (!st || !cls) { status.innerHTML = '<span style="color:var(--red)">학생의 반 정보를 찾지 못했어요.</span>'; return; }
+  if (!_guest.host) { status.innerHTML = '<span style="color:var(--red)">❌ 지금 주차 정보를 불러오지 못했어요. 창을 닫았다가 다시 열어주세요.</span>'; return; }
+  status.textContent = '불러오는 중...';
+  const wk = await apiReqRetry(`weeks?class_id=eq.${cls.id}&select=id,class_id,label,test_date,group_id,item_config,created_at`, 'GET');
+  if (seq !== _guestSeq || !_guest) return;
+  if (!wk.ok || !Array.isArray(wk.data)) { status.innerHTML = '<span style="color:var(--red)">❌ 주차 정보를 불러오지 못했어요.</span>'; return; }
+  const host = _guest.host;
+  const m = guestMatchWeek(host, wk.data);
+  let row = null;
+  if (m) {
+    const r = await apiReqRetry(`scores?week_id=eq.${m.week.id}&student_id=eq.${st.id}&select=*`, 'GET');
+    if (seq !== _guestSeq || !_guest) return;
+    if (!r.ok || !Array.isArray(r.data)) { status.innerHTML = '<span style="color:var(--red)">❌ 점수를 불러오지 못했어요.</span>'; return; }
+    row = r.data[0] || null;
+  }
+  const plan = m ? null : { label: moveNewWeekLabel(host, cls), group_id: host.group_id || null, item_config: host.item_config || null };
+  const items = normalizeItemConfig(m ? m.week.item_config : host.item_config).filter(it => it.active);
+  Object.assign(_guest, { st, cls, target: m ? m.week : null, how: m ? m.how : '', plan, items, row, base: scoreFieldsOf(row, items) });
+  renderGuestForm();
+  status.textContent = row ? '이미 저장된 점수를 불러왔어요. 고칠 칸만 바꾸고 저장하세요.' : '';
+}
+
+function renderGuestForm() {
+  const g = _guest;
+  const hostName = classes.find(c => c.id === g.hostClassId)?.name || '';
+  const hostLabel = g.host.label || g.host.test_date || '';
+  const t = document.getElementById('guest-target');
+  t.innerHTML = g.target
+    ? `저장될 주차: <strong>${escapeHtml(g.cls.name)} ${escapeHtml(g.target.label || g.target.test_date || '')}</strong> <small>(${escapeHtml(g.how)})</small><br>`
+      + `<small>항목·만점·커트는 ${escapeHtml(g.cls.name)} 주차 설정을 따릅니다. 학부모 화면·평균·석차·클리닉 배정표도 ${escapeHtml(g.cls.name)} 기준으로 나옵니다.</small>`
+    : `<strong>${escapeHtml(g.cls.name)}</strong>에 이번 주 주차가 없어, 저장할 때 <strong>${escapeHtml(g.plan.label)}</strong> 주차를 새로 만들어 넣습니다.<br>`
+      + `<small>새 주차의 항목·만점·커트와 비교 그룹은 지금 보고 있는 ${escapeHtml(hostName)} ${escapeHtml(hostLabel)} 것을 따릅니다. ${escapeHtml(g.cls.name)}의 다른 학생에게는 점수 없는 주차로 보입니다.</small>`;
+  const b = g.base;
+  document.getElementById('guest-items').innerHTML = g.items.map(it => {
+    const v = b.items[it.key];
+    const below = isBelowCut(v, it.cut);
+    return `<div class="gi"><div class="gi-label">${escapeHtml(it.label || '항목')}</div>`
+      + `<div class="gi-meta">/${it.max ?? ''}${it.cut !== null && it.cut !== undefined ? ` · 커트 ${it.cut}` : ''}</div>`
+      + `<input type="number" data-key="${escapeAttr(it.key)}" data-cut="${it.cut ?? ''}" data-max="${it.max ?? ''}" value="${v ?? ''}" min="0" class="${below ? 'below-cut' : ''}" oninput="onGuestItemInput(this)">`
+      + `<label class="gi-retest${below ? ' show' : ''}"><input type="checkbox" class="guest-retest" data-key="${escapeAttr(it.key)}" ${below && b.retest[it.key] ? 'checked' : ''}> 재시험 통과</label></div>`;
+  }).join('');
+  document.getElementById('guest-attend').checked = g.row ? g.row.attendance !== false : true;
+  document.getElementById('guest-hw').value = b.homework_rate ?? '';
+  document.getElementById('guest-eval').value = b.homework_eval ?? '';
+  document.getElementById('guest-memo').value = b.clinic_memo ?? '';
+  document.getElementById('guest-body').style.display = '';
+  document.getElementById('guest-save').disabled = false;
+}
+
+function onGuestItemInput(inp) {
+  const below = isBelowCut(inp.value, inp.dataset.cut);
+  inp.classList.toggle('below-cut', below);
+  inp.classList.toggle('over-max', !!scoreRangeIssue(inp.value, inp.dataset.max === '' ? null : parseFloat(inp.dataset.max)));
+  const lab = inp.parentElement.querySelector('.gi-retest');
+  lab.classList.toggle('show', below);
+  if (!below) lab.querySelector('input').checked = false;
+}
+
+function guestScreen() {
+  const g = _guest;
+  const hw = document.getElementById('guest-hw').value;
+  const s = {
+    homework_rate: hw !== '' ? parseInt(hw) : null,
+    homework_eval: document.getElementById('guest-eval').value.trim(),
+    attendance: document.getElementById('guest-attend').checked,
+    clinic_memo: document.getElementById('guest-memo').value.trim(),
+    items: {}, retest: {}
+  };
+  g.items.forEach(it => {
+    const inp = document.querySelector(`#guest-items input[type=number][data-key="${it.key}"]`);
+    s.items[it.key] = inp && inp.value !== '' ? parseFloat(inp.value) : null;
+    const chk = document.querySelector(`#guest-items .gi-retest.show .guest-retest[data-key="${it.key}"]`);
+    s.retest[it.key] = !!(chk && chk.checked);
+  });
+  return s;
+}
+
+async function guestSave() {
+  const g = _guest;
+  if (!g || !g.st) return;
+  const status = document.getElementById('guest-status');
+  const btn = document.getElementById('guest-save');
+  const screen = guestScreen();
+  const typed = g.items.some(it => screen.items[it.key] !== null) || screen.homework_rate !== null || screen.homework_eval || screen.clinic_memo;
+  if (!g.row && !typed) { status.innerHTML = '<span style="color:var(--gray)">입력한 점수가 없어요.</span>'; return; }
+  const issues = g.items.filter(it => scoreRangeIssue(screen.items[it.key], it.max))
+    .map(it => ` · ${it.label} ${screen.items[it.key]}점 (만점 ${it.max})`);
+  if (issues.length && !confirm(`⚠️ 만점을 넘거나 0점 미만인 점수가 있습니다.\n\n${issues.join('\n')}\n\n그대로 저장할까요?`)) return;
+  btn.disabled = true;
+  status.textContent = '저장 중...';
+  try {
+    // ① 원래 반에 그 주 주차가 없으면 만든다 (그사이 누가 만들었으면 그 주차를 쓴다)
+    if (!g.target) {
+      const wk = await apiReqRetry(`weeks?class_id=eq.${g.cls.id}&select=id,class_id,label,test_date,group_id,item_config,created_at`, 'GET');
+      if (!wk.ok || !Array.isArray(wk.data)) { status.innerHTML = '<span style="color:var(--red)">❌ 주차를 확인하지 못해 저장을 중단했어요.</span>'; return; }
+      const again = guestMatchWeek(g.host, wk.data);
+      if (again) {
+        g.target = again.week; g.how = again.how;
+      } else {
+        const body = { class_id: g.cls.id, test_date: g.plan.label, label: g.plan.label, group_id: g.plan.group_id };
+        if (g.plan.item_config) body.item_config = g.plan.item_config;
+        const made = await apiReqRetry('weeks', 'POST', body, 'return=representation');
+        const w = made.ok && Array.isArray(made.data) ? made.data[0] : null;
+        if (!w || !w.id) { status.innerHTML = `<span style="color:var(--red)">❌ ${escapeHtml(g.plan.label)} 주차를 만들지 못해 저장하지 못했어요.</span>`; return; }
+        g.target = w; g.how = '새로 만든 주차';
+        Object.keys(_prevEvalCache).forEach(k => delete _prevEvalCache[k]);
+      }
+      g.plan = null;
+    }
+    // ② 최신 점수 행을 다시 읽어 바뀐 칸만 저장 (자동 저장과 같은 규칙)
+    const got = await apiReqRetry(`scores?week_id=eq.${g.target.id}&student_id=eq.${g.st.id}&select=*`, 'GET');
+    if (!got.ok || !Array.isArray(got.data)) { status.innerHTML = '<span style="color:var(--red)">❌ 최신 점수를 확인하지 못해 저장을 중단했어요.</span>'; return; }
+    const db = got.data[0] || null;
+    const d = scoreDiff(g.base, screen, g.items);
+    const conflicts = scoreConflicts(d, g.base, screen, db, g.items);
+    if (conflicts.length) {
+      const lines = conflicts.map(c => ` · ${c.label}: 지금 저장된 값 ${fmtScoreVal(c.db)} / 내가 입력한 값 ${fmtScoreVal(c.mine)}`).join('\n');
+      if (!confirm(`⚠️ ${g.st.name} 학생의 칸을 그사이 다른 곳에서 바꿨어요.\n\n${lines}\n\n[확인] 내가 입력한 값으로 덮어쓰기\n[취소] 저장 중단`)) { status.textContent = '저장을 중단했어요.'; return; }
+    }
+    const plan = scoreWritePlan(d, screen, db, g.items, g.target.id, g.st.id, false);
+    if (!plan) { status.textContent = '바뀐 내용이 없어요.'; return; }
+    const res = await apiReqRetry(plan.path, plan.method, plan.body, plan.method === 'POST' ? 'return=representation' : 'return=minimal');
+    if (!res.ok) { status.innerHTML = `<span style="color:var(--red)">❌ 저장하지 못했어요. (${res.status || '연결 실패'}) 다시 눌러주세요.</span>`; return; }
+    g.base = JSON.parse(JSON.stringify(screen));
+    g.row = plan.method === 'POST' && Array.isArray(res.data) ? res.data[0] : { ...(db || {}), ...plan.body };
+    delete scoreCache[g.target.id];
+    invalidateAfterScoreWrite(g.target.id);
+    const where = `${g.cls.name} ${g.target.label || g.target.test_date || ''}`;
+    renderGuestForm();
+    status.innerHTML = `<span style="color:var(--green);font-weight:600">저장됨 ✓ — ${escapeHtml(where)}</span>`;
+    showToast(`✅ ${g.st.name} 점수를 ${where}에 저장했어요.`);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// 진행 중인 자동 저장이 끝날 때까지 기다린다 (반·주차를 바꾸거나 전체 저장하기 전에)
+async function flushScoreAutoSave(maxMs = 10000) {
+  const chains = Object.values(_autoChains);
+  if (!chains.length || _autoPending === 0) return;
+  await Promise.race([Promise.allSettled(chains), new Promise(r => setTimeout(r, maxMs))]);
 }
 
 // ── 미인증 탭 (가로 주차 그리드) ───────────────────────
@@ -3690,6 +4295,7 @@ function closeClinicMemoModal() {
 // Esc로 메모 창을 닫는다 (취소 버튼과 같은 동작)
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
+  if (document.getElementById('guest-modal')?.style.display === 'flex') { closeGuestModal(); return; }
   if (document.getElementById('clinic-memo-modal').style.display === 'none') return;
   closeClinicMemoModal();
 });
