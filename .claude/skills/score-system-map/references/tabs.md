@@ -18,7 +18,7 @@
 | 조교 메모 | `tab-memo` | 670~ | 3847~3910 | `addMemo` 3872 · `loadMemos` 3883 · `deleteMemo` 3905 |
 | 성적 문자 발송 | `tab-score-sms` | 701~ | 2956~3210 | `loadScoreSmsTargets` 3054 · `composeScoreSms` 3102 · `sendScoreSms` 3183 · 템플릿 설정 2984~3037 |
 | 변경 이력 · 되돌리기 | `tab-history` | 배정표 탭 뒤 | `// ── 변경 이력` 블록 | `loadHistory` · `restoreHistoryEntry` · `restoreHistoryUpTo` — `data_history`(읽기 전용) 조회, 되돌리기는 scores PATCH/POST |
-| 클리닉 배정표 | `tab-clinic-schedule` | 클리닉 문자 탭 뒤 | `// ── 클리닉 배정표` 블록 | `loadClinicSchedule` · `parseClinicMemo` · 출석 체크 `toggleClinicAttend`(scores.clinic_attend, 한 주에 한 번) · `clinicExpectedOf`(배정표 대상 판정, 미참석 문자 탭 기본 체크에 공유) |
+| 클리닉 배정표 | `tab-clinic-schedule` | 클리닉 문자 탭 뒤 | `// ── 클리닉 배정표` 블록 | `loadClinicSchedule` · `parseClinicMemo` · 출석 체크 `toggleClinicAttend`(scores.clinic_attend, 한 주에 한 번) · `clinicExpectedOf`(배정표 대상 판정, 미참석 문자 탭 기본 체크에 공유) · 이름 클릭 메모 창 `openClinicMemoEdit`/`saveClinicMemoEdit` — 재시험 통과 체크 + 미응시(빈) 항목 점수 입력(`loadClinicMemoRetest`·`collectClinicMemoScores`, 이미 있는 점수는 못 고침, 저장 시 `syncScoreTabCells`로 점수 입력 탭 같은 주차 줄도 채움) |
 | 클리닉 미참석 문자 발송 | `tab-clinic-sms` | 763~ | 2513~2696 | `loadClinicSmsTargets` 2536 · `sendClinicSms` 2617 · `saveClinicGrid` 2658 |
 
 ## 탭 추가 시 손대야 하는 5곳
