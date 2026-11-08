@@ -4339,6 +4339,14 @@ function applyClinicGradeFilter() {
   });
 }
 
+// 배정표에서 반을 어느 탭(학년 칩·카드)에 넣을지. 보성여고 반은 학년이 고2여도 '보성여고' 탭으로 따로 묶는다
+// — 다른 학교라 클리닉 일정을 따로 본다(2026-11 운영 요청). 반 이름에 '보성'이 들어가면 보성여고 반으로 본다
+// (현재 '고2 보성여고', '보성여고2 토요일'). 주차가 뒤처졌는지 판정은 탭이 아니라 실제 학년끼리 비교한다.
+function clinicTabOf(cls) {
+  if (cls && /보성/.test(cls.name || '')) return '보성여고';
+  return (cls && cls.grade) || '학년 미지정';
+}
+
 function renderClinicGradeChips(grades) {
   const box = document.getElementById('clinic-grade-chips');
   if (!grades.length) { box.innerHTML = ''; return; }
@@ -4940,14 +4948,15 @@ async function loadClinicSchedule(force = true) {
     if (!(g in gradeMaxTime) || t > gradeMaxTime[g]) gradeMaxTime[g] = t;
   });
   const staleClassIds = new Set();
-  const staleByGrade = {}; // grade → [{ name, label }]
+  const staleByGrade = {}; // 탭(clinicTabOf) → [{ name, label }]  · 경고는 그 반이 보이는 탭 카드에 적는다
   Object.keys(latestWeek).forEach(cid => {
     const c = classMap[cid]; const t = weekTime(latestWeek[cid]);
     if (!c || t === null) return;
     const g = c.grade || '학년 미지정';
     if (gradeMaxTime[g] !== undefined && gradeMaxTime[g] - t > 5 * 86400000) {
       staleClassIds.add(c.id);
-      (staleByGrade[g] = staleByGrade[g] || []).push({ name: c.name, label: latestWeek[cid].label || latestWeek[cid].test_date });
+      const tab = clinicTabOf(c);
+      (staleByGrade[tab] = staleByGrade[tab] || []).push({ name: c.name, label: latestWeek[cid].label || latestWeek[cid].test_date });
     }
   });
 
@@ -4958,13 +4967,13 @@ async function loadClinicSchedule(force = true) {
   });
 
 
-  // 학년 → { 배치된 항목, 미기재 명단, 근거 주차 }
+  // 탭(학년, 보성여고는 따로) → { 배치된 항목, 미기재 명단, 근거 주차 }
   const gradeData = {};
   scores.forEach(sc => {
     const st = studentMap[sc.student_id];
     if (!st) return; // 퇴원 처리된 학생의 잔여 점수 행
     const cls = classMap[st.class_id];
-    const grade = (cls && cls.grade) || '학년 미지정';
+    const grade = clinicTabOf(cls);
     if (!gradeData[grade]) gradeData[grade] = { entries: [], unassigned: [], hwDue: [], weekOf: {}, itemOrder: [] };
     const g = gradeData[grade];
     if (cls && latestWeek[cls.id]) g.weekOf[cls.name] = latestWeek[cls.id].label || latestWeek[cls.id].test_date;
