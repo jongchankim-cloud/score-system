@@ -170,6 +170,28 @@
   .autosave-st.range { color:var(--orange); }
   .autosave-st.failed { color:var(--red); font-weight:700; cursor:pointer; text-decoration:underline; }
   .autosave-hint { font-size:11px; color:var(--gray); }
+  /* 클리닉 메모 창 '최근 4주 점수' 표 — 맨 윗줄(이번 주)은 입력칸 */
+  .cm-hist { width:100%; border-collapse:collapse; font-size:12px; line-height:1.35; }
+  .cm-hist th { font-size:11px; color:var(--gray); font-weight:600; padding:2px 3px 6px; text-align:center; white-space:nowrap; vertical-align:bottom; }
+  .cm-hist th small { font-weight:400; font-size:10px; }
+  .cm-hist td { padding:6px 3px; text-align:center; border-top:1px solid var(--border); vertical-align:top; color:var(--navy); }
+  .cm-hist td.wk { text-align:left; white-space:nowrap; font-weight:600; }
+  .cm-hist td.wk small { display:block; font-size:10px; font-weight:400; color:var(--gray); }
+  .cm-hist td.wk small.absent { color:var(--red); }
+  .cm-hist tr.cur td { background:var(--white); }
+  .cm-hist tr.cur td.wk { color:var(--gold); }
+  .cm-hist td.tot { font-weight:700; white-space:nowrap; }
+  .cm-hist td.tot small { font-weight:400; color:var(--gray); font-size:10px; }
+  .cm-hist td.na { color:var(--gray); }
+  .cm-hist input[type=number] { width:100%; min-width:46px; padding:6px 2px; text-align:center; border:1.5px solid var(--border); border-radius:6px; font-size:13px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); outline:none; }
+  .cm-hist input[type=number]::placeholder { font-size:10px; color:#c0c4cc; }
+  .cm-hist input.below-cut { border-color:var(--red); background:var(--red-light); color:var(--red); font-weight:700; }
+  .cm-hist input.over-max { border-color:var(--orange); background:var(--orange-light); }
+  .cm-hist .gi-retest { display:none; font-size:10px; color:var(--red); margin-top:3px; cursor:pointer; line-height:1.3; }
+  .cm-hist .gi-retest.show { display:block; }
+  .cm-hist .below { color:var(--red); font-weight:700; }
+  .cm-hist .rp { display:block; font-size:10px; color:var(--green); font-weight:600; }
+  .score-headcount { display:inline-block; margin-left:8px; padding:2px 10px; border-radius:12px; background:var(--light-gray); color:var(--navy); font-size:12px; font-weight:600; vertical-align:middle; }
   /* 다른 반 학생 점수 입력 창 */
   .guest-results { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
   .guest-results button { padding:6px 12px; border-radius:16px; border:1.5px solid var(--border); background:var(--white); color:var(--navy); font-size:12px; font-family:'Noto Sans KR',sans-serif; cursor:pointer; }
@@ -1133,10 +1155,10 @@
       <textarea id="clinic-memo-modal-text" rows="4" oninput="previewClinicMemoEdit();renderClinicMemoSms()" placeholder="예) 월요일 3시 / 수요일 하교 후" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7"></textarea>
     </div>
     <div id="clinic-memo-modal-preview" style="font-size:12px;color:var(--navy);margin-bottom:16px;background:var(--light-gray);border-radius:8px;padding:10px;line-height:1.7"></div>
-    <!-- 점수 입력 탭의 재시험 통과 체크와 같은 scores.retest_pass 값. 커트라인 미달 항목만 나온다.
-         점수가 비어 있는 항목(미응시)은 여기서 점수를 바로 입력한다 (2026-11) -->
+    <!-- 최근 4주 점수 (2026-11). 맨 윗줄 = 배정표 기준 주차: 점수 입력 탭과 같은 scores 칸을 고치고,
+         커트 미달 칸 밑의 재시험 통과 체크(scores.retest_pass)도 여기서 바꾼다. 아랫줄 3주는 보기만 한다 -->
     <div style="margin-bottom:16px">
-      <label id="clinic-memo-retest-label" style="display:block;font-size:11px;color:var(--gray);font-weight:500;margin-bottom:5px">재시험 통과 <span style="font-weight:400">(커트라인 미달 항목 · 점수 입력 탭과 같은 값입니다)</span></label>
+      <label id="clinic-memo-retest-label" style="display:block;font-size:11px;color:var(--gray);font-weight:500;margin-bottom:5px">최근 4주 점수 · 재시험 통과 <span style="font-weight:400">(이번 주 줄만 수정 · 점수 입력 탭과 같은 값입니다)</span></label>
       <div id="clinic-memo-retest" style="font-size:13px;color:var(--navy);background:var(--light-gray);border-radius:8px;padding:10px;line-height:1.9"></div>
     </div>
     <!-- 점수 입력 탭의 과제%·과제평가와 같은 scores.homework_rate / homework_eval 값 -->
@@ -2559,7 +2581,9 @@ function renderScoreInputs(classId, weekId, scoreMap) {
   const className = classes.find(c => c.id == classId)?.name || '';
   const weekSel = document.getElementById('score-week');
   const weekLabel = weekSel.options[weekSel.selectedIndex]?.text || '';
-  document.getElementById('score-input-title').textContent = `${className} — ${weekLabel}`;
+  // 반 인원수(재원생 = 이 표의 학생 수)를 제목 옆에 붙인다 (2026-11 운영 요청)
+  document.getElementById('score-input-title').innerHTML = `${escapeHtml(className)} — ${escapeHtml(weekLabel)}`
+    + `<span class="score-headcount" title="이 반 재원생 수 (퇴원생 제외)">재원 ${students.length}명</span>`;
   container.dataset.weekId = String(weekId); // 이 표가 어느 주차 것인지 — 저장 때 선택된 주차와 대조
   const items = activeItems();
   renderScoreHeader();
@@ -4487,9 +4511,10 @@ document.addEventListener('keydown', e => {
   closeClinicMemoModal();
 });
 
-// ── 메모 수정 창의 '재시험 통과' 구역 ─────────────────────
-// 점수 입력 탭의 재시험 체크와 같은 scores.retest_pass를 고친다. 커트라인 미달 항목만 체크할 수 있다.
-let _clinicRetestLoaded = null; // 창을 열 때 읽은 { pass: 저장돼 있던 통과 맵 } · null=아직 못 읽음
+// ── 메모 수정 창의 '최근 4주 점수 · 재시험 통과' 구역 ─────────────────────
+// 이번 주(배정표 기준 주차) 점수와 재시험 통과(scores.retest_pass)를 점수 입력 탭과 같은 칸에 고친다.
+// 재시험 체크는 커트라인 미달 칸에만 나온다. 지난 3주는 보기만 한다.
+let _clinicRetestLoaded = null; // 창을 열 때 읽은 { pass: 저장돼 있던 통과 맵, items: 이번 주 활성 항목(value=그때 점수) } · null=아직 못 읽음
 let _clinicRetestSeq = 0;
 
 // 통과로 표시된 항목 키만 정렬해 문자열로 만든다 — 저장 전후 비교용
@@ -4504,74 +4529,112 @@ async function loadClinicMemoRetest(sid) {
   _clinicRetestLoaded = null;
   box.textContent = '불러오는 중...';
   try {
-    const [cur, wk] = await Promise.all([
+    // 이번 주 행 + 그 반의 주차 목록 + 이 학생의 점수 행 전부(지난 3주를 함께 보여주기 위해. 학생 한 명이라 많지 않다)
+    const [cur, weeks, mine] = await Promise.all([
       api(`scores?id=eq.${parseInt(sid)}&select=id,retest_pass,item_scores,${ITEM_KEYS.join(',')}`),
-      api(`weeks?id=eq.${parseInt(row.weekId)}&select=id,item_config`)
+      api(`weeks?class_id=eq.${parseInt(row.classId)}&select=id,label,test_date,item_config,created_at`),
+      api(`scores?student_id=eq.${parseInt(row.studentId)}&select=id,week_id,attendance,retest_pass,item_scores,${ITEM_KEYS.join(',')}`)
     ]);
     if (seq !== _clinicRetestSeq) return;
-    if (!Array.isArray(cur) || !cur.length || !Array.isArray(wk) || !wk.length) throw new Error('not_loaded');
+    const curWeek = Array.isArray(weeks) ? weeks.find(w => w.id === row.weekId) : null;
+    if (!Array.isArray(cur) || !cur.length || !curWeek) throw new Error('not_loaded');
     const sc = cur[0];
     const pass = sc.retest_pass || {};
-    const items = normalizeItemConfig(wk[0].item_config).filter(it => it.active)
+    const items = normalizeItemConfig(curWeek.item_config).filter(it => it.active)
       .map(it => ({ ...it, value: itemVal(sc, it.key) }));
-    // 배정표의 재시험 판정(retestItems)과 같은 기준: 활성 항목 중 커트라인 미달만
-    const below = items.filter(it => isBelowCut(it.value, it.cut));
-    // 점수가 비어 있는 항목 = 그 주차 시험을 안 본 항목(미응시 탭과 같은 기준). 클리닉에서 본 점수를 여기서 바로 넣는다.
-    // 이미 점수가 있는 항목은 고치지 않는다 — 점수 수정은 점수 입력 탭에서.
-    const empty = items.filter(it => it.value === null || it.value === undefined || it.value === '');
-    _clinicRetestLoaded = { pass, empty };
-    document.getElementById('clinic-memo-retest-label').innerHTML = empty.length
-      ? '미응시 점수 · 재시험 통과 <span style="font-weight:400">(점수 입력 탭과 같은 값입니다)</span>'
-      : '재시험 통과 <span style="font-weight:400">(커트라인 미달 항목 · 점수 입력 탭과 같은 값입니다)</span>';
-    if (!below.length && !empty.length) { box.textContent = '커트라인 미달 항목이 없어요. 재시험 대상이 아닙니다.'; return; }
-    let html = '';
-    if (empty.length) {
-      // 칸 모양은 '다른 반 학생 입력' 창과 같다 — 커트 미달 점수를 넣으면 그 칸 밑에 재시험 통과 체크가 나온다
-      html += `<div style="font-size:12px;color:var(--gray);line-height:1.5;margin-bottom:6px">아직 점수가 없는 항목 (미응시) — 클리닉에서 본 점수를 입력하면 저장할 때 점수 입력 탭에도 들어갑니다</div>`
-        + `<div class="guest-items" style="grid-template-columns:repeat(auto-fill, minmax(110px, 1fr));line-height:1.4;margin-bottom:${below.length ? 10 : 0}px">` + empty.map(it =>
-          `<div class="gi"><div class="gi-label">${escapeHtml((it.label || '항목').trim())}</div>`
-          + `<div class="gi-meta">/${it.max ?? ''}${it.cut !== null && it.cut !== undefined ? ` · 커트 ${it.cut}` : ''}</div>`
-          + `<input type="number" class="cm-score-inp" data-key="${attrEsc(it.key)}" data-cut="${it.cut ?? ''}" data-max="${it.max ?? ''}" min="0" step="any" oninput="onGuestItemInput(this)">`
-          + `<label class="gi-retest"><input type="checkbox" class="inp-modal-retest" data-key="${attrEsc(it.key)}"> 재시험 통과</label></div>`).join('')
-        + `</div>`;
-    }
-    html += below.map(it => `<label style="display:flex;align-items:center;gap:6px;cursor:pointer">`
-      + `<input type="checkbox" class="inp-modal-retest" data-key="${attrEsc(it.key)}"${pass[it.key] === true ? ' checked' : ''}>`
-      + `<span>${escapeHtml((it.label || '항목').trim())} <span style="color:var(--gray)">(${escapeHtml(String(it.value))} · 커트라인 ${escapeHtml(String(it.cut))} 미달)</span></span>`
-      + `</label>`).join('');
+    _clinicRetestLoaded = { pass, items };
+    if (!items.length) { box.textContent = '이 주차에 사용하는 채점 항목이 없어요.'; return; }
+    // 배정표 기준 주차 바로 앞의 3주 (날짜순). 점수는 보기만 한다 — 지난 기록은 점수 입력 탭에서 고친다
+    const sorted = sortByTestDate(weeks);
+    const at = sorted.findIndex(w => w.id === row.weekId);
+    const prev = at >= 0 ? sorted.slice(at + 1, at + 4) : [];
+    const rowOf = {};
+    (Array.isArray(mine) ? mine : []).forEach(r => { rowOf[r.week_id] = r; });
+    const blank = v => v === null || v === undefined || v === '';
+    const fmtNum = v => String(Math.round(parseFloat(v) * 100) / 100);
+    const totalOf = (vals, max) => { const t = sumScores(vals); return t === '–' ? '–' : `${fmtNum(t)}<small>/${max}</small>`; };
+    const curMax = items.reduce((a, it) => a + (it.max || 0), 0);
+    let html = `<div style="overflow-x:auto"><table class="cm-hist"><thead><tr><th style="text-align:left">주차</th>`
+      + items.map(it => `<th>${escapeHtml((it.label || '항목').trim())}<br><small>/${it.max ?? ''}${it.cut !== null && it.cut !== undefined ? ` · 커트 ${it.cut}` : ''}</small></th>`).join('')
+      + `<th>총점</th></tr></thead><tbody>`;
+    // 이번 주: 모든 항목을 고칠 수 있다. 커트 미달이면 칸 밑에 재시험 통과 체크가 나온다
+    html += `<tr class="cur"><td class="wk">${escapeHtml(curWeek.label || curWeek.test_date || '')}<small>이번 주 · 수정 가능</small></td>`
+      + items.map(it => {
+          const below = isBelowCut(it.value, it.cut);
+          const over = scoreRangeIssue(it.value, it.max) ? ' over-max' : '';
+          return `<td><input type="number" class="cm-score-inp${below ? ' below-cut' : ''}${over}" data-key="${attrEsc(it.key)}" data-orig="${blank(it.value) ? '' : attrEsc(String(it.value))}"`
+            + ` data-cut="${it.cut ?? ''}" data-max="${it.max ?? ''}" value="${blank(it.value) ? '' : attrEsc(String(it.value))}" min="0" step="any" placeholder="미응시" oninput="onGuestItemInput(this);updateClinicMemoTotal()">`
+            + `<label class="gi-retest${below ? ' show' : ''}"><input type="checkbox" class="inp-modal-retest" data-key="${attrEsc(it.key)}"${below && pass[it.key] === true ? ' checked' : ''}> 재시험 통과</label></td>`;
+        }).join('')
+      + `<td class="tot" id="clinic-memo-cur-total">${totalOf(items.map(it => it.value), curMax)}</td></tr>`;
+    prev.forEach(w => {
+      const r = rowOf[w.id] || null;
+      const cfg = normalizeItemConfig(w.item_config).filter(it => it.active);
+      const p = (r && r.retest_pass) || {};
+      const tag = !r ? '<small>기록 없음</small>' : (r.attendance === false ? '<small class="absent">결석</small>' : '');
+      html += `<tr><td class="wk">${escapeHtml(w.label || w.test_date || '')}${tag}</td>`
+        + items.map(it => {
+            const c = cfg.find(x => x.key === it.key);
+            if (!c) return `<td class="na" title="이 주차에 없던 항목">·</td>`;
+            const v = r ? itemVal(r, it.key) : null;
+            if (blank(v)) return `<td class="na" title="점수 없음(미응시)">–</td>`;
+            const below = isBelowCut(v, c.cut);
+            return `<td><span class="${below ? 'below' : ''}" title="${attrEsc(`/${c.max ?? ''}${c.cut !== null && c.cut !== undefined ? ` · 커트 ${c.cut}` : ''}`)}">${escapeHtml(fmtNum(v))}</span>`
+              + (below && p[it.key] === true ? `<span class="rp">재시험 통과</span>` : '') + `</td>`;
+          }).join('')
+        + `<td class="tot">${r ? totalOf(cfg.map(c => itemVal(r, c.key)), cfg.reduce((a, c) => a + (c.max || 0), 0)) : '–'}</td></tr>`;
+    });
+    html += `</tbody></table></div>`;
+    if (!prev.length) html += `<div style="font-size:11px;color:var(--gray);margin-top:4px">이 반에 이전 주차가 없어요.</div>`;
     box.innerHTML = html;
   } catch (e) {
     if (seq !== _clinicRetestSeq) return;
-    box.textContent = '재시험 정보를 불러오지 못했어요. 창을 닫고 다시 열어주세요.';
+    box.textContent = '점수 정보를 불러오지 못했어요. 창을 닫고 다시 열어주세요.';
   }
 }
 
-// 창에 보이는 항목은 체크 상태를 따르고, 창에 안 나온 항목(커트라인 통과 등)은 DB 값을 그대로 둔다.
-// 미응시 점수 칸 밑의 체크는 커트 미달 점수를 넣어 체크가 보일 때만 '창에 나온 항목'으로 센다.
+// 이번 주 줄의 총점을 칸 값으로 다시 계산한다
+function updateClinicMemoTotal() {
+  const el = document.getElementById('clinic-memo-cur-total');
+  if (!el || !_clinicRetestLoaded) return;
+  const vals = Array.from(document.querySelectorAll('#clinic-memo-retest .cm-score-inp')).map(i => i.value.trim());
+  const t = sumScores(vals);
+  const max = _clinicRetestLoaded.items.reduce((a, it) => a + (it.max || 0), 0);
+  el.innerHTML = t === '–' ? '–' : `${Math.round(t * 100) / 100}<small>/${max}</small>`;
+}
+
+// 재시험 통과: 체크가 보이는(커트 미달) 항목은 체크 상태를 따른다. 체크가 숨은 항목은 DB 값을 그대로 두되,
+// 점수를 고쳐 커트를 넘긴 항목은 재시험 대상이 아니므로 통과 표시를 뺀다(점수 입력 탭의 자동 저장과 같은 규칙).
+// 이 주차에서 꺼 둔 항목의 통과 표시는 손대지 않는다.
 function collectClinicMemoRetest(dbPass) {
-  const chks = Array.from(document.querySelectorAll('#clinic-memo-retest .inp-modal-retest'))
-    .filter(c => { const lab = c.closest('.gi-retest'); return !lab || lab.classList.contains('show'); });
-  const shown = new Set(chks.map(c => c.dataset.key));
   const out = {};
-  Object.keys(dbPass || {}).forEach(k => { if (!shown.has(k) && dbPass[k] === true) out[k] = true; });
-  chks.forEach(chk => { if (chk.checked) out[chk.dataset.key] = true; });
+  Object.keys(dbPass || {}).forEach(k => { if (dbPass[k] === true) out[k] = true; });
+  document.querySelectorAll('#clinic-memo-retest .cm-score-inp').forEach(inp => {
+    const k = inp.dataset.key;
+    const lab = inp.parentElement.querySelector('.gi-retest');
+    const chk = lab && lab.querySelector('input');
+    if (lab && lab.classList.contains('show')) { if (chk.checked) out[k] = true; else delete out[k]; }
+    else if (!scoreValEq(inp.value, inp.dataset.orig)) delete out[k];
+  });
   return Object.keys(out).length ? out : null;
 }
 
-// 미응시 칸에 입력한 점수 { 항목키: 점수 }. 빈 칸은 빠진다. 숫자가 아닌 값이 있으면 null.
+// 이번 주 점수 칸 중 창을 열 때와 달라진 칸 { 항목키: 점수 | null(지움) }. 숫자가 아닌 값이 있으면 null.
 function collectClinicMemoScores() {
   const out = {};
   for (const inp of document.querySelectorAll('#clinic-memo-retest .cm-score-inp')) {
     if (inp.validity && inp.validity.badInput) return null;
     const v = inp.value.trim();
-    if (v !== '') out[inp.dataset.key] = parseFloat(v);
+    const now = v === '' ? null : parseFloat(v);
+    if (!scoreValEq(now, inp.dataset.orig)) out[inp.dataset.key] = now;
   }
   return out;
 }
 
-// 점수 입력 탭이 같은 주차를 띄워 두었으면 그 학생 줄의 빈칸에도 방금 넣은 점수를 채운다 —
-// 탭으로 돌아갔을 때 옛 빈칸·총점을 보고 다시 입력하지 않게. 자동 저장 기준값도 맞춰 '바뀐 칸'으로 다시 보내지 않는다.
-function syncScoreTabCells(weekId, studentId, values, pass) {
+// 점수 입력 탭이 같은 주차를 띄워 두었으면 그 학생 줄에도 방금 저장한 점수를 채운다 —
+// 탭으로 돌아갔을 때 옛 값·총점을 보고 다시 입력하지 않게. 자동 저장 기준값도 맞춰 '바뀐 칸'으로 다시 보내지 않는다.
+// origs: 창을 열 때의 값. 그 탭의 칸이 그 값과 다르면(그사이 그 탭에서 입력함) 건드리지 않는다.
+function syncScoreTabCells(weekId, studentId, values, pass, origs) {
   const c = document.getElementById('score-inputs-container');
   if (!c || c.dataset.weekId !== String(weekId)) return;
   const row = c.querySelector(`.score-input-row[data-student-id="${parseInt(studentId)}"]`);
@@ -4579,8 +4642,8 @@ function syncScoreTabCells(weekId, studentId, values, pass) {
   const base = (_autoBase[weekId] || {})[studentId];
   Object.keys(values).forEach(k => {
     const inp = row.querySelector(`.inp-item[data-key="${k}"]`);
-    if (!inp || inp.value !== '') return;   // 그사이 그 탭에서 입력한 값은 건드리지 않는다
-    inp.value = values[k];
+    if (!inp || !scoreValEq(inp.value, origs ? origs[k] : null)) return;
+    inp.value = values[k] === null ? '' : values[k];
     onScoreInput(inp);
     const chk = row.querySelector(`.inp-retest[data-key="${k}"]`);
     const lab = chk && chk.closest('.retest-chk');
@@ -4793,14 +4856,19 @@ async function saveClinicMemoEdit() {
     showToast('❌ 과제 수행률은 0~100 사이 정수로 입력해주세요.', 3500); return;
   }
   const screenEval = document.getElementById('clinic-memo-hw-eval').value.trim();
-  // 미응시 항목에 새로 넣은 점수 (빈 칸만 나오므로, 입력한 칸 = 바뀐 칸)
+  // 이번 주 점수 칸 중 창을 열 때와 달라진 칸만 (지운 칸은 null)
   const screenScores = collectClinicMemoScores();
   if (!screenScores) { showToast('❌ 점수 칸에는 숫자만 입력해주세요.', 3500); return; }
   const scoreKeys = Object.keys(screenScores);
-  const labelOfKey = k => (_clinicRetestLoaded.empty.find(it => it.key === k) || {}).label || '항목';
-  const rangeIssues = _clinicRetestLoaded.empty.filter(it => it.key in screenScores && scoreRangeIssue(screenScores[it.key], it.max))
-    .map(it => ` · ${(it.label || '항목').trim()} ${screenScores[it.key]}점 (만점 ${it.max})`);
+  const loadedItems = _clinicRetestLoaded.items;
+  const labelOfKey = k => ((loadedItems.find(it => it.key === k) || {}).label || '항목').trim();
+  const origOfKey = k => (loadedItems.find(it => it.key === k) || {}).value;
+  const rangeIssues = loadedItems.filter(it => it.key in screenScores && scoreRangeIssue(screenScores[it.key], it.max))
+    .map(it => ` · ${labelOfKey(it.key)} ${screenScores[it.key]}점 (만점 ${it.max})`);
   if (rangeIssues.length && !confirm(`⚠️ 만점을 넘거나 0점 미만인 점수가 있습니다.\n\n${rangeIssues.join('\n')}\n\n그대로 저장할까요?`)) return;
+  // 있던 점수를 지우면 미응시로 바뀐다 — 실수로 지운 것일 수 있어 확인을 받는다
+  const cleared = scoreKeys.filter(k => screenScores[k] === null);
+  if (cleared.length && !confirm(`⚠️ ${row.name} 학생의 점수를 지웁니다 (미응시로 바뀜).\n\n${cleared.map(k => ` · ${labelOfKey(k)}: ${origOfKey(k)}점 → (비움)`).join('\n')}\n\n지울까요?`)) return;
   const memoChanged = memo !== loaded;
   const retestChanged = clinicRetestKey(screenPass) !== clinicRetestKey(loadedPass);
   // 창을 열 때 칸에 채운 값(이어온 값 포함)과 비교한다 — 손대지 않은 칸은 보내지 않는다
@@ -4821,17 +4889,17 @@ async function saveClinicMemoEdit() {
     const passConflict = retestChanged && clinicRetestKey(cur[0].retest_pass) !== clinicRetestKey(loadedPass);
     const rateConflict = rateChanged && dbRate !== _clinicHwLoaded.rate;
     const evalConflict = evalChanged && dbEval !== _clinicHwLoaded.eval;
-    // 창을 연 뒤 점수 입력 탭 등에서 그 항목 점수가 먼저 들어갔는데 내 값과 다르면 확인을 받는다
+    // 창을 연 뒤 점수 입력 탭 등에서 그 항목 점수가 바뀌었는데 내 값과도 다르면 확인을 받는다
     const scoreConflictKeys = scoreKeys.filter(k => {
       const now = itemVal(cur[0], k);
-      return !(now === null || now === undefined || now === '') && !scoreValEq(now, screenScores[k]);
+      return !scoreValEq(now, origOfKey(k)) && !scoreValEq(now, screenScores[k]);
     });
     const scoreConflict = scoreConflictKeys.length > 0;
     let ok;
     if (memoConflict || passConflict || rateConflict || evalConflict || scoreConflict) {
       // 한 학생 편집이라 빈칸 여부뿐 아니라 내용이 바뀐 것까지 잡을 수 있다
       const what = [scoreConflict && '점수', memoConflict && '클리닉 메모', passConflict && '재시험 통과', rateConflict && '과제%', evalConflict && '과제평가'].filter(Boolean).join(', ');
-      const nowLines = (scoreConflict ? `현재 저장된 점수: ${scoreConflictKeys.map(k => `${labelOfKey(k)} ${itemVal(cur[0], k)}`).join(', ')}\n` : '')
+      const nowLines = (scoreConflict ? `현재 저장된 점수: ${scoreConflictKeys.map(k => `${labelOfKey(k)} ${fmtScoreVal(itemVal(cur[0], k))}`).join(', ')}\n` : '')
         + (memoConflict ? `현재 저장된 메모: ${dbMemo || '(비어 있음)'}\n` : '')
         + (rateConflict ? `현재 저장된 과제%: ${dbRate === null ? '(비어 있음)' : dbRate + '%'}\n` : '')
         + (evalConflict ? `현재 저장된 과제평가: ${dbEval || '(비어 있음)'}\n` : '');
@@ -4866,7 +4934,10 @@ async function saveClinicMemoEdit() {
     }
     const res = await apiRaw(`scores?id=eq.${sid}`, 'PATCH', body);
     if (!res.ok) { showToast(`❌ 저장에 실패했어요. (${res.status})`, 4000); return; }
-    if (scoresChanged) syncScoreTabCells(row.weekId, row.studentId, screenScores, screenPass);
+    if (scoresChanged) {
+      const origs = {}; scoreKeys.forEach(k => { origs[k] = origOfKey(k); });
+      syncScoreTabCells(row.weekId, row.studentId, screenScores, screenPass, origs);
+    }
     if (retestChanged || hwChanged || scoresChanged) {
       // 점수 입력·미인증 탭 캐시에도 재시험 통과·과제 값이 반영되도록 비운다 (saveClinicGrid와 같은 처리)
       delete scoreCache[row.weekId]; delete _prevEvalCache[row.weekId]; invalidateClinicSchedule();
