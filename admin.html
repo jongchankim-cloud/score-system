@@ -1931,14 +1931,17 @@ async function loadScoreInputs() {
 
   // 캐시가 있어도 항상 DB를 새로 읽는다. 예전엔 한 번 연 주차를 캐시로 다시 그렸는데, 그 사이
   // 다른 사람이 입력한 과제%·평가·메모가 화면에 없는 채로 '전체 저장'되어 지워진 사고가 있었다(8.31 주차).
-  if (!studentCache[classId]) {
-    studentCache[classId] = await api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`) || [];
-  }
-  const [scores] = await Promise.all([
+  // 반 명단도 매번 새로 읽는다. 예전엔 한 번 읽은 명단을 새로고침 전까지 써서, 다른 PC에서 반을 옮겨 온
+  // 학생이 이 반 표에 안 나왔다(2026-11 전우성: 수요일 하반 → 토요일 이동 뒤 토요일 반에서 검색해도 안 보임).
+  // 명단을 못 읽었을 때만 전에 읽어 둔 명단으로 그린다.
+  const [roster, scores] = await Promise.all([
+    api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`),
     api(`scores?week_id=eq.${weekId}&select=*`),
     fetchCarriedEvals(classId, weekId)
   ]);
   if (seq !== _scoreLoadSeq) return;
+  if (Array.isArray(roster)) studentCache[classId] = roster;
+  else if (!studentCache[classId]) throw new Error('students_not_loaded');
   // 응답이 배열이 아니면(네트워크 오류·서버 오류로 값이 안 온 상태) 표를 그리지 않는다.
   // 예전엔 이때 빈 표가 떠서, 그대로 '전체 저장'하면 모든 칸이 빈 값으로 덮어써졌다.
   if (!Array.isArray(scores)) throw new Error('scores_not_loaded');
@@ -5883,8 +5886,12 @@ async function loadMockScoreInputs() {
   refreshMockGroupInfo();
   loadMockReportPanel();
 
+  // 반 명단은 매번 새로 읽는다 (점수 입력 탭과 같은 이유 — 다른 PC에서 반을 옮긴 학생이 안 보이던 문제)
+  const roster = await api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`);
+  if (seq !== _mockLoadSeq) return;
+  if (Array.isArray(roster)) studentCache[classId] = roster;
+  else if (!studentCache[classId]) studentCache[classId] = [];
   if (mockScoreCache[examId]) { renderMockInputs(classId, examId, mockScoreCache[examId]); releaseTableHeight(container); return; }
-  if (!studentCache[classId]) { studentCache[classId] = await api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`) || []; }
   const scores = await api(`mock_scores?exam_id=eq.${examId}&select=*`) || [];
   if (seq !== _mockLoadSeq) return;
   mockScoreCache[examId] = {};
@@ -7728,7 +7735,12 @@ async function selectScoreClass(classId, studentId) {
   const container = document.getElementById('score-inputs-container');
   const loaded = sel.value === String(classId) && container.querySelector('.score-input-row')
     && container.dataset.weekId === document.getElementById('score-week').value;
-  if (!loaded) {
+  // 표가 떠 있어도 찾는 학생 줄이 없으면 옛 명단으로 그린 표다(그사이 다른 곳에서 반 이동·추가) — 다시 불러온다
+  const hasRow = studentId && container.querySelector(`.score-input-row[data-student-id="${parseInt(studentId)}"]`);
+  if (loaded && studentId && !hasRow) {
+    await flushScoreAutoSave();
+    await loadScoreInputs();
+  } else if (!loaded) {
     sel.value = classId;
     await loadWeeksForScore();
   }
