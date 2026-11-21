@@ -15,7 +15,7 @@ trap 'rm -f "$HITS"' EXIT
 hit() { echo "  $1"; echo "$1" >> "$HITS"; }
 
 # CLASS_SELECT_IDS에 의도적으로 넣지 않는 select (별도 로직이 채운다)
-CLASS_SELECT_EXCEPTIONS="move-target-class"
+CLASS_SELECT_EXCEPTIONS="move-target-class notice-class"
 
 for f in admin.html index.html; do
   [ -f "$f" ] || continue

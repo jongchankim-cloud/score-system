@@ -5,7 +5,7 @@
 
 ## 목차
 - [classes](#classes) · [students](#students) · [weeks](#weeks) · [scores](#scores)
-- [mock_exams](#mock_exams) · [mock_scores](#mock_scores) · [memos](#memos)
+- [mock_exams](#mock_exams) · [mock_scores](#mock_scores) · [memos](#memos) · [school_grades](#school_grades-학교-성적--2026-11-도입)
 - [item_config JSON 규약](#item_config-json-규약)
 - [비교 그룹(group_id) 규약](#비교-그룹group_id-규약)
 - [삭제 순서 (외래키)](#삭제-순서-외래키)
@@ -55,6 +55,12 @@
 ## memos
 조교 메모. `id, author, content, created_at` — 다른 테이블과 무관한 독립 게시판.
 
+## school_grades (학교 성적) — 2026-11 도입
+학생별 학교 내신 성적. 학생 관리 탭 '학생 정보' 창(`openStudentInfo`)에서 조회·추가·수정·삭제한다. 스키마·되돌리기: `supabase/school-grades.sql`.
+`id(serial), student_id → students(id) ON DELETE CASCADE, school_year, grade_level, semester(1|2), exam(중간·기말·수행·기타), subject(기본 '영어'), score, average, rank_grade(자유 입력), memo, created_at, updated_at(트리거로 갱신)`
+- admin-api **v17**부터 허용 목록에 있다. RLS 켜짐 · anon/authenticated 권한 없음(관리자 화면만 service_role로 접근, 학부모 화면엔 안 나옴).
+- UPDATE/DELETE는 `log_row_history` 트리거로 `data_history`에 남는다.
+
 ## item_config JSON 규약
 
 ```json
@@ -83,6 +89,7 @@
 모의고사 삭제: mock_scores → mock_exams
 학생 삭제:    scores + mock_scores → students
 ```
+`school_grades`(2026-11)는 `students`에 ON DELETE CASCADE로 걸려 있어 학생·반을 지우면 DB가 함께 지운다 — 아래 함수를 고칠 필요가 없다.
 
 `deleteClass`(L2801), `deleteStudent`(L3787), `deleteWeek`(L1084), `deleteMockExam`(L3651)이 이 순서를 구현한다.
 새 자식 테이블이 생기면 이 네 함수 전부를 갱신해야 한다.

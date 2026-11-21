@@ -7,19 +7,14 @@
 |---------|-----|------|-------------|----------|
 | 점수 입력 | `tab-score` | 219~ | 1101~1893 | `loadScoreInputs` 1349 · `renderScoreInputs` 1783 · `saveAllScores` 1840 · `saveItemConfig` 1670 · `refreshGroupInfo` 1425 |
 | 점수 입력 · 자동 저장 / 다른 반 학생 입력 | `tab-score` | 점수 입력 탭 | `// ── 점수 입력 탭 자동 저장`, `// ── 다른 반 학생 점수 입력` 블록 | 칸 `change` 때 `queueScoreAutoSave` → `autoSaveScoreRow`(학생별 순서, 저장 직전 DB 재조회·충돌 확인, 바뀐 칸만 PATCH, 행 없으면 POST). 공용: `scoreFieldsOf`·`scoreDiff`·`scoreConflicts`·`scoreWritePlan`·`apiReqRetry`(429·5xx 3회 재시도). 다른 반 학생: `openGuestModal`·`guestPick`(같은 비교 그룹 → 같은 주 주차, 없으면 지금 주차 그룹·항목으로 새 주차)·`guestSave` |
-| 클리닉 배정표 | `tab-clinic-schedule` | 클리닉 문자 탭 뒤 | `// ── 클리닉 배정표` 블록 | `loadClinicSchedule` · `parseClinicMemo` · 학년 탭 `clinicTabOf`(반 이름에 '보성' → '보성여고' 탭, 나머지는 classes.grade. 주차 뒤처짐 판정은 실제 학년끼리) · 출석 체크 `toggleClinicAttend`(scores.clinic_attend, 한 주에 한 번) · `clinicExpectedOf`(배정표 대상 판정, 미참석 문자 탭 기본 체크에 공유) · 이름 클릭 메모 창 `openClinicMemoEdit`/`saveClinicMemoEdit` — 재시험 통과 체크 + 미응시(빈) 항목 점수 입력(`loadClinicMemoRetest`·`collectClinicMemoScores`, 이미 있는 점수는 못 고침, 저장 시 `syncScoreTabCells`로 점수 입력 탭 같은 주차 줄도 채움) |
+| 클리닉 배정표 | `tab-clinic-schedule` | 성적 문자 탭 뒤 | `// ── 클리닉 배정표` 블록 | `loadClinicSchedule` · `parseClinicMemo` · 학년 탭 `clinicTabOf`(반 이름에 '보성' → '보성여고' 탭, 나머지는 classes.grade. 주차 뒤처짐 판정은 실제 학년끼리) · 출석 체크 `toggleClinicAttend`(scores.clinic_attend, 한 주에 한 번) · `clinicExpectedOf`(배정표 대상 판정, 전체 공지 '클리닉 미참석만 선택'에 공유) · 이름 클릭 메모 창 `openClinicMemoEdit`/`saveClinicMemoEdit` — 최근 4주 점수 표(`loadClinicMemoRetest`: 맨 윗줄=기준 주차 전 항목 입력칸+커트 미달 칸 밑 재시험 체크, 아래 3주는 보기만) · 바뀐 칸만 저장(`collectClinicMemoScores`·`collectClinicMemoRetest`, 지우면 확인, 저장 직전 재조회로 충돌 확인, 저장 시 `syncScoreTabCells`로 점수 입력 탭 같은 주차 줄도 맞춤) |
 | 주차 관리 | `tab-week` | 299~ | 939~1100 | `addWeek` 1045 · `loadWeekList` 1074 · `deleteWeek` 1084 · `renderWeekPreview` 1024 |
-| 학생 관리 | `tab-student` | 338~ | 3668~3807 | `addStudent` 3668 · `loadStudentList` 3720 · `searchStudents` 3734 · `deleteStudent` 3787 · 반 이동 모달 2056~2281 |
+| 학생 관리 | `tab-student` | 338~ | 3668~3807 | `addStudent` 3668 · `loadStudentList` 3720 · `searchStudents` 3734 · `deleteStudent` 3787 · 반 이동 모달 2056~2281 · **학생 정보 창(2026-11)** `openStudentInfo`(목록 '정보' 버튼) → `renderStudentInfo`: 특이사항(`saveStudentInfoNote`) · 주차별 성적 `renderSiWeeks`(전체 한눈에 / 주차 선택 시 그 주 기록 전부, 지금 반 주차 + 점수 행 있는 옛 반 주차) · 학교 성적 `renderSiGrades`/`saveSiGrade`/`deleteSiGrade`(school_grades) · 모의고사 `renderSiMocks` · 상담 기록 `renderSiCounsel`(counsel_drafts) · 반 이동·퇴원 `renderSiMoves`(data_history students). 학생 외 구역은 따로 실패 표시 |
 | 퇴원생 (학생 관리 하단 카드) | `tab-student` 안 `#withdrawn-card` | 학생 목록 카드 아래 | `// ── 퇴원생` 블록 | `toggleWithdrawnCard` · `refreshWithdrawnCard` · `loadWithdrawnStudents` · `toggleWithdrawnRecords` · `restoreWithdrawn` — `is_active=false` 학생만, 접혀 있으면 인원만 센다. 퇴원일은 `data_history`에서 찾음. 학생 목록·검색은 재원생만 보여준다 |
 | 모의고사 | `tab-mock` | 371~ | 3211~3667 | `addMockExam` 3227 · `loadMockScoreInputs` 3292 · `saveMockScores` 3596 · `deleteMockExam` 3651 |
-| 학부모 문자 발송 | `tab-sms` | 463~ | 2831~2955 | `loadSmsTargets` 2842 · `makeSmsText` 2885 · `sendAllSms` 2920 |
 | 반 관리 | `tab-class` | 504~ | 2697~2830 | `loadClassList` 2697 · `addClass` 2778 · `deleteClass` 2801 · `refreshClassSelects` 2729 |
-| 미인증 관리 | `tab-uncert` | 547~ | 1887~2055 (①) + 2411~2512 (②) | ① `loadUncertGrid` 1894 · `renderUncertGrid` 1917 · `saveUncertGrid` 2010 ② `loadStudentSmsTargets` 2422 · `sendStudentSms` 2485 |
-| 테스트 미응시 문자 발송 | `tab-absent-sms` | 628~ | 2282~2410 | `loadAbsentTargets` 2298 · `sendAbsentSms` 2384 |
 | 조교 메모 | `tab-memo` | 670~ | 3847~3910 | `addMemo` 3872 · `loadMemos` 3883 · `deleteMemo` 3905 |
-| 성적 문자 발송 | `tab-score-sms` | 701~ | 2956~3210 | `loadScoreSmsTargets` 3054 · `composeScoreSms` 3102 · `sendScoreSms` 3183 · 템플릿 설정 2984~3037 |
-| 클리닉 미참석 문자 발송 | `tab-clinic-sms` | 763~ | 2513~2696 | `loadClinicSmsTargets` 2536 · `sendClinicSms` 2617 · `saveClinicGrid` 2658 |
-
+| 성적 문자 발송 | `tab-score-sms` | 701~ | 2956~3210 | `loadScoreSmsTargets` 3054 · `composeScoreSms` 3102 · `sendScoreSms` 3183 · 템플릿 설정 2984~3037 · **문자 종류 전환(2026-11)** `pickScoreSmsKind`: 성적 문자 / 전체 공지(`#tab-score-sms.notice-mode`로 `.score-only`/`.notice-only` 표시 전환). 전체 공지 = `notice-class`(전체 반 포함, CLASS_SELECT_IDS 밖, `fillNoticeClassSelect`) → `loadNoticeTargets` → `renderNoticeList`·`composeNoticeSms`({이름}{반}{주차}{클리닉}) · `pickNoticeClinicMissed`(배정표와 같은 기준 주차에서 `clinicExpectedOf` && !clinic_attend만 체크) · `sendNoticeSms`. 문구는 localStorage `noticeSms.v1` |
 ## 탭 추가 시 손대야 하는 5곳
 
 탭 하나를 추가하려면 아래를 **전부** 갱신해야 한다. 하나라도 빠지면 탭이 안 뜨거나 반 목록이 비어 보인다.
@@ -30,9 +25,9 @@
 4. `switchTab`(L915)에 해당 탭 진입 시 로더 호출 추가
 5. 탭 전용 상태는 `_xxx` 접두사 전역으로, 함수 블록은 관련 탭 근처에 배치
 
-## 문자 발송 탭 4종의 공통 구조
+## 문자 발송의 공통 구조
 
-`tab-sms` / `tab-absent-sms` / `tab-clinic-sms` / `tab-score-sms`와 `tab-uncert`의 ②는 같은 골격을 각자 복제한 것이다.
+2026-11에 `tab-sms`(학부모 문자) · `tab-absent-sms`(테스트 미응시) · `tab-clinic-sms`(클리닉 미참석) · `tab-uncert`(미인증 관리) 탭을 없앴다. 문자 발송은 `tab-score-sms`(성적 문자 / 전체 공지)와 클리닉 메모 창의 개별 발송(`CLINIC_MISSED_SMS_TEMPLATE`)만 남는다.
 
 ```
 반 선택 → load{X}Weeks() → 주차 선택 → load{X}Targets() → 체크박스 목록 렌더
@@ -40,10 +35,10 @@
                                                         → send{X}Sms() → SMS_FUNCTION_URL POST { messages }
 ```
 
-- 수신처는 `students.phone`(학부모) / `students.student_phone`(학생) 중 선택. `_clinicRecipient`, `_scoreSmsRecipient` 전역이 이를 보관한다.
-- 문자 한 건은 `{ to, text }` 형태로 `messages` 배열에 담긴다. 실제 필드명은 `sendAllSms`(L2920) 등 기존 호출부를 그대로 따를 것.
+- 수신처는 `students.phone`(학부모) / `students.student_phone`(학생) 중 선택. `_scoreSmsRecipient`(성적 문자·전체 공지 공용), `_clinicMemoSmsRecipient`(클리닉 메모 창) 전역이 이를 보관한다.
+- 문자 한 건은 `{ to, text }` 형태로 `messages` 배열에 담긴다. 실제 필드명은 `sendScoreSms`·`sendNoticeSms` 등 기존 호출부를 그대로 따를 것.
 - `smsByteLength`(L3015)로 길이를 계산한다 — 한글은 2바이트, SMS/LMS 경계 판단용.
-- **한 탭의 발송 로직을 고칠 때 나머지 3~4곳이 같은 결함을 공유하는지 반드시 확인할 것.** 복제 구조라 버그도 복제돼 있다.
+- **발송 로직을 고칠 때 `sendScoreSms` · `sendNoticeSms` · `sendClinicMemoSms` 세 곳이 같은 결함을 공유하는지 반드시 확인할 것.** 복제 구조라 버그도 복제돼 있다.
 
 ## index.html 화면 흐름
 
