@@ -191,6 +191,9 @@
   .cm-hist .gi-retest.show { display:block; }
   .cm-hist .below { color:var(--red); font-weight:700; }
   .cm-hist .rp { display:block; font-size:10px; color:var(--green); font-weight:600; }
+  /* 성적 문자 발송 탭: 문자 종류(성적 문자 / 전체 공지)에 따라 보이는 칸 */
+  #tab-score-sms.notice-mode .score-only { display:none !important; }
+  #tab-score-sms:not(.notice-mode) .notice-only { display:none !important; }
   .score-headcount { display:inline-block; margin-left:8px; padding:2px 10px; border-radius:12px; background:var(--light-gray); color:var(--navy); font-size:12px; font-weight:600; vertical-align:middle; }
   /* 다른 반 학생 점수 입력 창 */
   .guest-results { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
@@ -381,10 +384,6 @@
   <div class="tab-bar">
     <button class="tab-btn active" onclick="switchTab('tab-score')">점수 입력</button>
     <button class="tab-btn" onclick="switchTab('tab-score-sms')">성적 문자 발송</button>
-    <button class="tab-btn" onclick="switchTab('tab-absent-sms')">테스트 미응시 문자 발송</button>
-    <button class="tab-btn" onclick="switchTab('tab-sms')">학부모 문자 발송</button>
-    <button class="tab-btn" onclick="switchTab('tab-uncert')">미인증 관리</button>
-    <button class="tab-btn" onclick="switchTab('tab-clinic-sms')">클리닉 미참석 문자 발송</button>
     <button class="tab-btn" onclick="switchTab('tab-clinic-schedule')">클리닉 배정표</button>
     <button class="tab-btn" onclick="switchTab('tab-history')">변경 이력</button>
     <button class="tab-btn" onclick="switchTab('tab-mock')">모의고사</button>
@@ -676,47 +675,6 @@
     </div>
   </div>
 
-  <!-- 탭5: 문자 발송 -->
-  <div id="tab-sms" class="tab-content">
-    <div class="section-card">
-      <div class="section-head"><h3>발송 대상 설정</h3></div>
-      <div class="section-body">
-        <div class="form-row">
-          <div class="form-group"><label>반 선택</label><select id="sms-class" onchange="loadSmsWeeks()"><option value="">반을 선택하세요</option></select></div>
-          <div class="form-group"><label>주차 선택</label><select id="sms-week" onchange="loadSmsTargets()"><option value="">주차를 선택하세요</option></select></div>
-          <div class="form-group">
-            <label>과제 수행률 기준</label>
-            <select id="sms-threshold" onchange="loadSmsTargets()">
-              <option value="all">전체</option>
-              <option value="empty">미기재</option>
-              <option value="0">0%</option>
-              <option value="1-79" selected>1~79%</option>
-              <option value="80-99">80~99%</option>
-              <option value="100">100%</option>
-            </select>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="section-card" id="sms-preview-card" style="display:none">
-      <div class="section-head">
-        <h3 id="sms-preview-title">발송 대상</h3>
-        <div style="display:flex;gap:6px;align-items:center">
-          <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="toggleAllSms()">전체 선택/해제</button>
-          <button class="btn btn-primary btn-sm" onclick="sendAllSms()">선택 발송</button>
-        </div>
-      </div>
-      <div class="section-body">
-        <div class="form-group" style="margin-bottom:14px">
-          <label>문자 내용 (직접 수정 가능 · <code>{이름}</code> <code>{주차}</code> <code>{수행률}</code> 자동 치환)</label>
-          <textarea id="sms-preview-text" rows="6" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7"></textarea>
-          <p style="font-size:11px;color:var(--gray);margin-top:5px">※ 내용을 비우면 학생별 기본 문구(수행률에 따라 자동 분기)가 발송됩니다.</p>
-        </div>
-        <div id="sms-target-list"></div>
-      </div>
-    </div>
-  </div>
-
   <!-- 탭6: 반 관리 -->
   <div id="tab-class" class="tab-content">
     <div class="section-card">
@@ -760,129 +718,6 @@
 
 </div>
 
-  <!-- 탭7: 미인증 관리 (입력 + 문자 발송 통합) -->
-  <div id="tab-uncert" class="tab-content">
-
-    <!-- 섹션 A: 미인증 입력 -->
-    <div class="section-card">
-      <div class="section-head"><h3>① 미인증 입력</h3></div>
-      <div class="section-body">
-        <div class="form-group">
-          <label>반 선택</label>
-          <select id="uncert-class" onchange="loadUncertGrid()">
-            <option value="">반을 선택하세요</option>
-          </select>
-        </div>
-      </div>
-    </div>
-
-    <div class="section-card" id="uncert-result-card" style="display:none">
-      <div class="section-head">
-        <h3 id="uncert-title">미인증 학생</h3>
-        <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="uncertPrev()">◀ 이전</button>
-          <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="uncertNext()">다음 ▶</button>
-          <button class="btn btn-primary btn-sm" onclick="saveUncertGrid()">저장</button>
-        </div>
-      </div>
-      <div class="section-body" style="overflow-x:auto">
-        <div id="uncert-grid"></div>
-      </div>
-    </div>
-
-    <!-- 구분선 -->
-    <div style="border-top:2px dashed var(--border);margin:24px 0 20px"></div>
-
-    <!-- 섹션 B: 미인증 문자 발송 -->
-    <div class="section-card">
-      <div class="section-head"><h3>② 미인증 문자 발송</h3></div>
-      <div class="section-body">
-        <div class="form-row">
-          <div class="form-group">
-            <label>반 선택</label>
-            <select id="student-sms-class" onchange="loadStudentSmsWeeks()">
-              <option value="">반을 선택하세요</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>주차 선택</label>
-            <select id="student-sms-week" onchange="loadStudentSmsTargets()">
-              <option value="">주차를 선택하세요</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>과제 수행률 기준</label>
-            <select id="student-sms-threshold" onchange="loadStudentSmsTargets()">
-              <option value="low" selected>미기재 + 0~79%</option>
-              <option value="mid">80~98%</option>
-            </select>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="section-card" id="student-sms-preview-card" style="display:none">
-      <div class="section-head">
-        <h3 id="student-sms-title">발송 대상</h3>
-        <div style="display:flex;gap:6px;align-items:center">
-          <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="toggleAllStudentSms()">전체 선택/해제</button>
-          <button class="btn btn-primary btn-sm" onclick="sendStudentSms()">선택 발송</button>
-        </div>
-      </div>
-      <div class="section-body">
-        <div class="form-group" style="margin-bottom:14px">
-          <label>문자 내용 (직접 수정 가능 · <code>{이름}</code> 자동 치환)</label>
-          <textarea id="student-sms-text" rows="4" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7">[용산대성N학원 영어과]
-과제 못 한 부분 인증하세요.</textarea>
-        </div>
-        <div id="student-sms-list"></div>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- 탭9: 미응시 문자 발송 -->
-  <div id="tab-absent-sms" class="tab-content">
-    <div class="section-card">
-      <div class="section-head"><h3>테스트 미응시 학생</h3></div>
-      <div class="section-body">
-        <div class="form-row">
-          <div class="form-group">
-            <label>반 선택</label>
-            <select id="absent-class" onchange="loadAbsentWeeks()">
-              <option value="">반을 선택하세요</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>주차 선택</label>
-            <select id="absent-week" onchange="loadAbsentTargets()">
-              <option value="">주차를 선택하세요</option>
-            </select>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="section-card" id="absent-preview-card" style="display:none">
-      <div class="section-head">
-        <h3 id="absent-title">미응시 학생</h3>
-        <div style="display:flex;gap:6px;align-items:center">
-          <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="toggleAllAbsent()">전체 선택/해제</button>
-          <button class="btn btn-primary btn-sm" onclick="sendAbsentSms()">선택 발송</button>
-        </div>
-      </div>
-      <div class="section-body">
-        <div class="form-group" style="margin-bottom:14px">
-          <label>문자 내용 (직접 수정 가능 · <code>{이름}</code> 자동 치환)</label>
-          <textarea id="absent-sms-text" rows="4" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7">[용산대성N학원 영어과]
-이번 주 테스트 미응시 상태입니다.
-테스트 응시 후 제출 바랍니다.</textarea>
-        </div>
-        <div id="absent-list"></div>
-      </div>
-    </div>
-  </div>
-
   <!-- 탭10: 조교 메모 -->
   <div id="tab-memo" class="tab-content">
     <div class="section-card">
@@ -919,7 +754,23 @@
     <div class="section-card">
       <div class="section-head"><h3>발송 대상 설정</h3></div>
       <div class="section-body">
-        <div class="form-row">
+        <!-- 문자 종류: 성적 문자(주차·모의고사 성적) / 전체 공지(같은 문구를 반·전체 반에). 2026-11 학부모 문자·클리닉 미참석 탭을 없애며 추가 -->
+        <div class="form-group" style="margin-bottom:14px">
+          <label>문자 종류</label>
+          <div id="score-sms-kind-btns" style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" class="memo-author-btn active" data-kind="score" onclick="pickScoreSmsKind(this)">성적 문자</button>
+            <button type="button" class="memo-author-btn" data-kind="notice" onclick="pickScoreSmsKind(this)">전체 공지</button>
+          </div>
+        </div>
+        <div class="form-row notice-only">
+          <div class="form-group">
+            <label>공지 보낼 반</label>
+            <select id="notice-class" onchange="loadNoticeTargets()">
+              <option value="">반을 선택하세요</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row score-only">
           <div class="form-group">
             <label>반 선택</label>
             <select id="score-sms-class" onchange="loadScoreSmsWeeks()">
@@ -943,7 +794,30 @@
       </div>
     </div>
 
-    <div class="section-card" id="score-sms-preview-card" style="display:none">
+    <div class="section-card notice-only" id="notice-sms-card" style="display:none">
+      <div class="section-head">
+        <h3 id="notice-sms-title">공지 대상</h3>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-sm" style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe" onclick="pickNoticeClinicMissed()" title="클리닉 배정표와 같은 기준 주차에서, 와야 하는데 출석 체크가 없는 학생만 체크합니다">클리닉 미참석만 선택</button>
+          <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="toggleAllNotice()">전체 선택/해제</button>
+          <button class="btn btn-primary btn-sm" onclick="sendNoticeSms()">선택 발송</button>
+        </div>
+      </div>
+      <div class="section-body">
+        <div class="form-group" style="margin-bottom:8px">
+          <label>공지 내용 (이 기기에 자동 저장 · <code>{이름}</code> <code>{반}</code> 자동 치환 · '클리닉 미참석만 선택'을 누른 뒤에는 <code>{주차}</code> <code>{클리닉}</code>도)</label>
+          <textarea id="notice-sms-text" rows="7" oninput="onNoticeTextChange()" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7"></textarea>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px">
+          <p style="font-size:11px;color:var(--gray);margin:0;flex:1;min-width:240px">내용이 없는 항목(예: 클리닉 메모가 빈 학생의 <code>{클리닉}</code>)이 들어간 줄은 자동으로 사라집니다.</p>
+          <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="fillNoticeClinicTemplate()">클리닉 미참석 안내 문구 넣기</button>
+        </div>
+        <div id="notice-sms-clinic-info"></div>
+        <div id="notice-sms-list"></div>
+      </div>
+    </div>
+
+    <div class="section-card score-only" id="score-sms-preview-card" style="display:none">
       <div class="section-head">
         <h3 id="score-sms-title">발송 대상</h3>
         <div style="display:flex;gap:6px;align-items:center">
@@ -991,57 +865,6 @@
         </div>
         <div id="score-sms-notice"></div>
         <div id="score-sms-list"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 탭11: 클리닉 미참석 문자 발송 -->
-  <div id="tab-clinic-sms" class="tab-content">
-    <div class="section-card">
-      <div class="section-head"><h3>발송 대상 설정</h3></div>
-      <div class="section-body">
-        <div class="form-row">
-          <div class="form-group">
-            <label>반 선택</label>
-            <select id="clinic-sms-class" onchange="loadClinicSmsWeeks()">
-              <option value="">반을 선택하세요</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>주차 선택</label>
-            <select id="clinic-sms-week" onchange="loadClinicSmsTargets()">
-              <option value="">주차를 선택하세요</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>발송처</label>
-          <div id="clinic-sms-recipient-btns" style="display:flex;gap:8px;flex-wrap:wrap">
-            <button type="button" class="memo-author-btn active" data-recipient="parent" onclick="pickClinicRecipient(this)">학부모</button>
-            <button type="button" class="memo-author-btn" data-recipient="student" onclick="pickClinicRecipient(this)">학생</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="section-card" id="clinic-sms-preview-card" style="display:none">
-      <div class="section-head">
-        <h3 id="clinic-sms-title">발송 대상</h3>
-        <div style="display:flex;gap:6px;align-items:center">
-          <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="saveClinicGrid()">입력 저장</button>
-          <button class="btn btn-sm" style="background:var(--light-gray);color:var(--navy)" onclick="toggleAllClinicSms()">전체 선택/해제</button>
-          <button class="btn btn-primary btn-sm" onclick="sendClinicSms()">선택 발송</button>
-        </div>
-      </div>
-      <div class="section-body">
-        <div class="form-group" style="margin-bottom:14px">
-          <label>문자 내용 (직접 수정 가능 · <code>{이름}</code> <code>{주차}</code> <code>{클리닉}</code> 자동 치환)</label>
-          <textarea id="clinic-sms-text" rows="5" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'Noto Sans KR',sans-serif;resize:vertical;outline:none;line-height:1.7">[용산대성N학원 영어과 - 등원 확인 안내]
-안녕하세요, {이름} 학생의 영어 클리닉 등원 관련 안내드립니다.
-현재 배정된 클리닉 시간에 학생의 입실이 확인되지 않고 있습니다.
-클리닉 일정: {클리닉}</textarea>
-        </div>
-        <div id="clinic-sms-list"></div>
       </div>
     </div>
   </div>
@@ -1180,10 +1003,10 @@
       <button class="btn" style="flex:1;background:var(--light-gray);color:var(--navy)" onclick="closeClinicMemoModal()">취소</button>
     </div>
    </div>
-   <!-- 클리닉 미참석 문자 탭과 같은 문자를 이 학생 한 명에게 보낸다 -->
+   <!-- 클리닉 미참석(등원 확인) 안내 문자를 이 학생 한 명에게 보낸다 -->
    <div class="clinic-modal-col clinic-modal-sms">
     <h3 style="font-size:16px;font-weight:700;color:var(--navy);margin-bottom:6px">문자 보내기</h3>
-    <p style="font-size:13px;color:var(--gray);margin-bottom:12px">클리닉 미참석 문자 발송 탭과 같은 문자를 이 학생에게만 보냅니다.</p>
+    <p style="font-size:13px;color:var(--gray);margin-bottom:12px">클리닉 등원 확인 안내를 이 학생에게만 보냅니다. 고친 문구는 다음 학생 창에도 이어집니다.</p>
     <div style="margin-bottom:10px">
       <label style="display:block;font-size:11px;color:var(--gray);font-weight:500;margin-bottom:5px">발송처</label>
       <div id="clinic-memo-sms-recipient" style="display:flex;gap:6px">
@@ -1336,7 +1159,7 @@ async function adminLogin() {
 }
 
 let classes = [];
-const CLASS_SELECT_IDS = ['score-class','week-list-class','new-class','student-list-class','mock-score-class','mock-list-class','sms-class','uncert-class','student-sms-class','absent-class','clinic-sms-class','score-sms-class','history-class','withdrawn-class'];
+const CLASS_SELECT_IDS = ['score-class','week-list-class','new-class','student-list-class','mock-score-class','mock-list-class','score-sms-class','history-class','withdrawn-class'];
 
 // 한글 입력 중(마지막 글자가 '조합 중')인 칸에서 멀리 떨어진 다른 칸을 누르면, 크롬이 그 글자를 확정하면서
 // 화면을 조합 중이던 칸(검색칸·과제 내용 칸 등 맨 위)으로 끌어올린다. 점수 칸을 누르려는 순간 위로 튀던 원인(2026-11).
@@ -1588,7 +1411,7 @@ async function deleteWeek(id) {
 
 // 삭제·이동 후 화면에 옛 명단이 남지 않도록 캐시를 비운다
 function clearAdminCaches() {
-  [studentCache, scoreCache, mockScoreCache, _uncertScoreData, _prevEvalCache]
+  [studentCache, scoreCache, mockScoreCache, _prevEvalCache]
     .forEach(c => c && Object.keys(c).forEach(k => delete c[k]));
 }
 
@@ -2864,7 +2687,6 @@ function scoreWritePlan(d, screen, db, items, weekId, sid, noHw) {
 function invalidateAfterScoreWrite(weekId) {
   Object.keys(_prevEvalCache).forEach(k => delete _prevEvalCache[k]);   // 이후 주차의 '이어오기'가 바뀔 수 있다
   invalidateClinicSchedule();
-  if (typeof _uncertScoreData === 'object') delete _uncertScoreData[weekId];
 }
 
 // ── 점수 입력 탭 자동 저장 (2026-11) ─────────────────────────
@@ -3255,185 +3077,6 @@ async function flushScoreAutoSave(maxMs = 10000) {
   await Promise.race([Promise.allSettled(chains), new Promise(r => setTimeout(r, maxMs))]);
 }
 
-// ── 미인증 탭 (가로 주차 그리드) ───────────────────────
-const UNCERT_VISIBLE = 4; // 한 화면에 보여줄 주차 수
-let _uncertAllWeeks = [];  // 전체 주차 (최신순)
-let _uncertOffset = 0;     // 현재 보여주는 시작 위치
-let _uncertClassId = null;
-let _uncertScoreData = {}; // { weekId: { studentId: scoreObj } }
-let _uncertStudents = [];
-
-async function loadUncertGrid() {
-  const classId = document.getElementById('uncert-class').value;
-  document.getElementById('uncert-result-card').style.display = 'none';
-  if (!classId) return;
-  _uncertClassId = classId;
-  _uncertOffset = 0;
-
-  const card = document.getElementById('uncert-result-card');
-  const gridEl = document.getElementById('uncert-grid');
-  card.style.display = 'block';
-  gridEl.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
-
-  // 전체 주차 (최신순), 학생 목록
-  const [weeks, students] = await Promise.all([
-    api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`),
-    api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`)
-  ]);
-  _uncertAllWeeks = sortByTestDate(weeks);
-  _uncertStudents = students || [];
-
-  renderUncertGrid();
-}
-
-async function renderUncertGrid() {
-  const gridEl = document.getElementById('uncert-grid');
-  const className = classes.find(c => c.id == _uncertClassId)?.name || '';
-
-  // 현재 보여줄 주차 (offset부터 4개), 오래된→최신 순서로 표시
-  const visibleWeeks = _uncertAllWeeks.slice(_uncertOffset, _uncertOffset + UNCERT_VISIBLE).reverse();
-
-  if (!visibleWeeks.length) {
-    gridEl.innerHTML = '<p style="font-size:13px;color:var(--gray);padding:12px 0">표시할 주차가 없습니다.</p>';
-    document.getElementById('uncert-title').textContent = `미인증 — ${className}`;
-    return;
-  }
-
-  // 보여줄 주차들의 점수 로드 (캐시 없으면)
-  gridEl.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
-  await Promise.all(visibleWeeks.map(async w => {
-    if (!_uncertScoreData[w.id]) {
-      const scores = await api(`scores?week_id=eq.${w.id}&select=*`) || [];
-      _uncertScoreData[w.id] = {};
-      scores.forEach(s => { _uncertScoreData[w.id][s.student_id] = s; });
-    }
-  }));
-
-  // 미인증 학생 필터: 보여주는 주차 중 하나라도 (과제평가 있거나 수행률 79%이하)인 학생.
-  // 잔여과제 인증(hw_cert) 연동은 2026-09에 뺐다 — 인증 완료 여부는 이제 수행률로 판단한다.
-  const uncertStudents = _uncertStudents.filter(st => {
-    return visibleWeeks.some(w => {
-      const sc = _uncertScoreData[w.id][st.id];
-      if (!sc) return false;
-      const hasMemo = sc.homework_eval && sc.homework_eval.trim() !== '';
-      const lowHw = sc.homework_rate === null || sc.homework_rate <= 79;
-      return hasMemo || lowHw;
-    });
-  });
-
-  const oldestLabel = visibleWeeks[0]?.label || visibleWeeks[0]?.test_date || '';
-  const newestLabel = visibleWeeks[visibleWeeks.length-1]?.label || visibleWeeks[visibleWeeks.length-1]?.test_date || '';
-  document.getElementById('uncert-title').textContent = `미인증 — ${className} (${oldestLabel} ~ ${newestLabel}, ${uncertStudents.length}명)`;
-
-  if (!uncertStudents.length) {
-    gridEl.innerHTML = '<p style="font-size:13px;color:var(--gray);padding:12px 0">미인증 학생이 없습니다. 🎉</p>';
-    return;
-  }
-
-  // 그리드 컬럼: 이름(70px) + 주차마다 과제%(70px)
-  const colTemplate = `70px ${visibleWeeks.map(() => '70px').join(' ')}`;
-
-  // 헤더
-  let html = `<div style="display:grid;grid-template-columns:${colTemplate};gap:6px;padding:6px 0 8px;font-size:11px;color:var(--gray);font-weight:600;border-bottom:2px solid var(--border);margin-bottom:4px;min-width:max-content">`;
-  html += `<span>이름</span>`;
-  visibleWeeks.forEach(w => {
-    html += `<span style="text-align:center;border-left:1px solid var(--border)">${w.label || w.test_date}</span>`;
-  });
-  html += `</div>`;
-  // 서브헤더 (과제%)
-  html += `<div style="display:grid;grid-template-columns:${colTemplate};gap:6px;padding:0 0 6px;font-size:10px;color:var(--gray);font-weight:500;border-bottom:1px solid var(--border);margin-bottom:4px;min-width:max-content">`;
-  html += `<span></span>`;
-  visibleWeeks.forEach(() => {
-    html += `<span style="text-align:center;border-left:1px solid var(--border)">과제%</span>`;
-  });
-  html += `</div>`;
-
-  // 학생 행
-  html += uncertStudents.map(st => {
-    let row = `<div style="display:grid;grid-template-columns:${colTemplate};gap:6px;align-items:center;padding:8px 0;border-bottom:1px solid var(--light-gray);min-width:max-content" data-student-id="${st.id}">`;
-    row += `<span style="font-size:13px;font-weight:600;color:var(--navy)">${st.name}</span>`;
-    visibleWeeks.forEach(w => {
-      const sc = _uncertScoreData[w.id][st.id] || {};
-      const hwVal = sc.homework_rate !== null && sc.homework_rate !== undefined ? sc.homework_rate : '';
-      row += `<input type="number" class="uncert-hw" data-week-id="${w.id}" value="${hwVal}" min="0" max="100" style="padding:6px 4px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;text-align:center;outline:none;width:100%;border-left:1px solid var(--border)">`;
-    });
-    row += `</div>`;
-    return row;
-  }).join('');
-
-  gridEl.innerHTML = html;
-}
-
-function uncertPrev() {
-  // 더 과거로 (offset 증가)
-  if (_uncertOffset + UNCERT_VISIBLE >= _uncertAllWeeks.length) { showToast('더 이전 주차가 없습니다.'); return; }
-  _uncertOffset += 1;
-  renderUncertGrid();
-}
-
-function uncertNext() {
-  // 더 최신으로 (offset 감소)
-  if (_uncertOffset <= 0) { showToast('가장 최신 주차입니다.'); return; }
-  _uncertOffset -= 1;
-  renderUncertGrid();
-}
-
-async function saveUncertGrid() {
-  const rows = document.querySelectorAll('#uncert-grid [data-student-id]');
-  if (!rows.length) return;
-
-  // 주차별로 업데이트 묶기: { weekId: [ {student_id, homework_rate} ] }
-  const byWeek = {};
-  rows.forEach(row => {
-    const studentId = parseInt(row.dataset.studentId);
-    row.querySelectorAll('.uncert-hw').forEach(hwInp => {
-      const weekId = parseInt(hwInp.dataset.weekId);
-      if (!byWeek[weekId]) byWeek[weekId] = [];
-      byWeek[weekId].push({
-        student_id: studentId,
-        homework_rate: hwInp.value !== '' ? parseInt(hwInp.value) : null
-      });
-    });
-  });
-
-  try {
-    for (const weekId of Object.keys(byWeek)) {
-      const existing = await api(`scores?week_id=eq.${weekId}&select=id,student_id,homework_rate`);
-      if (!Array.isArray(existing)) { showToast('❌ 최신 데이터를 확인하지 못해 저장을 중단했어요. 잠시 후 다시 시도해주세요.', 4000); return; }
-      {
-        const screen = {};
-        byWeek[weekId].forEach(u => { screen[u.student_id] = { homework_rate: u.homework_rate }; });
-        const nameOf = id => (_uncertStudents.find(st => st.id === id) || {}).name || id;
-        const conflicts = findBlankOverwrites(existing, screen, { homework_rate: '과제%' }, nameOf);
-        if (!confirmBlankOverwrite(conflicts)) {
-          showToast('저장을 중단하고 최신 데이터를 다시 불러왔어요.', 3500);
-          Object.keys(_uncertScoreData).forEach(k => delete _uncertScoreData[k]);
-          renderUncertGrid();
-          return;
-        }
-      }
-      const existMap = {};
-      (existing || []).forEach(e => { existMap[e.student_id] = e.id; });
-
-      await Promise.all(byWeek[weekId].map(async u => {
-        if (existMap[u.student_id]) {
-          return apiRaw(`scores?id=eq.${existMap[u.student_id]}`, 'PATCH', { homework_rate: u.homework_rate });
-        }
-      }));
-
-      // 점수 입력 탭 캐시 갱신
-      delete scoreCache[weekId]; delete _prevEvalCache[weekId]; invalidateClinicSchedule();
-      // 미인증 캐시도 갱신
-      delete _uncertScoreData[weekId];
-    }
-
-    showToast('✅ 저장됐어요!');
-    renderUncertGrid();
-  } catch(e) {
-    showToast('❌ 오류: ' + e.message);
-  }
-}
-
 // ── 반 이동 ──────────────────────────────────────────────
 let _moveStudentId = null;
 let _moveCurrentClassId = null;
@@ -3696,7 +3339,7 @@ async function confirmMoveStudent() {
     if (creates.length) Object.keys(_prevEvalCache).forEach(k => delete _prevEvalCache[k]);
 
     // 캐시 무효화 (안 하면 새로고침 전까지 옛 명단이 보임)
-    [studentCache, scoreCache, mockScoreCache, _uncertScoreData, _prevEvalCache]
+    [studentCache, scoreCache, mockScoreCache, _prevEvalCache]
       .forEach(c => Object.keys(c).forEach(k => delete c[k]));
 
     const tail = (orphans.length + conflicts.length)
@@ -3720,468 +3363,9 @@ function closeMoveModal() {
   window._moveToClassId = null;
 }
 
-// ── 미응시 문자 발송 ──────────────────────────────────────
-async function loadAbsentWeeks() {
-  const classId = document.getElementById('absent-class').value;
-  const sel = document.getElementById('absent-week');
-  sel.innerHTML = '<option value="">주차를 선택하세요</option>';
-  document.getElementById('absent-preview-card').style.display = 'none';
-  if (!classId) return;
-  const [weeksRes, examsRes] = await Promise.all([
-    api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`),
-    api(`mock_exams?class_id=eq.${classId}&order=id.desc&select=*`)
-  ]);
-  const weeks = sortByTestDate(weeksRes);
-  const exams = sortByTestDate(examsRes);
-  // 성적 문자 탭과 같이 주차·모의고사를 구분 없이 날짜순으로 섞는다. 같은 날짜면 주차가 먼저.
-  sortByTestDate([
-    ...weeks.map(w => ({ ...w, value: 'w' + w.id, text: w.label || w.test_date })),
-    ...exams.map(e => ({ ...e, value: 'm' + e.id, text: '[모의고사] ' + (e.label || e.exam_date) }))
-  ]).forEach(it => { const opt = document.createElement('option'); opt.value = it.value; opt.textContent = it.text; sel.appendChild(opt); });
-  if (weeks.length > 0) { sel.value = 'w' + weeks[0].id; loadAbsentTargets(); }
-  else if (exams.length > 0) { sel.value = 'm' + exams[0].id; loadAbsentTargets(); }
-}
-
-async function loadAbsentTargets() {
-  const classId = document.getElementById('absent-class').value;
-  const weekVal = document.getElementById('absent-week').value;
-  if (!classId || !weekVal) return;
-
-  const isMock = weekVal.charAt(0) === 'm';
-  const id = parseInt(weekVal.slice(1));
-
-  const students = await api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`);
-
-  const scoreMap = {};
-  let targets;
-  if (isMock) {
-    const scores = await api(`mock_scores?exam_id=eq.${id}&select=*`) || [];
-    scores.forEach(s => { scoreMap[s.student_id] = s; });
-    // 모의고사 미응시 = 점수 입력 화면에서 '미응시'로 체크한 학생.
-    // 점수가 비어 있다는 것만으로는 응시 대상이 아니었던 학생과 구분되지 않는다
-    // (일부 학생만 응시하는 모의고사가 있어, 그 기준으로는 볼 필요도 없던 학생에게 문자가 간다).
-    targets = (students || []).filter(st => scoreMap[st.id]?.absent === true);
-  } else {
-    const [scores, weekRow] = await Promise.all([
-      api(`scores?week_id=eq.${id}&select=*`),
-      api(`weeks?id=eq.${id}&select=item_config`)
-    ]);
-    (scores || []).forEach(s => { scoreMap[s.student_id] = s; });
-    // 미응시 = 이 주차에 사용하는(활성) 항목 중 하나라도 비어있음(null)
-    const cfg = normalizeItemConfig(weekRow?.[0]?.item_config);
-    const activeKeys = cfg.filter(it => it.active).map(it => it.key);
-    const empty = v => v === null || v === undefined;
-    targets = (students || []).filter(st => {
-      const sc = scoreMap[st.id];
-      if (!sc) return true;
-      return activeKeys.some(k => empty(itemVal(sc, k)));
-    });
-  }
-  targets = targets.map(st => ({
-    id: st.id,
-    name: st.name,
-    student_phone: st.student_phone || ''
-  }));
-
-  const weekSel = document.getElementById('absent-week');
-  const weekLabel = weekSel.options[weekSel.selectedIndex]?.text || '';
-  const className = classes.find(c => c.id == classId)?.name || '';
-
-  const card = document.getElementById('absent-preview-card');
-  const titleEl = document.getElementById('absent-title');
-  const listEl = document.getElementById('absent-list');
-
-  card.style.display = 'block';
-  titleEl.textContent = `미응시 학생 — ${targets.length}명 (${className} ${weekLabel})`;
-
-  // 문자 내용에 선택한 주차 반영 ([모의고사] 접두어 제거)
-  const cleanLabel = weekLabel.replace('[모의고사] ', '');
-  document.getElementById('absent-sms-text').value = `[용산대성N학원 영어과]\n${cleanLabel} 테스트 미응시 상태입니다.\n테스트 응시 후 제출 바랍니다.`;
-
-  if (!targets.length) {
-    listEl.innerHTML = '<p style="font-size:13px;color:var(--gray)">미응시 학생이 없습니다. 🎉</p>';
-    window._absentTargets = [];
-    return;
-  }
-
-  listEl.innerHTML = `<table class="data-table">
-    <thead><tr><th style="width:36px"><input type="checkbox" id="check-all-absent" checked onchange="toggleAllAbsent(this.checked)"></th><th>이름</th><th>학생 연락처</th><th>상태</th></tr></thead>
-    <tbody>${targets.map((t, i) => `
-      <tr>
-        <td><input type="checkbox" class="absent-check" data-idx="${i}" ${t.student_phone ? 'checked' : ''} ${!t.student_phone ? 'disabled' : ''}></td>
-        <td><strong>${t.name}</strong></td>
-        <td style="font-size:12px;font-family:monospace">${t.student_phone || '번호없음'}</td>
-        <td><span class="badge ${t.student_phone ? 'badge-active' : 'badge-inactive'}">${t.student_phone ? '발송가능' : '번호없음'}</span></td>
-      </tr>`).join('')}
-    </tbody></table>`;
-
-  window._absentTargets = targets;
-}
-
-function toggleAllAbsent(checked) {
-  const boxes = document.querySelectorAll('.absent-check:not(:disabled)');
-  if (checked === undefined) {
-    checked = !Array.from(boxes).every(cb => cb.checked);
-  }
-  boxes.forEach(cb => { cb.checked = checked; });
-  const headerCheck = document.getElementById('check-all-absent');
-  if (headerCheck) headerCheck.checked = checked;
-}
-
-async function sendAbsentSms() {
-  const targets = window._absentTargets || [];
-  const selected = Array.from(document.querySelectorAll('.absent-check:checked'))
-    .map(cb => targets[parseInt(cb.dataset.idx)])
-    .filter(t => t && t.student_phone);
-  if (!selected.length) { showToast('선택된 발송 대상이 없습니다.'); return; }
-  if (!confirm(`${selected.length}명에게 문자를 발송할까요?`)) return;
-
-  const text = document.getElementById('absent-sms-text').value;
-  if (!text.trim()) { showToast('문자 내용을 입력해주세요.'); return; }
-  showToast('발송 중...');
-  const messages = selected.map(t => ({ to: t.student_phone, text: text.replace(/\{이름\}/g, t.name) }));
-
-  try {
-    const res = await fetch(SMS_FUNCTION_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
-      body: JSON.stringify({ messages })
-    });
-    const data = await res.json();
-    showToast(`✅ 발송 완료 — 성공 ${data.success}건 / 실패 ${data.fail}건`, 4000);
-  } catch(e) {
-    showToast('❌ 발송 오류: ' + e.message);
-  }
-}
-
-// ── 미인증 문자 발송 ──────────────────────────────────────
-async function loadStudentSmsWeeks() {
-  const classId = document.getElementById('student-sms-class').value;
-  const sel = document.getElementById('student-sms-week');
-  sel.innerHTML = '<option value="">주차를 선택하세요</option>';
-  document.getElementById('student-sms-preview-card').style.display = 'none';
-  if (!classId) return;
-  const weeks = sortByTestDate(await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`));
-  weeks.forEach(w => { const opt = document.createElement('option'); opt.value = w.id; opt.textContent = w.label || w.test_date; sel.appendChild(opt); });
-  if (weeks.length > 0) { sel.value = weeks[0].id; loadStudentSmsTargets(); }
-}
-
-async function loadStudentSmsTargets() {
-  const classId = document.getElementById('student-sms-class').value;
-  const weekId = document.getElementById('student-sms-week').value;
-  if (!classId || !weekId) return;
-
-  const [students, scores] = await Promise.all([
-    api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`),
-    api(`scores?week_id=eq.${weekId}&select=*`)
-  ]);
-
-  const scoreMap = {};
-  (scores || []).forEach(s => { scoreMap[s.student_id] = s; });
-
-  const threshold = document.getElementById('student-sms-threshold').value;
-
-  // 구간별 필터
-  const targets = (students || []).filter(st => {
-    const sc = scoreMap[st.id];
-    const hw = sc ? sc.homework_rate : null;
-    if (threshold === 'low') return hw === null || hw <= 79;
-    if (threshold === 'mid') return hw !== null && hw >= 80 && hw <= 98;
-    return false;
-  }).map(st => {
-    const sc = scoreMap[st.id];
-    return {
-      id: st.id,
-      name: st.name,
-      student_phone: st.student_phone || '',
-      hw: sc ? sc.homework_rate : null
-    };
-  });
-
-  const weekSel = document.getElementById('student-sms-week');
-  const weekLabel = weekSel.options[weekSel.selectedIndex]?.text || '';
-  const className = classes.find(c => c.id == classId)?.name || '';
-
-  const card = document.getElementById('student-sms-preview-card');
-  const titleEl = document.getElementById('student-sms-title');
-  const listEl = document.getElementById('student-sms-list');
-
-  card.style.display = 'block';
-  titleEl.textContent = `발송 대상 — ${targets.length}명 (${className} ${weekLabel})`;
-
-  if (!targets.length) {
-    listEl.innerHTML = '<p style="font-size:13px;color:var(--gray)">발송 대상이 없습니다.</p>';
-    return;
-  }
-
-  listEl.innerHTML = `<table class="data-table">
-    <thead><tr><th style="width:36px"><input type="checkbox" id="check-all-student-sms" checked onchange="toggleAllStudentSms(this.checked)"></th><th>이름</th><th>과제(%)</th><th>학생 연락처</th><th>상태</th></tr></thead>
-    <tbody>${targets.map((t, i) => `
-      <tr>
-        <td><input type="checkbox" class="student-sms-check" data-idx="${i}" ${t.student_phone ? 'checked' : ''} ${!t.student_phone ? 'disabled' : ''}></td>
-        <td><strong>${t.name}</strong></td>
-        <td>${t.hw !== null ? t.hw + '%' : '미기재'}</td>
-        <td style="font-size:12px;font-family:monospace">${t.student_phone || '번호없음'}</td>
-        <td><span class="badge ${t.student_phone ? 'badge-active' : 'badge-inactive'}">${t.student_phone ? '발송가능' : '번호없음'}</span></td>
-      </tr>`).join('')}
-    </tbody></table>`;
-
-  window._studentSmsTargets = targets;
-}
-
-async function sendStudentSms() {
-  const targets = window._studentSmsTargets || [];
-  const validTargets = targets.filter(t => t.student_phone);
-  if (!validTargets.length) { showToast('발송 가능한 대상이 없습니다.'); return; }
-  if (!confirm(`${validTargets.length}명에게 문자를 발송할까요?`)) return;
-
-  showToast('발송 중...');
-  const template = document.getElementById('student-sms-text').value;
-  if (!template.trim()) { showToast('문자 내용을 입력해주세요.'); return; }
-  const messages = validTargets.map(t => ({
-    to: t.student_phone,
-    text: template.replace(/\{이름\}/g, t.name)
-  }));
-
-  try {
-    const res = await fetch(SMS_FUNCTION_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
-      body: JSON.stringify({ messages })
-    });
-    const data = await res.json();
-    showToast(`✅ 발송 완료 — 성공 ${data.success}건 / 실패 ${data.fail}건`, 4000);
-  } catch(e) {
-    showToast('❌ 발송 오류: ' + e.message);
-  }
-}
-
-// ── 클리닉 미참석 문자 발송 ──────────────────────────────
-let _clinicRecipient = 'parent'; // 'parent' | 'student'
-
-function pickClinicRecipient(btn) {
-  document.querySelectorAll('#clinic-sms-recipient-btns .memo-author-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  _clinicRecipient = btn.dataset.recipient;
-  // 발송처가 바뀌면 대상 목록의 연락처/상태를 다시 렌더.
-  // 골라둔 학생과 저장 전 과제평가·메모는 그대로 살린다 (성적 문자 탭과 같은 요청)
-  if (document.getElementById('clinic-sms-class').value && document.getElementById('clinic-sms-week').value) {
-    const keep = {};
-    document.querySelectorAll('#clinic-sms-list tr[data-student-id]').forEach(tr => {
-      keep[tr.dataset.studentId] = {
-        checked: !!tr.querySelector('.clinic-sms-check')?.checked,
-        eval: tr.querySelector('.clinic-eval')?.value, memo: tr.querySelector('.clinic-memo')?.value
-      };
-    });
-    loadClinicSmsTargets().then(() => {
-      document.querySelectorAll('#clinic-sms-list tr[data-student-id]').forEach(tr => {
-        const k = keep[tr.dataset.studentId];
-        if (!k) return;
-        const cb = tr.querySelector('.clinic-sms-check');
-        if (cb && !cb.disabled) cb.checked = k.checked;
-        if (k.eval !== undefined && tr.querySelector('.clinic-eval')) tr.querySelector('.clinic-eval').value = k.eval;
-        if (k.memo !== undefined && tr.querySelector('.clinic-memo')) tr.querySelector('.clinic-memo').value = k.memo;
-      });
-    });
-  }
-}
-
-async function loadClinicSmsWeeks() {
-  const classId = document.getElementById('clinic-sms-class').value;
-  const sel = document.getElementById('clinic-sms-week');
-  sel.innerHTML = '<option value="">주차를 선택하세요</option>';
-  document.getElementById('clinic-sms-preview-card').style.display = 'none';
-  if (!classId) return;
-  const weeks = sortByTestDate(await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`));
-  weeks.forEach(w => { const opt = document.createElement('option'); opt.value = w.id; opt.textContent = w.label || w.test_date; sel.appendChild(opt); });
-  if (weeks.length > 0) { sel.value = weeks[0].id; loadClinicSmsTargets(); }
-}
-
-async function loadClinicSmsTargets() {
-  const classId = document.getElementById('clinic-sms-class').value;
-  const weekId = document.getElementById('clinic-sms-week').value;
-  if (!classId || !weekId) return;
-
-  const [students, scores, weekRows] = await Promise.all([
-    api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`),
-    api(`scores?week_id=eq.${weekId}&select=*`),
-    api(`weeks?id=eq.${weekId}&select=item_config`)
-  ]);
-
-  const scoreMap = {};
-  (scores || []).forEach(s => { scoreMap[s.student_id] = s; });
-  const carried = await fetchCarriedEvals(classId, weekId);
-  const weekCfg = Array.isArray(weekRows) && weekRows[0] ? weekRows[0].item_config : null;
-
-  // 반 전체 학생을 띄우고, 보낼 학생은 조교가 체크해서 고른다.
-  // (예전엔 점수 탭의 '클리닉 대상/참석' 체크로 걸렀지만 그 체크박스는 2026-09에 없앴다)
-  const targets = (students || []).map(st => ({
-    id: st.id,
-    name: st.name,
-    phone: st.phone || '',
-    student_phone: st.student_phone || '',
-    clinic_memo: (scoreMap[st.id] && scoreMap[st.id].clinic_memo) || '',
-    homework_rate: (scoreMap[st.id] && scoreMap[st.id].homework_rate !== null && scoreMap[st.id].homework_rate !== undefined)
-      ? scoreMap[st.id].homework_rate
-      : (carriedRateFor(scoreMap[st.id], carried, st.id) === '' ? null : carriedRateFor(scoreMap[st.id], carried, st.id)),
-    homework_eval: (scoreMap[st.id] && scoreMap[st.id].homework_eval) || carriedEvalFor(scoreMap[st.id], carried, st.id),
-    // 클리닉 배정표에 오르는 학생(와야 하는 학생)인지, 배정표에서 '왔음' 체크가 됐는지 (2026-11)
-    expected: clinicExpectedOf(scoreMap[st.id], weekCfg),
-    attended: !!(scoreMap[st.id] && scoreMap[st.id].clinic_attend === true)
-  }));
-  const missedCount = targets.filter(t => t.expected && !t.attended).length;
-
-  const weekSel = document.getElementById('clinic-sms-week');
-  const weekLabel = weekSel.options[weekSel.selectedIndex]?.text || '';
-  const className = classes.find(c => c.id == classId)?.name || '';
-
-  const card = document.getElementById('clinic-sms-preview-card');
-  const titleEl = document.getElementById('clinic-sms-title');
-  const listEl = document.getElementById('clinic-sms-list');
-
-  card.style.display = 'block';
-  // 배정표 대상인데 '왔음' 체크가 없는 학생을 미리 체크해 둔다 — 그대로 보내도 되고, 조교가 고쳐도 된다
-  titleEl.textContent = missedCount
-    ? `${className} ${weekLabel} — 반 전체 ${targets.length}명 · 클리닉 미참석 ${missedCount}명을 체크해 두었어요`
-    : `${className} ${weekLabel} — 반 전체 ${targets.length}명 · 보낼 학생을 체크하세요`;
-
-  if (!targets.length) {
-    listEl.innerHTML = '<p style="font-size:13px;color:var(--gray)">이 반에 학생이 없습니다.</p>';
-    window._clinicSmsTargets = [];
-    window._clinicSmsWeekLabel = weekLabel;
-    return;
-  }
-
-  const isParent = _clinicRecipient === 'parent';
-  const phoneLabel = isParent ? '학부모 연락처' : '학생 연락처';
-
-  listEl.innerHTML = `<table class="data-table">
-    <thead><tr><th style="width:36px"><input type="checkbox" id="check-all-clinic-sms" onchange="toggleAllClinicSms(this.checked)"></th><th style="white-space:nowrap">이름</th><th style="white-space:nowrap">클리닉 출석</th><th>${phoneLabel}</th><th>과제(%)</th><th>과제평가</th><th>클리닉 메모</th><th style="white-space:nowrap">상태</th></tr></thead>
-    <tbody>${targets.map((t, i) => {
-      const phone = isParent ? t.phone : t.student_phone;
-      const preCheck = !!phone && t.expected && !t.attended;
-      const att = t.attended ? '<span class="badge badge-active">✓ 왔음</span>'
-        : t.expected ? '<span class="badge badge-inactive">안 옴</span>'
-        : '<span style="font-size:12px;color:var(--gray)">대상 아님</span>';
-      return `<tr data-student-id="${t.id}">
-        <td><input type="checkbox" class="clinic-sms-check" data-idx="${i}" ${!phone ? 'disabled' : ''} ${preCheck ? 'checked' : ''}></td>
-        <td style="white-space:nowrap"><strong>${t.name}</strong></td>
-        <td style="white-space:nowrap">${att}</td>
-        <td style="font-size:12px;font-family:monospace">${phone || '번호없음'}</td>
-        <td>${(t.homework_rate !== null && t.homework_rate !== undefined) ? t.homework_rate + '%' : '미기재'}</td>
-        <td><input type="text" class="clinic-eval" value="${attrEsc(t.homework_eval)}" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;outline:none;width:100%;min-width:120px"></td>
-        <td><input type="text" class="clinic-memo" value="${attrEsc(t.clinic_memo)}" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;outline:none;width:100%;min-width:110px"></td>
-        <td style="white-space:nowrap"><span class="badge ${phone ? 'badge-active' : 'badge-inactive'}">${phone ? '발송가능' : '번호없음'}</span></td>
-      </tr>`;
-    }).join('')}</tbody></table>`;
-
-  window._clinicSmsTargets = targets;
-  window._clinicSmsWeekLabel = weekLabel;
-  window._clinicSmsWeekId = weekId;
-}
-
-function toggleAllClinicSms(checked) {
-  const boxes = document.querySelectorAll('.clinic-sms-check:not(:disabled)');
-  if (checked === undefined) {
-    checked = !Array.from(boxes).every(cb => cb.checked);
-  }
-  boxes.forEach(cb => { cb.checked = checked; });
-  const headerCheck = document.getElementById('check-all-clinic-sms');
-  if (headerCheck) headerCheck.checked = checked;
-}
-
-async function sendClinicSms() {
-  const targets = window._clinicSmsTargets || [];
-  const weekLabel = window._clinicSmsWeekLabel || '';
-  const isParent = _clinicRecipient === 'parent';
-  // 클리닉 메모는 저장 전에도 수정한 값 그대로 나가야 하므로 targets가 아닌 화면 입력칸에서 읽는다
-  const selected = Array.from(document.querySelectorAll('.clinic-sms-check:checked'))
-    .map(cb => ({ t: targets[parseInt(cb.dataset.idx)], memo: cb.closest('tr')?.querySelector('.clinic-memo')?.value.trim() || '' }))
-    .map(x => ({ ...x, phone: x.t ? (isParent ? x.t.phone : x.t.student_phone) : '' }))
-    .filter(x => x.t && x.phone);
-  if (!selected.length) { showToast('선택된 발송 대상이 없습니다.'); return; }
-
-  const template = document.getElementById('clinic-sms-text').value;
-  if (!template.trim()) { showToast('문자 내용을 입력해주세요.'); return; }
-
-  const recipientLabel = isParent ? '학부모' : '학생';
-  if (!confirm(`${selected.length}명의 ${recipientLabel}에게 문자를 발송할까요?`)) return;
-
-  showToast('발송 중...');
-  // 클리닉 메모가 비면 '클리닉 일정: ' 껍데기만 남지 않도록 그 줄을 통째로 뺀다 (성적 문자 탭과 동일)
-  const messages = selected.map(({ t, phone, memo }) => ({
-    to: phone,
-    text: fillSmsTemplate(template, { 이름: t.name, 주차: weekLabel, 클리닉: memo })
-  }));
-
-  try {
-    const res = await fetch(SMS_FUNCTION_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
-      body: JSON.stringify({ messages })
-    });
-    const data = await res.json();
-    showToast(`✅ 발송 완료 — 성공 ${data.success}건 / 실패 ${data.fail}건`, 4000);
-  } catch(e) {
-    showToast('❌ 발송 오류: ' + e.message);
-  }
-}
-
 // input value 속성에 안전하게 넣기 위한 이스케이프
 function attrEsc(str) {
   return (str || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-// 클리닉 탭에서 과제평가·클리닉 메모를 공용 scores에 저장 (잔여인증 열은 2026-09에 제거)
-async function saveClinicGrid() {
-  const weekId = window._clinicSmsWeekId;
-  if (!weekId) { showToast('주차를 먼저 선택해주세요.'); return; }
-  const rows = document.querySelectorAll('#clinic-sms-list tr[data-student-id]');
-  if (!rows.length) { showToast('저장할 대상이 없습니다.'); return; }
-
-  const updates = Array.from(rows).map(row => ({
-    student_id: parseInt(row.dataset.studentId),
-    homework_eval: row.querySelector('.clinic-eval').value.trim(),
-    clinic_memo: row.querySelector('.clinic-memo').value.trim()
-  }));
-
-  try {
-    const existing = await api(`scores?week_id=eq.${weekId}&select=id,student_id,homework_eval,clinic_memo`);
-    if (!Array.isArray(existing)) { showToast('❌ 최신 데이터를 확인하지 못해 저장을 중단했어요. 잠시 후 다시 시도해주세요.', 4000); return; }
-    {
-      const screen = {};
-      updates.forEach(u => { screen[u.student_id] = { homework_eval: u.homework_eval, clinic_memo: u.clinic_memo }; });
-      const nameOf = id => (window._clinicSmsTargets || []).find(t => t.id === id)?.name || id;
-      const conflicts = findBlankOverwrites(existing, screen, { homework_eval: '과제평가', clinic_memo: '클리닉메모' }, nameOf);
-      if (!confirmBlankOverwrite(conflicts)) {
-        showToast('저장을 중단하고 최신 데이터를 다시 불러왔어요.', 3500);
-        loadClinicSmsTargets();
-        return;
-      }
-    }
-    const existMap = {};
-    (existing || []).forEach(e => { existMap[e.student_id] = e.id; });
-
-    // 반 전체가 표에 뜨므로, 아직 점수 행이 없고 세 칸이 모두 빈 학생은 건너뛴다 (빈 행 양산 방지)
-    const toSave = updates.filter(u => existMap[u.student_id] || u.homework_eval || u.clinic_memo);
-    const results = await Promise.all(toSave.map(async u => {
-      if (existMap[u.student_id]) {
-        return apiRaw(`scores?id=eq.${existMap[u.student_id]}`, 'PATCH', { homework_eval: u.homework_eval, clinic_memo: u.clinic_memo });
-      } else {
-        return apiRaw('scores', 'POST', { student_id: u.student_id, week_id: parseInt(weekId), homework_eval: u.homework_eval, clinic_memo: u.clinic_memo });
-      }
-    }));
-    const failed = results.filter(r => !r.ok);
-    if (failed.length > 0) { showToast(`❌ ${failed.length}건 저장 실패`); return; }
-
-    // 다른 탭 캐시 무효화 (공용 반영)
-    delete scoreCache[weekId]; delete _prevEvalCache[weekId]; invalidateClinicSchedule();
-    if (typeof _uncertScoreData === 'object') delete _uncertScoreData[weekId];
-
-    showToast('✅ 저장됐어요! (점수입력·미인증 탭에도 반영)');
-  } catch(e) {
-    showToast('❌ 오류: ' + e.message);
-  }
 }
 
 // ── 클리닉 배정표 ──────────────────────────────
@@ -4383,7 +3567,7 @@ function renderClinicGradeChips(grades) {
 
 // ── 클리닉 출석 체크 (2026-11) ─────────────────────────────
 // 배정표 이름 앞 동그라미를 한 번 누르면 '왔음'(scores.clinic_attend = true)으로 바로 저장한다. 한 주에 한 번.
-// 두 요일에 배정된 학생은 칩이 두 개지만 같은 행이라 함께 바뀐다. 이 값은 클리닉 미참석 문자 탭의 기본 체크에 쓰인다.
+// 두 요일에 배정된 학생은 칩이 두 개지만 같은 행이라 함께 바뀐다. 이 값은 성적 문자 발송 탭 '전체 공지'의 '클리닉 미참석만 선택'에 쓰인다.
 const _clinicAttendBusy = new Set();
 
 function clinicAttendBox(sid) {
@@ -4449,7 +3633,7 @@ function renderClinicMemoAttend() {
 
 // 이 점수 행의 학생이 클리닉 배정표에 오르는지(= 이번 주 클리닉에 와야 하는 학생).
 // loadClinicSchedule의 분류와 같은 규칙이다 — 남은 재시험이 있거나, 메모에 일정이 있거나, 대상 체크·메모가 있는 학생.
-// 남은 재시험이 없고 메모에 일정도 없으면(과제 기한만 등) 오지 않아도 되는 학생이다. 클리닉 미참석 문자 탭에서 쓴다.
+// 남은 재시험이 없고 메모에 일정도 없으면(과제 기한만 등) 오지 않아도 되는 학생이다. '전체 공지'의 '클리닉 미참석만 선택'에서 쓴다.
 function clinicExpectedOf(sc, itemConfig) {
   if (!sc) return false;
   const memo = (sc.clinic_memo || '').trim();
@@ -4484,9 +3668,8 @@ function openClinicMemoEdit(sid) {
   const ta = document.getElementById('clinic-memo-modal-text');
   ta.value = row.memo;
   previewClinicMemoEdit();
-  // 문자 내용은 클리닉 미참석 문자 탭의 문구를 그대로 가져온다 (거기서 고친 문구도 이어진다)
-  document.getElementById('clinic-memo-sms-text').value = document.getElementById('clinic-sms-text').value;
-  _clinicMemoSmsRecipient = _clinicRecipient;
+  // 문자 내용은 지난번 창에서 고친 문구를 이어 쓴다 (처음엔 기본 등원 확인 안내). 발송처도 지난번 선택을 따른다
+  document.getElementById('clinic-memo-sms-text').value = _clinicMemoSmsTpl;
   loadClinicMemoSmsInfo(sid);
   loadClinicMemoRetest(sid);
   loadClinicMemoHomework(sid);
@@ -4709,7 +3892,14 @@ async function loadClinicMemoHomework(sid) {
 }
 
 // ── 메모 수정 창의 '문자 보내기' 구역 ─────────────────────
-let _clinicMemoSmsRecipient = 'parent'; // 'parent' | 'student' — 창을 열 때 미참석 문자 탭의 선택을 따른다
+let _clinicMemoSmsRecipient = 'parent'; // 'parent' | 'student' — 마지막으로 고른 발송처가 다음 창에도 이어진다
+// 클리닉 미참석(등원 확인) 안내 기본 문구. 2026-11 '클리닉 미참석 문자 발송' 탭을 없애며 그 탭의 문구를 옮겨 왔다.
+// 성적 문자 발송 탭의 '전체 공지'에서도 '미참석 안내 문구 넣기'로 같은 문구를 쓴다.
+const CLINIC_MISSED_SMS_TEMPLATE = `[용산대성N학원 영어과 - 등원 확인 안내]
+안녕하세요, {이름} 학생의 영어 클리닉 등원 관련 안내드립니다.
+현재 배정된 클리닉 시간에 학생의 입실이 확인되지 않고 있습니다.
+클리닉 일정: {클리닉}`;
+let _clinicMemoSmsTpl = CLINIC_MISSED_SMS_TEMPLATE;   // 창에서 고친 문구 — 다음 학생 창을 열 때도 이어진다(새로고침하면 처음 문구)
 let _clinicMemoSmsInfo = null;          // null=불러오는 중 · {error:true} · { phone, student_phone }
 let _clinicMemoSmsSeq = 0;
 
@@ -4740,9 +3930,9 @@ function pickClinicMemoSmsRecipient(r) {
   renderClinicMemoSms();
 }
 
-// 창에서 고친 문구를 미참석 문자 탭에도 반영한다 — 다음 학생 창을 열 때도 같은 문구가 이어지게
+// 창에서 고친 문구를 기억한다 — 다음 학생 창을 열 때도 같은 문구가 이어지게
 function syncClinicMemoSmsTemplate() {
-  document.getElementById('clinic-sms-text').value = document.getElementById('clinic-memo-sms-text').value;
+  _clinicMemoSmsTpl = document.getElementById('clinic-memo-sms-text').value;
   renderClinicMemoSms();
 }
 
@@ -4751,7 +3941,7 @@ function clinicMemoSmsText() {
   if (!row) return '';
   const template = document.getElementById('clinic-memo-sms-text').value;
   const memo = document.getElementById('clinic-memo-modal-text').value.trim();
-  // 메모가 비면 '클리닉 일정:' 줄을 통째로 뺀다 (미참석 문자 탭과 같은 fillSmsTemplate)
+  // 메모가 비면 '클리닉 일정:' 줄을 통째로 뺀다 (fillSmsTemplate)
   return fillSmsTemplate(template, { 이름: row.name, 주차: row.week, 클리닉: memo });
 }
 
@@ -4939,14 +4129,13 @@ async function saveClinicMemoEdit() {
       syncScoreTabCells(row.weekId, row.studentId, screenScores, screenPass, origs);
     }
     if (retestChanged || hwChanged || scoresChanged) {
-      // 점수 입력·미인증 탭 캐시에도 재시험 통과·과제 값이 반영되도록 비운다 (saveClinicGrid와 같은 처리)
+      // 점수 입력 탭 캐시에도 점수·재시험 통과·과제 값이 반영되도록 비운다
       delete scoreCache[row.weekId]; delete _prevEvalCache[row.weekId]; invalidateClinicSchedule();
-      if (typeof _uncertScoreData === 'object') delete _uncertScoreData[row.weekId];
       // 이번 주차 과제 값은 뒤 주차들이 이어오는 값이기도 하다 — 뒤 주차의 이어오기 캐시도 모두 비운다
       if (hwChanged) Object.keys(_prevEvalCache).forEach(k => delete _prevEvalCache[k]);
     }
     closeClinicMemoModal();
-    showToast((retestChanged || hwChanged || scoresChanged) ? '✅ 저장했어요! (점수입력·미인증 탭에도 반영)' : '✅ 클리닉 메모를 저장했어요!');
+    showToast((retestChanged || hwChanged || scoresChanged) ? '✅ 저장했어요! (점수 입력 탭에도 반영)' : '✅ 클리닉 메모를 저장했어요!');
     loadClinicSchedule();
   } catch(e) {
     showToast('❌ 오류: ' + e.message);
@@ -5374,7 +4563,6 @@ async function loadHistory() {
 // 되돌린 뒤 다른 탭이 옛 화면을 그리지 않게 캐시를 비운다
 function historyInvalidate(weekId) {
   delete scoreCache[weekId]; delete _prevEvalCache[weekId]; invalidateClinicSchedule();
-  if (typeof _uncertScoreData === 'object') delete _uncertScoreData[weekId];
 }
 // 삭제된 행 복원용: old_row에서 다시 INSERT할 수 없는 컬럼을 뺀다
 function historyRowForInsert(row) {
@@ -5490,6 +4678,8 @@ function refreshClassSelects() {
     sel.innerHTML = '<option value="">반을 선택하세요</option>';
     classes.forEach(c => { const opt = document.createElement('option'); opt.value = c.id; opt.textContent = c.name; sel.appendChild(opt); });
   });
+  // '전체 공지'의 반 선택은 '전체 반' 칸이 있어 따로 채운다 (고른 반은 유지)
+  fillNoticeClassSelect();
   // 반이 추가/수정/삭제되면 체크박스 목록도 다시 그린다 (선택은 초기화됨)
   renderClassPicker('week-class-picker', 'renderWeekPreview');
   renderClassPicker('mock-class-picker', 'renderMockPreview');
@@ -5586,128 +4776,6 @@ async function deleteClass(id, name) {
   loadClassList();
 }
 
-// ── 문자 발송
-async function loadSmsWeeks() {
-  const classId = document.getElementById('sms-class').value;
-  const sel = document.getElementById('sms-week');
-  sel.innerHTML = '<option value="">주차를 선택하세요</option>';
-  document.getElementById('sms-preview-card').style.display = 'none';
-  if (!classId) return;
-  const weeks = sortByTestDate(await api(`weeks?class_id=eq.${classId}&order=id.desc&select=*`));
-  weeks.forEach(w => { const opt = document.createElement('option'); opt.value = w.id; opt.textContent = w.label || w.test_date; sel.appendChild(opt); });
-  if (weeks.length > 0) loadSmsTargets();
-}
-
-async function loadSmsTargets() {
-  const classId = document.getElementById('sms-class').value;
-  const weekId = document.getElementById('sms-week').value;
-  const threshold = document.getElementById('sms-threshold').value;
-  if (!classId || !weekId) return;
-  const [students, scores] = await Promise.all([
-    api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`),
-    api(`scores?week_id=eq.${weekId}&select=*`)
-  ]);
-  const scoreMap = {};
-  (scores || []).forEach(s => { scoreMap[s.student_id] = s; });
-  const targets = (students || []).filter(st => {
-    const sc = scoreMap[st.id];
-    const hw = sc ? sc.homework_rate : null;
-    const isEmpty = !sc || hw === null;
-    if (threshold === 'all') return true;
-    if (threshold === 'empty') return isEmpty;
-    if (threshold === '0') return !isEmpty && hw === 0;
-    if (threshold === '1-79') return !isEmpty && hw >= 1 && hw <= 79;
-    if (threshold === '80-99') return !isEmpty && hw >= 80 && hw <= 99;
-    if (threshold === '100') return !isEmpty && hw === 100;
-    return false;
-  }).map(st => {
-    const sc = scoreMap[st.id];
-    const hw = sc ? sc.homework_rate : null;
-    return { id: st.id, name: st.name, phone: st.phone || '', hw, isEmpty: !sc || hw === null };
-  });
-  const weekSel = document.getElementById('sms-week');
-  const weekLabel = weekSel.options[weekSel.selectedIndex]?.text || '';
-  const card = document.getElementById('sms-preview-card');
-  const titleEl = document.getElementById('sms-preview-title');
-  const listEl = document.getElementById('sms-target-list');
-  const previewEl = document.getElementById('sms-preview-text');
-  card.style.display = 'block';
-  titleEl.textContent = `발송 대상 — ${targets.length}명`;
-  if (targets.length === 0) { listEl.innerHTML = '<p style="font-size:13px;color:var(--gray)">해당 조건의 발송 대상이 없습니다.</p>'; previewEl.value = ''; return; }
-  const first = targets[0];
-  previewEl.value = makeSmsTemplate(first.hw, first.isEmpty);
-  listEl.innerHTML = `<table class="data-table"><thead><tr><th style="width:36px"><input type="checkbox" id="check-all-sms" checked onchange="toggleAllSms(this.checked)"></th><th>이름</th><th>과제(%)</th><th>연락처</th><th>상태</th></tr></thead><tbody>${targets.map((t, i) => `<tr><td><input type="checkbox" class="sms-check" data-idx="${i}" ${t.phone ? 'checked' : ''} ${!t.phone ? 'disabled' : ''}></td><td><strong>${t.name}</strong></td><td>${t.hw !== null && !t.isEmpty ? t.hw + '%' : '미기재'}</td><td style="font-size:12px;font-family:monospace">${t.phone || '번호없음'}</td><td><span class="badge ${t.phone ? 'badge-active' : 'badge-inactive'}">${t.phone ? '발송가능' : '번호없음'}</span></td></tr>`).join('')}</tbody></table>`;
-  window._smsTargets = targets;
-  window._smsWeekLabel = weekLabel;
-}
-
-function makeSmsText(name, weekLabel, hw, isEmpty) {
-  if (isEmpty || hw === null || hw === undefined) {
-    return `[용산대성N학원 영어과]\n${name} 학생의 ${weekLabel} 과제가 인증되지 않았습니다.\n토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.\n미인증 시 일요일 보충수업이 실시됩니다.\n감사합니다.`;
-  } else if (hw === 0) {
-    return `[용산대성N학원 영어과]\n${name} 학생의 ${weekLabel} 과제 수행이 전혀 되지 않았습니다.\n토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.\n미인증 시 일요일 보충수업이 실시됩니다.\n감사합니다.`;
-  } else if (hw <= 79) {
-    return `[용산대성N학원 영어과]\n${name} 학생의 ${weekLabel} 과제 수행률이 ${hw}%입니다.\n토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.\n미인증 시 일요일 보충수업이 실시됩니다.\n감사합니다.`;
-  } else {
-    return `[용산대성N학원 영어과]\n${name} 학생의 ${weekLabel} 과제 수행률이 ${hw}%입니다.\n빠진 부분은 토요일까지 완료 후 영어알림톡으로 인증해 주세요.\n보충수업은 과제 미인증 및 개별 안내 학생을 대상으로 일요일에 실시됩니다.\n감사합니다.`;
-  }
-}
-
-// 미리보기 초기 양식 (자리표시자 사용 — 발송 시 학생별로 치환)
-function makeSmsTemplate(hw, isEmpty) {
-  if (isEmpty || hw === null || hw === undefined) {
-    return `[용산대성N학원 영어과]\n{이름} 학생의 {주차} 과제가 인증되지 않았습니다.\n토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.\n미인증 시 일요일 보충수업이 실시됩니다.\n감사합니다.`;
-  } else if (hw === 0) {
-    return `[용산대성N학원 영어과]\n{이름} 학생의 {주차} 과제 수행이 전혀 되지 않았습니다.\n토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.\n미인증 시 일요일 보충수업이 실시됩니다.\n감사합니다.`;
-  } else if (hw <= 79) {
-    return `[용산대성N학원 영어과]\n{이름} 학생의 {주차} 과제 수행률이 {수행률}입니다.\n토요일까지 완료된 과제 사진을 찍어 영어알림톡으로 인증해 주세요.\n미인증 시 일요일 보충수업이 실시됩니다.\n감사합니다.`;
-  } else {
-    return `[용산대성N학원 영어과]\n{이름} 학생의 {주차} 과제 수행률이 {수행률}입니다.\n빠진 부분은 토요일까지 완료 후 영어알림톡으로 인증해 주세요.\n보충수업은 과제 미인증 및 개별 안내 학생을 대상으로 일요일에 실시됩니다.\n감사합니다.`;
-  }
-}
-
-function toggleAllSms(checked) {
-  const boxes = document.querySelectorAll('.sms-check:not(:disabled)');
-  if (checked === undefined) {
-    checked = !Array.from(boxes).every(cb => cb.checked);
-  }
-  boxes.forEach(cb => { cb.checked = checked; });
-  const headerCheck = document.getElementById('check-all-sms');
-  if (headerCheck) headerCheck.checked = checked;
-}
-
-async function sendAllSms() {
-  const targets = window._smsTargets || [];
-  const weekLabel = window._smsWeekLabel || '';
-  // 체크된 행만 발송
-  const selected = Array.from(document.querySelectorAll('.sms-check:checked'))
-    .map(cb => targets[parseInt(cb.dataset.idx)])
-    .filter(t => t && t.phone);
-  if (!selected.length) { showToast('선택된 발송 대상이 없습니다.'); return; }
-  if (!confirm(`${selected.length}명에게 문자를 발송할까요?`)) return;
-  showToast('발송 중...');
-  // 직접 수정한 양식이 있으면 학생별로 자리표시자 치환, 없으면 학생별 기본 문구
-  const customTemplate = document.getElementById('sms-preview-text').value.trim();
-  const messages = selected.map(t => {
-    let text;
-    if (customTemplate) {
-      const hwText = (t.isEmpty || t.hw === null || t.hw === undefined) ? '미기재' : t.hw + '%';
-      text = customTemplate
-        .replace(/\{이름\}/g, t.name)
-        .replace(/\{주차\}/g, weekLabel)
-        .replace(/\{수행률\}/g, hwText);
-    } else {
-      text = makeSmsText(t.name, weekLabel, t.hw, t.isEmpty);
-    }
-    return { to: t.phone, text };
-  });
-  try {
-    const res = await fetch(SMS_FUNCTION_URL, { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`}, body:JSON.stringify({ messages }) });
-    const data = await res.json();
-    showToast(`✅ 발송 완료 — 성공 ${data.success}건 / 실패 ${data.fail}건`, 4000);
-  } catch (e) { showToast('❌ 발송 오류: ' + e.message); }
-}
-
 // ── 성적 문자 발송 ────────────────────────────────────
 // 주차 성적 + 재시험 결과 + 클리닉 일정을 학부모께 한 통으로 보낸다.
 // 보낼 학생을 직접 골라 발송하고, 점수 기록이 하나도 없는 학생은 '미응시'로 분류한다.
@@ -5751,6 +4819,7 @@ function pickScoreSmsRecipient(btn) {
   // 학생으로 바꾸면 전원이 다시 체크돼, 전체 해제 후 그 학생을 다시 찾아야 했다).
   // 새 발송처 연락처가 없는 학생만 체크가 빠진다.
   if (window._scoreSmsTargets) renderScoreSmsList(false);
+  if (_noticeTargets.length) renderNoticeList(false);
 }
 const DEFAULT_SCORE_SMS_TEMPLATE = `[용산대성N학원 영어과]
 {이름} 학생 {주차} 테스트 결과입니다.
@@ -6027,7 +5096,7 @@ function fillSmsTemplate(template, vars) {
     .join('\n');
 }
 
-// 주차와 모의고사를 한 드롭다운에 담는다. 값은 미응시 탭과 같은 규약('w'+id / 'm'+id).
+// 주차와 모의고사를 한 드롭다운에 담는다. 값 규약: 주차 'w'+id / 모의고사 'm'+id.
 async function loadScoreSmsWeeks() {
   const classId = document.getElementById('score-sms-class').value;
   const sel = document.getElementById('score-sms-week');
@@ -6443,6 +5512,211 @@ async function sendScoreSms() {
 
   showToast('발송 중...');
   const messages = selected.map(t => ({ to: scoreSmsPhone(t), text: composeScoreSms(t) }));
+  try {
+    const res = await fetch(SMS_FUNCTION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
+      body: JSON.stringify({ messages })
+    });
+    const data = await res.json();
+    showToast(`✅ 발송 완료 — 성공 ${data.success}건 / 실패 ${data.fail}건`, 4000);
+  } catch (e) { showToast('❌ 발송 오류: ' + e.message); }
+}
+
+// ── 성적 문자 발송 탭의 '전체 공지' (2026-11) ─────────────────────────
+// 성적과 상관없이 같은 공지를 한 반 또는 전체 반의 학부모·학생에게 보낸다. 발송처(학부모/학생) 버튼은 성적 문자와 함께 쓴다.
+// 없앤 '학부모 문자 발송'·'클리닉 미참석 문자 발송' 탭을 대신한다 — '클리닉 미참석만 선택'은 클리닉 배정표와 같은 기준 주차에서
+// 와야 하는데(clinicExpectedOf) 출석 체크(clinic_attend)가 없는 학생만 체크한다.
+let _scoreSmsKind = 'score';   // 'score' | 'notice'
+let _noticeTargets = [];        // [{ id, name, classId, cls, phone, studentPhone, clinic: null | { week, memo, expected, attended } }]
+let _noticeLoadSeq = 0;
+let _noticeRenderTimer = null;
+const NOTICE_SMS_STORE = 'noticeSms.v1';
+const DEFAULT_NOTICE_SMS_TEMPLATE = '[용산대성N학원 영어과]\n';
+
+function pickScoreSmsKind(btn) {
+  document.querySelectorAll('#score-sms-kind-btns .memo-author-btn').forEach(b => b.classList.toggle('active', b === btn));
+  _scoreSmsKind = btn.dataset.kind === 'notice' ? 'notice' : 'score';
+  document.getElementById('tab-score-sms').classList.toggle('notice-mode', _scoreSmsKind === 'notice');
+  if (_scoreSmsKind === 'notice') {
+    fillNoticeClassSelect();
+    const ta = document.getElementById('notice-sms-text');
+    if (!ta.value) { let saved = null; try { saved = localStorage.getItem(NOTICE_SMS_STORE); } catch (e) {} ta.value = saved || DEFAULT_NOTICE_SMS_TEMPLATE; }
+  }
+}
+
+// 반 목록은 열 때마다 새로 채운다(반이 추가·삭제됐을 수 있다). 고른 반은 그대로 둔다.
+function fillNoticeClassSelect() {
+  const sel = document.getElementById('notice-class');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">반을 선택하세요</option><option value="all">전체 반</option>'
+    + classes.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+  if (Array.from(sel.options).some(o => o.value === cur)) sel.value = cur;
+}
+
+async function loadNoticeTargets() {
+  const v = document.getElementById('notice-class').value;
+  const card = document.getElementById('notice-sms-card');
+  const list = document.getElementById('notice-sms-list');
+  const seq = ++_noticeLoadSeq;
+  _noticeTargets = [];
+  document.getElementById('notice-sms-clinic-info').innerHTML = '';
+  if (!v) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  list.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
+  const ids = v === 'all' ? classes.map(c => c.id) : [parseInt(v)];
+  const sts = ids.length ? await api(`students?class_id=in.(${ids.join(',')})&is_active=eq.true&order=name.asc&select=id,name,class_id,phone,student_phone`) : [];
+  if (seq !== _noticeLoadSeq) return;
+  if (!Array.isArray(sts)) { list.innerHTML = '<p style="font-size:13px;color:var(--red)">❌ 학생 목록을 불러오지 못했어요. 다시 골라주세요.</p>'; return; }
+  const order = {}; classes.forEach((c, i) => { order[c.id] = i; });
+  _noticeTargets = sts.slice()
+    .sort((a, b) => ((order[a.class_id] ?? 999) - (order[b.class_id] ?? 999)) || a.name.localeCompare(b.name, 'ko'))
+    .map(st => ({ id: st.id, name: st.name, classId: st.class_id, cls: classes.find(c => c.id === st.class_id)?.name || '',
+                  phone: st.phone || '', studentPhone: st.student_phone || '', clinic: null }));
+  renderNoticeList(true);
+}
+
+function noticePhone(t) { return _scoreSmsRecipient === 'parent' ? t.phone : t.studentPhone; }
+
+function composeNoticeSms(t) {
+  const tpl = document.getElementById('notice-sms-text').value;
+  return fillSmsTemplate(tpl, { 이름: t.name, 반: t.cls, 주차: t.clinic ? t.clinic.week : '', 클리닉: t.clinic ? t.clinic.memo : '' });
+}
+
+// first: 처음 그릴 때 연락처 있는 학생 전원 체크. 아니면 학생 id로 이전 체크를 그대로 둔다(문구·발송처를 바꿔도 유지).
+// checkIds: 이 학생들만 체크(클리닉 미참석만 선택)
+function renderNoticeList(first, checkIds) {
+  const listEl = document.getElementById('notice-sms-list');
+  const titleEl = document.getElementById('notice-sms-title');
+  const targets = _noticeTargets;
+  const prev = {};
+  if (!first && !checkIds) document.querySelectorAll('#notice-sms-list .notice-check').forEach(cb => { prev[cb.closest('tr').dataset.studentId] = cb.checked; });
+  const withPhone = targets.filter(t => noticePhone(t)).length;
+  titleEl.textContent = `공지 대상 — ${targets.length}명` + (withPhone < targets.length ? ` (번호없음 ${targets.length - withPhone}명)` : '');
+  if (!targets.length) { listEl.innerHTML = '<p style="font-size:13px;color:var(--gray)">재원생이 없습니다.</p>'; return; }
+  const showClinic = targets.some(t => t.clinic);
+  const phoneLabel = _scoreSmsRecipient === 'parent' ? '학부모 연락처' : '학생 연락처';
+  listEl.innerHTML = `<table class="data-table" style="min-width:760px">
+    <thead><tr><th style="width:36px"><input type="checkbox" id="check-all-notice" onchange="toggleAllNotice(this.checked)"></th>
+      <th style="white-space:nowrap">이름</th><th style="white-space:nowrap">반</th><th style="white-space:nowrap">${phoneLabel}</th>
+      ${showClinic ? '<th style="white-space:nowrap">클리닉 출석</th>' : ''}<th>발송될 문구</th><th style="white-space:nowrap">길이</th></tr></thead>
+    <tbody>${targets.map((t, i) => {
+      const phone = noticePhone(t);
+      const checked = !!phone && (checkIds ? checkIds.has(t.id) : first ? true : !!prev[t.id]);
+      const text = composeNoticeSms(t);
+      const bytes = smsByteLength(text);
+      const att = !t.clinic ? '' : t.clinic.attended ? '<span class="badge badge-active">✓ 왔음</span>'
+        : t.clinic.expected ? '<span class="badge badge-inactive">안 옴</span>' : '<span style="font-size:12px;color:var(--gray)">대상 아님</span>';
+      return `<tr data-student-id="${t.id}">
+        <td><input type="checkbox" class="notice-check" data-idx="${i}" ${checked ? 'checked' : ''} ${phone ? '' : 'disabled'} onchange="syncNoticeHeaderCheck()"></td>
+        <td style="white-space:nowrap"><strong>${escapeHtml(t.name)}</strong></td>
+        <td style="white-space:nowrap;font-size:12px">${escapeHtml(t.cls)}</td>
+        <td style="font-size:12px;font-family:monospace;white-space:nowrap">${escapeHtml(phone) || '<span class="badge badge-inactive">번호없음</span>'}</td>
+        ${showClinic ? `<td style="white-space:nowrap">${att}</td>` : ''}
+        <td><div style="white-space:pre-wrap;font-size:11px;line-height:1.6;color:var(--navy);background:var(--cream);border-radius:6px;padding:8px 10px;min-width:240px">${escapeHtml(text)}</div></td>
+        <td style="white-space:nowrap;font-size:11px;color:${bytes > 90 ? 'var(--gold)' : 'var(--gray)'}">${bytes}바이트<br>${bytes > 90 ? 'LMS' : 'SMS'}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+  syncNoticeHeaderCheck();
+}
+
+function toggleAllNotice(checked) {
+  const boxes = document.querySelectorAll('#notice-sms-list .notice-check:not(:disabled)');
+  if (checked === undefined) checked = !Array.from(boxes).every(cb => cb.checked);
+  boxes.forEach(cb => { cb.checked = checked; });
+  syncNoticeHeaderCheck();
+}
+
+function syncNoticeHeaderCheck() {
+  const boxes = Array.from(document.querySelectorAll('#notice-sms-list .notice-check:not(:disabled)'));
+  const head = document.getElementById('check-all-notice');
+  if (head) head.checked = boxes.length > 0 && boxes.every(cb => cb.checked);
+}
+
+// 문구를 고치면 이 기기에 저장하고, 목록의 '발송될 문구'를 잠깐 뒤에 다시 그린다(타자마다 표 전체를 그리지 않게)
+function onNoticeTextChange() {
+  try { localStorage.setItem(NOTICE_SMS_STORE, document.getElementById('notice-sms-text').value); } catch (e) {}
+  clearTimeout(_noticeRenderTimer);
+  _noticeRenderTimer = setTimeout(() => { if (_noticeTargets.length) renderNoticeList(false); }, 250);
+}
+
+function fillNoticeClinicTemplate() {
+  const ta = document.getElementById('notice-sms-text');
+  const cur = ta.value.trim();
+  if (cur && cur !== DEFAULT_NOTICE_SMS_TEMPLATE.trim() && cur !== CLINIC_MISSED_SMS_TEMPLATE.trim()
+      && !confirm('지금 써 둔 공지 내용을 클리닉 미참석 안내 문구로 바꿀까요?')) return;
+  ta.value = CLINIC_MISSED_SMS_TEMPLATE;
+  onNoticeTextChange();
+}
+
+// 반마다 클리닉 배정표와 같은 기준 주차(최근 8주 중 클리닉 메모·대상 체크가 있는 가장 최근 주차)를 찾아,
+// 그 주차에 와야 하는데 출석 체크가 없는 학생만 체크한다. {주차}·{클리닉}도 그 주차 값으로 채운다.
+async function pickNoticeClinicMissed() {
+  if (!_noticeTargets.length) { showToast('공지 보낼 반을 먼저 선택해주세요.'); return; }
+  const info = document.getElementById('notice-sms-clinic-info');
+  const seq = _noticeLoadSeq;
+  info.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>클리닉 출석을 확인하는 중...</div>';
+  const classIds = [...new Set(_noticeTargets.map(t => t.classId))];
+  try {
+    const weeksRes = await api(`weeks?class_id=in.(${classIds.join(',')})&select=id,class_id,label,test_date,item_config,created_at`);
+    if (!Array.isArray(weeksRes)) throw new Error('weeks');
+    const seen = {};
+    const recent = sortByTestDate(weeksRes).filter(w => (seen[w.class_id] = (seen[w.class_id] || 0) + 1) <= 8);
+    const weekById = {}, recency = {};
+    recent.forEach((w, i) => { weekById[w.id] = w; recency[w.id] = i; });
+    const rows = recent.length
+      ? await api(`scores?week_id=in.(${recent.map(w => w.id).join(',')})&select=id,student_id,week_id,clinic_memo,clinic_target,clinic_attend,retest_pass,item_scores,${ITEM_KEYS.join(',')}`)
+      : [];
+    if (!Array.isArray(rows)) throw new Error('scores');
+    if (seq !== _noticeLoadSeq) return;   // 그사이 반을 바꿨다
+    const hasClinic = sc => sc.clinic_target === true || (sc.clinic_memo || '').trim() !== '';
+    const basis = {};   // class_id → 기준 주차
+    rows.forEach(sc => {
+      if (!hasClinic(sc)) return;
+      const w = weekById[sc.week_id];
+      if (w && (!basis[w.class_id] || recency[w.id] < recency[basis[w.class_id].id])) basis[w.class_id] = w;
+    });
+    const rowOf = {};
+    rows.forEach(sc => { const w = weekById[sc.week_id]; if (w && basis[w.class_id] && basis[w.class_id].id === w.id) rowOf[sc.student_id] = sc; });
+    const missed = new Set();
+    _noticeTargets.forEach(t => {
+      const w = basis[t.classId];
+      const sc = rowOf[t.id];
+      t.clinic = { week: w ? (w.label || w.test_date || '') : '', memo: ((sc && sc.clinic_memo) || '').trim(),
+                   expected: !!(w && clinicExpectedOf(sc, w.item_config)), attended: !!(sc && sc.clinic_attend === true) };
+      if (t.clinic.expected && !t.clinic.attended && noticePhone(t)) missed.add(t.id);
+    });
+    const weekLines = classIds.map(cid => {
+      const c = classes.find(x => x.id === cid);
+      return `${escapeHtml(c ? c.name : String(cid))}: ${basis[cid] ? escapeHtml(basis[cid].label || basis[cid].test_date || '') : '클리닉 기록 없음'}`;
+    }).join(' · ');
+    const noPhone = _noticeTargets.filter(t => t.clinic.expected && !t.clinic.attended && !noticePhone(t)).length;
+    info.innerHTML = `<p style="font-size:12px;color:var(--navy);background:var(--light-gray);border-radius:8px;padding:8px 12px;margin:0 0 10px;line-height:1.6">`
+      + `클리닉 미참석 <strong>${missed.size}명</strong>을 체크했어요${noPhone ? ` (번호 없는 ${noPhone}명 제외)` : ''}.<br>`
+      + `<span style="color:var(--gray)">기준 주차(클리닉 배정표와 같음) — ${weekLines}</span></p>`;
+    renderNoticeList(false, missed);
+  } catch (e) {
+    if (seq !== _noticeLoadSeq) return;
+    info.innerHTML = '<p style="font-size:12px;color:var(--red);margin:0 0 10px">❌ 클리닉 출석을 확인하지 못했어요. 다시 눌러주세요.</p>';
+  }
+}
+
+async function sendNoticeSms() {
+  const tpl = document.getElementById('notice-sms-text').value;
+  if (!tpl.trim() || tpl.trim() === DEFAULT_NOTICE_SMS_TEMPLATE.trim()) { showToast('공지 내용을 입력해주세요.'); return; }
+  const selected = Array.from(document.querySelectorAll('#notice-sms-list .notice-check:checked'))
+    .map(cb => _noticeTargets[parseInt(cb.dataset.idx)])
+    .filter(t => t && noticePhone(t));
+  if (!selected.length) { showToast('선택된 발송 대상이 없습니다.'); return; }
+  // {주차}·{클리닉}은 '클리닉 미참석만 선택'을 눌러야 채워진다 — 안 눌렀으면 그 줄이 빠진 채 나간다
+  if (/\{(주차|클리닉)\}/.test(tpl) && !_noticeTargets.some(t => t.clinic)
+      && !confirm("'클리닉 미참석만 선택'을 누르지 않아 {주차}·{클리닉}이 들어간 줄은 빠진 채 발송됩니다.\n계속할까요?")) return;
+  const who = _scoreSmsRecipient === 'parent' ? '학부모님' : '학생';
+  const cls = document.getElementById('notice-class');
+  const where = cls.options[cls.selectedIndex]?.text || '';
+  if (!confirm(`[전체 공지 · ${where}] ${who} ${selected.length}명에게 문자를 발송할까요?\n\n— ${selected[0].name} 학생 문자 미리보기 —\n${composeNoticeSms(selected[0])}`)) return;
+  showToast('발송 중...');
+  const messages = selected.map(t => ({ to: noticePhone(t), text: composeNoticeSms(t) }));
   try {
     const res = await fetch(SMS_FUNCTION_URL, {
       method: 'POST',
