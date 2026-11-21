@@ -212,10 +212,32 @@
   .si-sc .rp { color:var(--green); font-size:10px; font-weight:600; margin-left:2px; }
   .si-muted { color:var(--gray); }
   .si-note { width:100%; min-height:60px; padding:10px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:13px; font-family:'Noto Sans KR',sans-serif; line-height:1.6; outline:none; resize:vertical; }
-  .si-form { display:grid; grid-template-columns:78px 64px 58px 84px 80px 64px 64px 64px minmax(90px,1fr) auto; gap:6px; align-items:end; margin-top:10px; }
+  .si-form { display:grid; grid-template-columns:repeat(auto-fill, minmax(76px, 1fr)); gap:6px; align-items:end; margin-top:10px; }
+  .si-form .wide { grid-column:span 2; }
   .si-form label { display:block; font-size:10.5px; color:var(--gray); margin-bottom:3px; white-space:nowrap; }
   .si-form input, .si-form select { width:100%; padding:7px 6px; border:1.5px solid var(--border); border-radius:6px; font-size:12px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); outline:none; background:var(--white); }
-  @media (max-width: 900px) { .si-form { grid-template-columns:repeat(4, minmax(0,1fr)); } }
+  .si-back { display:inline-block; font-size:13px; font-weight:600; color:var(--navy); margin:0 0 12px; text-decoration:none; }
+  .si-back:hover { color:var(--gold); }
+  .si-card { background:var(--white); border-radius:14px; box-shadow:var(--shadow); padding:16px 18px; margin-bottom:14px; }
+  .si-card > .si-h { margin-bottom:10px; }
+  .si-grid { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(0,1fr); gap:14px; align-items:start; }
+  @media (max-width: 1000px) { .si-grid { grid-template-columns:minmax(0,1fr); } }
+  .si-name { font-size:22px; font-weight:700; color:var(--navy); }
+  .si-name small { font-size:13px; font-weight:600; color:var(--gold); margin-left:4px; }
+  .si-subline { font-size:12.5px; color:var(--gray); margin-top:4px; }
+  .si-name-edit { display:flex; gap:6px; align-items:flex-end; }
+  .si-name-edit label { display:block; font-size:10.5px; color:var(--gray); margin-bottom:3px; }
+  .si-name-edit input { width:120px; padding:7px 9px; border:1.5px solid var(--border); border-radius:6px; font-size:13px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); outline:none; }
+  .si-chip.good { background:var(--green-light); color:var(--green); }
+  .si-att { display:grid; grid-template-columns:repeat(auto-fill, minmax(86px, 1fr)); gap:6px; }
+  .si-att .wk { border:1px solid var(--border); border-radius:8px; padding:6px 4px; text-align:center; font-size:11px; color:var(--navy); line-height:1.5; }
+  .si-att .wk b { display:block; font-size:13px; }
+  .si-att .wk.x { background:var(--red-light); border-color:#f5c6c2; color:var(--red); }
+  .si-att .wk.none { color:var(--gray); background:var(--cream); }
+  .si-att .cl-ok { color:var(--green); font-weight:600; }
+  .si-att .cl-no { color:var(--red); font-weight:600; }
+  .st-name-link { color:var(--navy); font-weight:700; font-size:14px; text-decoration:underline; text-decoration-color:var(--gold); text-decoration-thickness:2px; text-underline-offset:4px; white-space:nowrap; }
+  .st-name-link:hover { color:var(--gold); }
   .si-dl { display:grid; grid-template-columns:110px 1fr; gap:6px 12px; font-size:12.5px; margin:12px 0 0; }
   .si-dl dt { color:var(--gray); }
   .si-dl dd { color:var(--navy); margin:0; white-space:pre-wrap; word-break:break-all; }
@@ -547,6 +569,8 @@
 
   <!-- 탭3: 학생 관리 -->
   <div id="tab-student" class="tab-content">
+   <!-- 목록 화면 (학생 추가 · 학생 목록 · 퇴원생). 목록에서 이름을 누르면 아래 상세 화면으로 바뀐다 -->
+   <div id="student-list-view">
     <div class="section-card">
       <div class="section-head"><h3>학생 추가</h3></div>
       <div class="section-body">
@@ -593,6 +617,12 @@
         <div id="withdrawn-list" style="overflow-x:auto"><p style="font-size:13px;color:var(--gray)">펼치면 불러옵니다.</p></div>
       </div>
     </div>
+   </div>
+   <!-- 학생 상세 화면 (2026-11) — 주차별 성적 · 출결 · 특이사항 · 학교 내신 · 모의고사 · 상담 기록 · 반 이동 기록 -->
+   <div id="student-detail-view" style="display:none">
+     <a href="#" class="si-back" onclick="closeStudentInfo();return false">← 학생 목록으로</a>
+     <div id="si-body"></div>
+   </div>
   </div>
 
   <!-- 탭4: 모의고사 -->
@@ -968,20 +998,6 @@
 </div>
 
 <!-- 다른 반 학생 점수 입력 (점수 입력 탭) — 보고 있는 반 표는 그대로 두고 한 명만 원래 반 주차에 저장 -->
-<!-- 학생 정보 창 (학생 관리 탭 '정보' 버튼, 2026-11) — 특이사항·주차별 성적·학교 성적·모의고사·상담 기록·반 이동 기록 -->
-<div id="student-info-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)closeStudentInfo()">
-  <div style="background:var(--white);border-radius:16px;padding:24px 28px;width:100%;max-width:1000px;max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px">
-      <div>
-        <h3 style="font-size:17px;font-weight:700;color:var(--navy);margin-bottom:4px" id="si-title">학생 정보</h3>
-        <p style="font-size:12.5px;color:var(--gray)" id="si-sub"></p>
-      </div>
-      <button class="btn btn-light btn-sm" onclick="closeStudentInfo()">닫기</button>
-    </div>
-    <div id="si-body"></div>
-  </div>
-</div>
-
 <div id="guest-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--white);border-radius:16px;padding:26px 28px;width:100%;max-width:780px;max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
     <h3 style="font-size:16px;font-weight:700;color:var(--navy);margin-bottom:4px">다른 반 학생 점수 입력</h3>
@@ -3735,7 +3751,6 @@ function closeClinicMemoModal() {
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (document.getElementById('guest-modal')?.style.display === 'flex') { closeGuestModal(); return; }
-  if (document.getElementById('student-info-modal')?.style.display === 'flex') { closeStudentInfo(); return; }
   if (document.getElementById('clinic-memo-modal').style.display === 'none') return;
   closeClinicMemoModal();
 });
@@ -7016,12 +7031,15 @@ function initNoteHeights() {
   }, 30);
 }
 
-// ── 학생 정보 창 (학생 관리 탭 '정보' 버튼, 2026-11) ─────────────────────────
-// 학생 한 명의 기록을 한곳에서 본다: 특이사항 · 주차별 성적(주차를 고르면 그 주 기록 전부) · 학교 성적(school_grades, 내신) ·
-// 모의고사 · 상담 준비 초안(counsel_drafts) · 반 이동·퇴원 기록(data_history). 여기서 고치는 건 특이사항과 학교 성적뿐이다.
-// 점수는 점수 입력 탭에서 고친다. 주 데이터(학생)를 못 읽으면 창 전체를, 나머지는 그 구역만 '불러오지 못함'으로 둔다.
+// ── 학생 상세 화면 (학생 관리 탭, 2026-11) ─────────────────────────
+// 학생 목록에서 이름을 누르면 목록 대신 그 학생 한 명의 화면이 뜬다('← 학생 목록으로'·브라우저 뒤로가기로 돌아옴).
+// 요약(출석률·결석·클리닉 출석·과제 평균·남은 재시험·최근 4주 평균) · 주차별 성적(주차를 고르면 그 주 기록 전부) · 출결 ·
+// 특이사항 · 학교 내신(school_grades) · 모의고사 · 상담 준비 초안(counsel_drafts) · 반 이동·퇴원 기록(data_history).
+// 여기서 고치는 건 이름 · 특이사항 · 학교 내신뿐이다. 점수는 점수 입력 탭, PIN·연락처는 학생 목록에서 고친다.
+// 학생 정보를 못 읽으면 화면 전체를, 나머지는 그 구역만 '불러오지 못함'으로 둔다.
 let _si = null;      // { st, weeks:[{ w, sc }], mocks:[{ e, sc }], grades:[] | null, counsel:[] | null, history:[] | null, editId }
 let _siSeq = 0;
+let _siListScrollY = 0;   // 상세로 들어가기 전 목록 스크롤 위치 — 돌아올 때 그 자리로
 const SI_EXAMS = ['중간', '기말', '수행', '기타'];
 
 function siDate(iso) {
@@ -7033,15 +7051,24 @@ function siDate(iso) {
 const siNum = v => String(Math.round(parseFloat(v) * 100) / 100);
 const siBlank = v => v === null || v === undefined || v === '';
 
+function showStudentDetailView(on) {
+  document.getElementById('student-list-view').style.display = on ? 'none' : '';
+  document.getElementById('student-detail-view').style.display = on ? '' : 'none';
+}
+
 async function openStudentInfo(id) {
   id = parseInt(id);
   const seq = ++_siSeq;
   _si = null;
-  document.getElementById('student-info-modal').style.display = 'flex';
-  document.getElementById('si-title').textContent = '학생 정보';
-  document.getElementById('si-sub').textContent = '';
+  if (document.getElementById('student-detail-view').style.display === 'none') {
+    _siListScrollY = window.scrollY;
+    // 브라우저 뒤로가기로 목록에 돌아올 수 있게 주소에 표시를 남긴다
+    try { history.pushState({ studentDetail: id }, '', `#student-${id}`); } catch (e) {}
+  }
+  showStudentDetailView(true);
+  window.scrollTo(0, 0);
   const body = document.getElementById('si-body');
-  body.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div>';
+  body.innerHTML = '<div class="si-card"><div class="mini-loading"><span class="spinner-sm"></span>불러오는 중...</div></div>';
   const empty = { ok: true, data: [] };
   try {
     const [stR, scR, msR, sgR, cdR, hiR] = await Promise.all([
@@ -7087,15 +7114,23 @@ async function openStudentInfo(id) {
     renderStudentInfo();
   } catch (e) {
     if (seq !== _siSeq) return;
-    body.innerHTML = '<p style="font-size:13px;color:var(--red)">❌ 학생 정보를 불러오지 못했어요. 창을 닫고 다시 열어주세요.</p>';
+    body.innerHTML = '<div class="si-card"><p style="font-size:13px;color:var(--red)">❌ 학생 정보를 불러오지 못했어요. 목록으로 돌아가 다시 눌러주세요.</p></div>';
   }
 }
 
-function closeStudentInfo() {
-  document.getElementById('student-info-modal').style.display = 'none';
+// fromPop: 브라우저 뒤로가기로 닫힐 때(주소는 이미 돌아가 있다)
+function closeStudentInfo(fromPop) {
+  if (document.getElementById('student-detail-view').style.display === 'none') return;
   _siSeq++;
   _si = null;
+  showStudentDetailView(false);
+  if (!fromPop && /^#student-\d+$/.test(location.hash)) { try { history.back(); } catch (e) {} }
+  window.scrollTo(0, _siListScrollY);
 }
+
+window.addEventListener('popstate', () => {
+  if (!/^#student-\d+$/.test(location.hash)) closeStudentInfo(true);
+});
 
 const siClassName = id => classes.find(c => c.id === id)?.name || '';
 
@@ -7108,44 +7143,99 @@ function siWeekItems(w, sc) {
   });
 }
 
+// 출결 한 주: 수업 출석(scores.attendance) + 클리닉(배정표와 같은 기준: 와야 하는 주인지 clinicExpectedOf, 왔는지 clinic_attend)
+function siAttendOf(w, sc) {
+  if (!sc) return { rec: false, present: false, clinicExpected: false, clinicCame: false };
+  const came = sc.clinic_attend === true;
+  return { rec: true, present: sc.attendance !== false, clinicExpected: clinicExpectedOf(sc, w.item_config) || came, clinicCame: came };
+}
+
 function renderStudentInfo() {
   if (!_si) return;
   const { st } = _si;
   const cls = siClassName(st.class_id);
-  document.getElementById('si-title').textContent = `${st.name} — 학생 정보`;
-  document.getElementById('si-sub').textContent = [cls || '반 없음', st.is_active === false ? '퇴원' : '재원',
-    st.phone ? `학부모 ${st.phone}` : '학부모 번호 없음', st.student_phone ? `학생 ${st.student_phone}` : '학생 번호 없음'].join(' · ');
   // 요약
   const chips = [];
   if (_si.weeks) {
     const rec = _si.weeks.filter(x => x.sc);
-    const absent = rec.filter(x => x.sc.attendance === false).length;
+    const att = _si.weeks.map(x => siAttendOf(x.w, x.sc)).filter(a => a.rec);
+    const present = att.filter(a => a.present).length;
+    const absent = att.length - present;
+    const clinicDue = att.filter(a => a.clinicExpected).length;
+    const clinicCame = att.filter(a => a.clinicExpected && a.clinicCame).length;
     const hw = rec.filter(x => !x.sc.no_homework && !siBlank(x.sc.homework_rate)).map(x => +x.sc.homework_rate);
     const left = rec.reduce((n, x) => n + siWeekItems(x.w, x.sc).filter(it => it.below && !it.passed).length, 0);
-    chips.push(`<span class="si-chip">주차 기록 <b>${rec.length}</b>주</span>`);
+    // 최근 4주 평균: 점수가 있는 최근 4주의 (총점 ÷ 만점) 평균
+    const pcts = rec.map(x => { const its = siWeekItems(x.w, x.sc); const got = its.filter(it => it.value !== null); const max = got.reduce((a, it) => a + (it.max || 0), 0);
+      return got.length && max ? got.reduce((a, it) => a + it.value, 0) / max * 100 : null; }).filter(v => v !== null).slice(0, 4);
+    if (att.length) chips.push(`<span class="si-chip${present / att.length >= 0.9 ? ' good' : ''}">출석률 <b>${Math.round(present / att.length * 100)}%</b> (${present}/${att.length}주)</span>`);
     chips.push(`<span class="si-chip${absent ? ' warn' : ''}">결석 <b>${absent}</b>회</span>`);
+    if (clinicDue) chips.push(`<span class="si-chip${clinicCame < clinicDue ? ' warn' : ''}">클리닉 출석 <b>${clinicCame}</b>/${clinicDue}</span>`);
     if (hw.length) chips.push(`<span class="si-chip">과제 평균 <b>${Math.round(hw.reduce((a, b) => a + b, 0) / hw.length)}</b>%</span>`);
     chips.push(`<span class="si-chip${left ? ' warn' : ''}">남은 재시험 <b>${left}</b>개</span>`);
+    if (pcts.length) chips.push(`<span class="si-chip">최근 ${pcts.length}주 평균 <b>${Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length)}</b>%</span>`);
   }
   if (_si.mocks) chips.push(`<span class="si-chip">모의고사 <b>${_si.mocks.filter(x => x.sc && !x.sc.absent && (mockRowTotal(x.sc, normalizeItemConfig(x.e.item_config, DEFAULT_MOCK_ITEM_CONFIG).filter(it => it.active)) !== null)).length}</b>회 응시</span>`);
-  if (_si.grades) chips.push(`<span class="si-chip">학교 성적 <b>${_si.grades.length}</b>건</span>`);
+  if (_si.grades) chips.push(`<span class="si-chip">학교 내신 <b>${_si.grades.length}</b>건</span>`);
   if (_si.counsel) chips.push(`<span class="si-chip">상담 기록 <b>${_si.counsel.length}</b>건</span>`);
-  const failed = '<p style="font-size:12px;color:var(--red)">불러오지 못했어요. 창을 닫고 다시 열어주세요.</p>';
+  const failed = '<p style="font-size:12px;color:var(--red)">불러오지 못했어요. 목록으로 돌아가 다시 눌러주세요.</p>';
   const weekOpts = (_si.weeks || []).map(x => `<option value="${x.w.id}">${escapeHtml(x.w.label || x.w.test_date || '')}${x.w.class_id !== st.class_id ? ` (${escapeHtml(siClassName(x.w.class_id))})` : ''}${x.sc ? '' : ' · 기록 없음'}</option>`).join('');
+  const sub = [st.phone ? `학부모 ${escapeHtml(st.phone)}` : '학부모 번호 없음', st.student_phone ? `학생 ${escapeHtml(st.student_phone)}` : '학생 번호 없음', st.pin ? `PIN ${escapeHtml(st.pin)}` : ''].filter(Boolean).join(' · ');
   document.getElementById('si-body').innerHTML =
-    `<div class="si-chips">${chips.join('')}</div>`
-    + `<div class="si-sec" style="border-top:none;padding-top:0"><h4 class="si-h">특이사항 <small>칸에서 나가면 저장 · 학생 목록의 특이사항과 같은 값</small><span id="si-note-st" style="font-size:11px;font-weight:600;color:var(--gray)"></span></h4>`
-    + `<textarea class="si-note" id="si-note" onblur="saveStudentInfoNote()" placeholder="예) 형제 재원, 수요일 학원 늦음">${escapeHtml(st.note || '')}</textarea></div>`
-    + `<div class="si-sec"><h4 class="si-h">주차별 성적 <select id="si-week" onchange="renderSiWeeks()"><option value="all">전체 주차 한눈에</option>${weekOpts}</select><small>주차를 고르면 그 주의 기록을 모두 봅니다 · 점수 수정은 점수 입력 탭에서</small></h4><div id="si-weeks">${_si.weeks ? '' : failed}</div></div>`
-    + `<div class="si-sec"><h4 class="si-h">학교 성적 (내신)</h4><div id="si-grades">${_si.grades ? '' : failed}</div></div>`
-    + `<div class="si-sec"><h4 class="si-h">모의고사 성적</h4><div id="si-mocks">${_si.mocks ? '' : failed}</div></div>`
-    + `<div class="si-sec"><h4 class="si-h">상담 기록 <small>상담 준비 초안</small></h4><div id="si-counsel">${_si.counsel ? '' : failed}</div></div>`
-    + `<div class="si-sec"><h4 class="si-h">반 이동 · 퇴원 기록 <small>2026-09 이후 변경 이력</small></h4><div id="si-moves">${_si.history ? '' : failed}</div></div>`;
-  if (_si.weeks) renderSiWeeks();
+    `<div class="si-card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">`
+    + `<div><div class="si-name">${escapeHtml(st.name)}<small>${escapeHtml(cls || '반 없음')}</small> <span class="badge ${st.is_active === false ? 'badge-inactive' : 'badge-active'}" style="vertical-align:middle">${st.is_active === false ? '퇴원' : '재원'}</span></div>`
+    + `<div class="si-subline">${sub} <span style="color:var(--gray)">· PIN·연락처는 학생 목록에서 고칩니다</span></div></div>`
+    + `<div class="si-name-edit"><div><label>이름 수정</label><input type="text" id="si-name-inp" value="${escapeHtml(st.name)}" onkeydown="if(event.key==='Enter')saveStudentInfoName()"></div>`
+    + `<button class="btn btn-light btn-sm" onclick="saveStudentInfoName()">이름 저장</button></div></div>`
+    + `<div class="si-chips" style="margin:12px 0 0">${chips.join('')}</div></div>`
+    + `<div class="si-grid"><div>`
+    +   `<div class="si-card"><h4 class="si-h">주차별 성적 <select id="si-week" onchange="renderSiWeeks()"><option value="all">전체 주차 한눈에</option>${weekOpts}</select><small>주차를 고르면 그 주의 기록을 모두 봅니다 · 점수 수정은 점수 입력 탭에서</small></h4><div id="si-weeks">${_si.weeks ? '' : failed}</div></div>`
+    +   `<div class="si-card"><h4 class="si-h">출결 <small>수업 출석(점수 입력 탭) · 클리닉 출석(배정표 동그라미)</small></h4><div id="si-attend">${_si.weeks ? '' : failed}</div></div>`
+    +   `<div class="si-card"><h4 class="si-h">학교 내신</h4><div id="si-grades">${_si.grades ? '' : failed}</div></div>`
+    + `</div><div>`
+    +   `<div class="si-card"><h4 class="si-h">특이사항 <small>칸에서 나가면 저장 · 학생 목록과 같은 값</small><span id="si-note-st" style="font-size:11px;font-weight:600;color:var(--gray)"></span></h4>`
+    +   `<textarea class="si-note" id="si-note" onblur="saveStudentInfoNote()" placeholder="예) 형제 재원, 수요일 학원 늦음">${escapeHtml(st.note || '')}</textarea></div>`
+    +   `<div class="si-card"><h4 class="si-h">모의고사</h4><div id="si-mocks">${_si.mocks ? '' : failed}</div></div>`
+    +   `<div class="si-card"><h4 class="si-h">상담 기록 <small>상담 준비 초안</small></h4><div id="si-counsel">${_si.counsel ? '' : failed}</div></div>`
+    +   `<div class="si-card"><h4 class="si-h">반 이동 · 퇴원 기록 <small>2026-09 이후 변경 이력</small></h4><div id="si-moves">${_si.history ? '' : failed}</div></div>`
+    + `</div></div>`;
+  if (_si.weeks) { renderSiWeeks(); renderSiAttendance(); }
   if (_si.grades) renderSiGrades();
   if (_si.mocks) renderSiMocks();
   if (_si.counsel) renderSiCounsel();
   if (_si.history) renderSiMoves();
+}
+
+// 출결 칸: 주차마다 수업 출석과 클리닉 출석. 기록이 없는 주는 흐리게.
+function renderSiAttendance() {
+  const box = document.getElementById('si-attend');
+  if (!box || !_si || !_si.weeks) return;
+  if (!_si.weeks.length) { box.innerHTML = '<p class="si-muted" style="font-size:12.5px;margin:0">주차 기록이 없습니다.</p>'; return; }
+  box.innerHTML = `<div class="si-att">` + _si.weeks.map(({ w, sc }) => {
+    const a = siAttendOf(w, sc);
+    const label = escapeHtml(w.label || w.test_date || '');
+    if (!a.rec) return `<div class="wk none" title="이 주차 기록 없음">${label}<b>–</b>기록 없음</div>`;
+    const clinic = a.clinicCame ? '<span class="cl-ok">클리닉 ✓</span>' : a.clinicExpected ? '<span class="cl-no">클리닉 안 옴</span>' : '&nbsp;';
+    return `<div class="wk${a.present ? '' : ' x'}">${label}<b>${a.present ? '✓' : '결석'}</b>${clinic}</div>`;
+  }).join('') + `</div>`;
+}
+
+async function saveStudentInfoName() {
+  if (!_si) return;
+  const inp = document.getElementById('si-name-inp');
+  const name = inp.value.trim();
+  if (!name) { showToast('이름을 입력해주세요.'); inp.value = _si.st.name; return; }
+  if (name === _si.st.name) return;
+  const id = _si.st.id;
+  const r = await apiReqRetry(`students?id=eq.${id}`, 'PATCH', { name }, 'return=minimal');
+  if (!_si || _si.st.id !== id) return;
+  if (!r.ok) { showToast(`❌ 이름을 저장하지 못했어요. (${r.status || '연결 실패'})`, 4000); return; }
+  _si.st.name = name;
+  // 학생 목록·점수 탭 명단에도 새 이름이 보이게
+  document.querySelectorAll(`#student-list .st-name-link[data-student-id="${id}"]`).forEach(a => { a.textContent = name; });
+  Object.values(studentCache).forEach(list => (list || []).forEach(x => { if (x.id === id) x.name = name; }));
+  renderStudentInfo();
+  showToast('✅ 이름이 수정됐어요.');
 }
 
 async function saveStudentInfoNote() {
@@ -7161,7 +7251,7 @@ async function saveStudentInfoNote() {
   if (!r.ok) { stEl.style.color = 'var(--red)'; stEl.textContent = `저장 실패 (${r.status || '연결 실패'}) — 칸을 다시 눌렀다 나가면 다시 시도해요`; return; }
   _si.st.note = note;
   stEl.style.color = 'var(--green)'; stEl.textContent = '저장됨 ✓';
-  // 열려 있는 학생 목록의 특이사항 칸도 맞춘다
+  // 학생 목록의 특이사항 칸도 맞춘다
   document.querySelectorAll(`#student-list textarea[onblur^="updateStudentNote(${id},"]`).forEach(t => { t.value = note; });
 }
 
@@ -7238,8 +7328,8 @@ function renderSiGrades() {
   const examCur = v('exam', '중간');
   box.innerHTML = (rows.length
     ? `<div style="overflow-x:auto"><table class="si-table"><thead><tr><th>학년도</th><th>학년</th><th>학기</th><th>시험</th><th>과목</th><th>점수</th><th>평균</th><th>등급</th><th>메모</th><th></th></tr></thead><tbody>`
-      + rows.map(r => `<tr${r.id === _si.editId ? ' style="background:var(--cream)"' : ''}><td>${r.school_year}</td><td>${escapeHtml(r.grade_level || '')}</td><td>${r.semester}학기</td><td>${escapeHtml(r.exam)}</td><td>${escapeHtml(r.subject || '')}</td>`
-        + `<td style="font-weight:700">${siBlank(r.score) ? '–' : siNum(r.score)}</td><td>${siBlank(r.average) ? '–' : siNum(r.average)}</td><td style="font-weight:700">${escapeHtml(r.rank_grade || '–')}</td><td>${escapeHtml(r.memo || '')}</td>`
+      + rows.map(r => `<tr style="white-space:nowrap${r.id === _si.editId ? ';background:var(--cream)' : ''}"><td>${r.school_year}</td><td>${escapeHtml(r.grade_level || '')}</td><td>${r.semester}학기</td><td>${escapeHtml(r.exam)}</td><td>${escapeHtml(r.subject || '')}</td>`
+        + `<td style="font-weight:700">${siBlank(r.score) ? '–' : siNum(r.score)}</td><td>${siBlank(r.average) ? '–' : siNum(r.average)}</td><td style="font-weight:700">${escapeHtml(r.rank_grade || '–')}</td><td style="white-space:normal;min-width:120px">${escapeHtml(r.memo || '')}</td>`
         + `<td style="white-space:nowrap"><button class="btn btn-light btn-sm" onclick="editSiGrade(${r.id})">수정</button> <button class="btn btn-danger btn-sm" onclick="deleteSiGrade(${r.id})">삭제</button></td></tr>`).join('')
       + `</tbody></table></div>`
     : '<p class="si-muted" style="font-size:12.5px;margin:0">아직 입력한 학교 성적이 없습니다. 아래에서 추가하세요.</p>')
@@ -7252,8 +7342,8 @@ function renderSiGrades() {
     + `<div><label>점수</label><input type="number" id="sg-score" step="any" value="${escapeHtml(String(v('score')))}"></div>`
     + `<div><label>평균</label><input type="number" id="sg-avg" step="any" value="${escapeHtml(String(v('average')))}"></div>`
     + `<div><label>등급</label><input type="text" id="sg-rank" value="${escapeHtml(String(v('rank_grade')))}" placeholder="1~9 / A~E"></div>`
-    + `<div><label>메모</label><input type="text" id="sg-memo" value="${escapeHtml(String(v('memo')))}"></div>`
-    + `<div style="display:flex;gap:4px">${edit
+    + `<div class="wide"><label>메모</label><input type="text" id="sg-memo" value="${escapeHtml(String(v('memo')))}"></div>`
+    + `<div class="wide" style="display:flex;gap:4px">${edit
         ? `<button class="btn btn-primary btn-sm" onclick="saveSiGrade()">수정 저장</button><button class="btn btn-light btn-sm" onclick="editSiGrade(null)">취소</button>`
         : `<button class="btn btn-gold btn-sm" onclick="saveSiGrade()">추가</button>`}</div>`
     + `</div><p id="sg-status" style="font-size:11.5px;margin:6px 0 0;color:var(--gray)"></p>`;
@@ -7306,7 +7396,7 @@ async function saveSiGrade() {
   _si.grades.sort((a, b) => (b.school_year - a.school_year) || (b.semester - a.semester) || (b.id - a.id));
   _si.editId = null;
   renderStudentInfo();
-  showToast(editId ? '✅ 학교 성적을 고쳤어요.' : '✅ 학교 성적을 추가했어요.');
+  showToast(editId ? '✅ 학교 내신을 고쳤어요.' : '✅ 학교 내신을 추가했어요.');
 }
 
 async function deleteSiGrade(id) {
@@ -7559,7 +7649,7 @@ function renderStudentTable(students, showClass) {
   return `<table class="data-table" style="min-width:900px"><thead><tr>${showClass ? '<th>반</th>' : ''}<th>이름</th><th>PIN</th><th>학부모 연락처</th><th>학생 연락처</th><th>상태</th><th>특이사항</th><th></th></tr></thead><tbody>${students.map(s => `
     <tr>
       ${showClass ? `<td style="white-space:nowrap"><span style="font-size:12px;color:var(--gold);font-weight:600;white-space:nowrap">${classMap[s.class_id] || '-'}</span></td>` : ''}
-      <td><input type="text" value="${s.name}" onblur="updateStudentName(${s.id}, this.value)" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'Noto Sans KR',sans-serif;width:80px;outline:none;font-weight:600"></td>
+      <td><a href="#" class="st-name-link" data-student-id="${s.id}" onclick="openStudentInfo(${s.id});return false" title="눌러서 학생 상세 보기 (주차별 성적·출결·내신·모의고사) · 이름은 상세 화면에서 고칩니다">${escapeHtml(s.name)}</a></td>
       <td><input type="text" value="${s.pin || ''}" placeholder="PIN" onblur="updateStudentPin(${s.id}, this.value)" maxlength="4" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:monospace;width:65px;outline:none;text-align:center"></td>
       <td><input type="text" value="${s.phone || ''}" placeholder="학부모 연락처" onblur="updateStudentPhone(${s.id}, this.value)" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;width:130px;outline:none"></td>
       <td><input type="text" value="${s.student_phone || ''}" placeholder="학생 연락처" onblur="updateStudentStudentPhone(${s.id}, this.value)" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;width:130px;outline:none"></td>
@@ -7567,7 +7657,6 @@ function renderStudentTable(students, showClass) {
       <td><textarea oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'" onblur="updateStudentNote(${s.id}, this.value)" style="padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:'Noto Sans KR',sans-serif;width:160px;outline:none;resize:none;overflow:hidden;min-height:36px;line-height:1.5;vertical-align:middle">${s.note || ''}</textarea></td>
       <td style="white-space:nowrap">
         <div style="display:flex;gap:6px">
-          <button class="btn btn-primary btn-sm" onclick="openStudentInfo(${s.id})" title="특이사항·주차별 성적·학교 성적·모의고사·상담 기록">정보</button>
           ${s.is_active ? `<button class="btn btn-danger btn-sm" onclick="toggleStudent(${s.id}, false)">퇴원</button>` : `<button class="btn btn-sm" style="background:var(--green-light);color:var(--green);border:1px solid #b7efd1" onclick="toggleStudent(${s.id}, true)">복귀</button>`}
           <button class="btn btn-sm" style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe" onclick="showMoveStudent(${s.id},'${s.name}',${s.class_id})">반 이동</button>
           <button class="btn btn-danger btn-sm" onclick="deleteStudent(${s.id},'${s.name}')">삭제</button>
@@ -7630,12 +7719,6 @@ async function updateStudentPin(id, pin) {
   if (!pin.trim()) { showToast('PIN을 입력해주세요.'); loadStudentList(); return; }
   await api(`students?id=eq.${id}`, 'PATCH', { pin: pin.trim().padStart(4, '0') });
   showToast('✅ PIN이 수정됐어요.');
-}
-
-async function updateStudentName(id, name) {
-  if (!name.trim()) { showToast('이름을 입력해주세요.'); loadStudentList(); return; }
-  await api(`students?id=eq.${id}`, 'PATCH', { name: name.trim() });
-  showToast('✅ 이름이 수정됐어요.');
 }
 
 async function updateStudentNote(id, note) {
