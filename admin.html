@@ -244,6 +244,15 @@
   .si-draft { margin-top:6px; }
   .si-draft summary { cursor:pointer; font-size:12px; color:var(--navy); }
   .si-draft div { white-space:pre-wrap; font-size:12px; line-height:1.7; background:var(--cream); border-radius:8px; padding:10px 12px; margin-top:6px; }
+  /* 학생 클리닉 신청 (2026-11) */
+  .clinic-booked { display:inline-block; margin-left:3px; padding:0 5px; border-radius:4px; background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; font-size:10.5px; font-weight:700; line-height:16px; vertical-align:middle; }
+  .cb-group { border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-bottom:10px; }
+  .cb-group h5 { font-size:13px; color:var(--navy); margin:0 0 8px; }
+  .cb-chip { display:inline-flex; align-items:center; gap:4px; background:var(--light-gray); border-radius:14px; padding:4px 6px 4px 11px; font-size:12.5px; color:var(--navy); margin:0 6px 6px 0; }
+  .cb-chip button { border:none; background:none; color:var(--gray); cursor:pointer; font-size:14px; line-height:1; padding:0 3px; }
+  .cb-chip button:hover { color:var(--red); }
+  .cb-add { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:4px; }
+  .cb-add select, .cb-add input { padding:6px 8px; border:1.5px solid var(--border); border-radius:6px; font-size:12.5px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); background:var(--white); outline:none; }
   .score-headcount { display:inline-block; margin-left:8px; padding:2px 10px; border-radius:12px; background:var(--light-gray); color:var(--navy); font-size:12px; font-weight:600; vertical-align:middle; }
   /* 다른 반 학생 점수 입력 창 */
   .guest-results { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
@@ -948,6 +957,29 @@
         <div id="clinic-hwdue-body"><p style="font-size:13px;color:var(--gray)">탭을 열면 자동으로 불러옵니다.</p></div>
       </div>
     </div>
+
+    <!-- 학생 클리닉 신청 설정 (2026-11). app_settings 'clinicBooking.v1' — 학생 화면(clinic-book 함수)이 읽는다 -->
+    <div class="section-card" id="cb-settings-card">
+      <div class="section-head">
+        <button type="button" class="withdrawn-toggle collapsed" id="cb-settings-toggle" onclick="toggleClinicBookingSettings()">
+          <span class="chev">▾</span><span>학생 클리닉 신청 설정</span> <span id="cb-settings-state" style="font-size:12px;font-weight:500;color:var(--gray);margin-left:6px"></span>
+        </button>
+      </div>
+      <div class="section-body" id="cb-settings-body" style="display:none">
+        <p style="font-size:12px;color:var(--gray);margin:0 0 12px;line-height:1.7">학생이 성적 확인 화면에서 아래 시간 중 하나를 골라 클리닉을 신청합니다. 신청 · 시간 변경 · 취소 때마다 <strong>학부모님과 아래 번호로 문자</strong>가 가고, 클리닉 <strong>전날 오후 6시</strong>에 학생·학부모께 안내 문자가 한 번 더 갑니다. 신청한 시간은 배정표에 <span class="clinic-booked">신청</span> 표시와 함께 들어가며, 메모에 적힌 요일·시간보다 우선합니다.</p>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:var(--navy);margin-bottom:12px;cursor:pointer">
+          <input type="checkbox" id="cb-enabled" style="width:17px;height:17px"> 학생 클리닉 신청 받기
+        </label>
+        <div class="form-row" style="margin-bottom:6px">
+          <div class="form-group" style="max-width:260px"><label>알림 받을 선생님 번호</label><input type="text" id="cb-teacher" placeholder="01012345678" inputmode="numeric"></div>
+        </div>
+        <div id="cb-slot-groups"></div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:12px">
+          <button class="btn btn-primary btn-sm" onclick="saveClinicBookingSettings()">설정 저장</button>
+          <span id="cb-save-status" style="font-size:12px;font-weight:600;color:var(--gray)"></span>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- 탭13: 변경 이력 · 되돌리기 -->
@@ -1030,6 +1062,7 @@
    <div class="clinic-modal-col">
     <h3 style="font-size:16px;font-weight:700;color:var(--navy);margin-bottom:6px" id="clinic-memo-modal-title">클리닉 메모 수정</h3>
     <p style="font-size:13px;color:var(--gray);margin-bottom:10px" id="clinic-memo-modal-info"></p>
+    <div id="clinic-memo-booking" style="display:none;font-size:12.5px;color:#1e40af;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 12px;margin-bottom:10px;line-height:1.6"></div>
     <div id="clinic-memo-attend"></div>
     <div style="margin-bottom:12px">
       <label style="display:block;font-size:11px;color:var(--gray);font-weight:500;margin-bottom:5px">클리닉 메모 <span style="font-weight:400">(점수 입력·성적 문자에 쓰이는 메모와 같은 값입니다)</span></label>
@@ -3429,6 +3462,111 @@ function attrEsc(str) {
   return (str || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+// ── 학생 클리닉 신청 설정 (2026-11) ─────────────────────────
+// app_settings 'clinicBooking.v1' = { enabled, teacherPhone, slots: { '<탭>': [{ day, time:'HH:MM' }] } }.
+// 탭은 배정표와 같은 clinicTabOf(반 이름 '보성' → 보성여고, 나머지는 학년). 학생 화면은 clinic-book 함수가 이 값을 읽는다
+// (★ supabase/functions/clinic-book/index.ts tabOf와 같은 규칙).
+const CLINIC_BOOKING_KEY = 'clinicBooking.v1';
+const CB_DAYS = ['월', '화', '수', '목', '금', '토', '일'];
+let _cbSettings = null;   // 불러온 설정(화면에서 고친 값 포함) · null=아직 못 읽음
+const _cbPick = {};       // 탭 → 마지막으로 고른 { day, time } — 같은 요일 시간을 연달아 넣기 쉽게 다시 그려도 유지
+
+function cbTabs() {
+  const order = [...new Set(classes.map(c => clinicTabOf(c)))];
+  Object.keys((_cbSettings && _cbSettings.slots) || {}).forEach(t => { if (!order.includes(t)) order.push(t); });
+  return order.sort();
+}
+
+function isClinicBookingSettingsOpen() { return document.getElementById('cb-settings-body').style.display !== 'none'; }
+
+function toggleClinicBookingSettings(force) {
+  const open = force === undefined ? !isClinicBookingSettingsOpen() : force;
+  document.getElementById('cb-settings-body').style.display = open ? '' : 'none';
+  document.getElementById('cb-settings-toggle').classList.toggle('collapsed', !open);
+  if (open && !_cbSettings) loadClinicBookingSettings();
+}
+
+async function loadClinicBookingSettings() {
+  const st = document.getElementById('cb-settings-state');
+  const r = await apiReq(`app_settings?key=eq.${encodeURIComponent(CLINIC_BOOKING_KEY)}&select=value`);
+  if (!r.ok || !Array.isArray(r.data)) { st.textContent = '설정을 불러오지 못했어요'; return; }
+  const v = (r.data[0] && r.data[0].value) || {};
+  _cbSettings = { enabled: v.enabled === true, teacherPhone: v.teacherPhone || '', slots: JSON.parse(JSON.stringify(v.slots || {})) };
+  st.textContent = _cbSettings.enabled ? '· 신청 받는 중' : '· 꺼져 있음';
+  st.style.color = _cbSettings.enabled ? 'var(--green)' : 'var(--gray)';
+  document.getElementById('cb-enabled').checked = _cbSettings.enabled;
+  document.getElementById('cb-teacher').value = _cbSettings.teacherPhone;
+  renderClinicBookingSlots();
+}
+
+function renderClinicBookingSlots() {
+  const box = document.getElementById('cb-slot-groups');
+  if (!_cbSettings) { box.innerHTML = ''; return; }
+  const dayIdx = d => CB_DAYS.indexOf(d);
+  box.innerHTML = cbTabs().map(tab => {
+    const list = (_cbSettings.slots[tab] || []).slice().sort((a, b) => (dayIdx(a.day) - dayIdx(b.day)) || a.time.localeCompare(b.time));
+    _cbSettings.slots[tab] = list;
+    const t = attrEsc(tab);
+    return `<div class="cb-group"><h5>${escapeHtml(tab)} <span style="font-weight:400;color:var(--gray);font-size:11.5px">${list.length ? `신청 가능 시간 ${list.length}개` : '시간이 없으면 이 학년 학생에게는 신청 칸이 안 보여요'}</span></h5>`
+      + `<div>${list.map((x, i) => `<span class="cb-chip">${escapeHtml(x.day)} ${escapeHtml(x.time)}<button type="button" title="빼기" onclick="removeClinicBookingSlot('${t}', ${i})">✕</button></span>`).join('')}</div>`
+      + `<div class="cb-add"><select id="cb-day-${t}">${CB_DAYS.map(d => `<option${(_cbPick[tab] || {}).day === d ? ' selected' : ''}>${d}</option>`).join('')}</select>`
+      + `<input type="time" id="cb-time-${t}" value="${attrEsc((_cbPick[tab] || {}).time || '13:00')}" step="600"><button class="btn btn-light btn-sm" onclick="addClinicBookingSlot('${t}')">＋ 시간 추가</button></div></div>`;
+  }).join('');
+}
+
+function addClinicBookingSlot(tab) {
+  if (!_cbSettings) return;
+  const day = document.getElementById(`cb-day-${tab}`).value;
+  const time = document.getElementById(`cb-time-${tab}`).value;
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) { showToast('시간을 골라주세요.'); return; }
+  _cbPick[tab] = { day, time };
+  const list = _cbSettings.slots[tab] = _cbSettings.slots[tab] || [];
+  if (list.some(x => x.day === day && x.time === time)) { showToast('이미 있는 시간이에요.'); return; }
+  list.push({ day, time });
+  renderClinicBookingSlots();
+  document.getElementById('cb-save-status').textContent = '저장하지 않은 변경이 있어요';
+}
+
+function removeClinicBookingSlot(tab, i) {
+  if (!_cbSettings || !_cbSettings.slots[tab]) return;
+  _cbSettings.slots[tab].splice(i, 1);
+  renderClinicBookingSlots();
+  document.getElementById('cb-save-status').textContent = '저장하지 않은 변경이 있어요';
+}
+
+async function saveClinicBookingSettings() {
+  if (!_cbSettings) { showToast('설정을 불러오는 중이에요. 잠시 후 다시 눌러주세요.'); return; }
+  const status = document.getElementById('cb-save-status');
+  const enabled = document.getElementById('cb-enabled').checked;
+  const teacherPhone = document.getElementById('cb-teacher').value.replace(/[^0-9]/g, '');
+  if (teacherPhone && !/^01\d{8,9}$/.test(teacherPhone)) { status.style.color = 'var(--red)'; status.textContent = '선생님 번호를 확인해주세요 (예: 01012345678).'; return; }
+  const slots = {};
+  Object.keys(_cbSettings.slots).forEach(t => { if (_cbSettings.slots[t].length) slots[t] = _cbSettings.slots[t]; });
+  if (enabled && !Object.keys(slots).length && !confirm('신청 가능한 시간이 하나도 없어요. 이대로 켜면 학생 화면에 신청 칸이 보이지 않아요.\n그래도 저장할까요?')) return;
+  const value = { enabled, teacherPhone, slots };
+  status.style.color = 'var(--gray)'; status.textContent = '저장 중…';
+  const r = await apiReq('app_settings?on_conflict=key', 'POST', { key: CLINIC_BOOKING_KEY, value, updated_at: new Date().toISOString() }, 'resolution=merge-duplicates,return=minimal');
+  if (!r.ok) { status.style.color = 'var(--red)'; status.textContent = `❌ 저장하지 못했어요 (${r.status || '연결 실패'})`; return; }
+  _cbSettings = { enabled, teacherPhone, slots: JSON.parse(JSON.stringify(slots)) };
+  document.getElementById('cb-teacher').value = teacherPhone;
+  const st = document.getElementById('cb-settings-state');
+  st.textContent = enabled ? '· 신청 받는 중' : '· 꺼져 있음';
+  st.style.color = enabled ? 'var(--green)' : 'var(--gray)';
+  renderClinicBookingSlots();
+  status.style.color = 'var(--green)'; status.textContent = '저장됨 ✓ — 학생 화면에 바로 반영돼요';
+}
+
+// 신청 시각(clinic_at) → '11/22(일) 오전 11:00' (KST). clinic-book 함수의 slotLabel과 같은 모양
+function clinicBookingLabel(bk) {
+  if (!bk || !bk.clinic_at) return '';
+  const k = new Date(Date.parse(bk.clinic_at) + 9 * 3600 * 1000);
+  const days = ['일', '월', '화', '수', '목', '금', '토'];
+  const h = k.getUTCHours(), mm = String(k.getUTCMinutes()).padStart(2, '0');
+  return `${k.getUTCMonth() + 1}/${k.getUTCDate()}(${days[k.getUTCDay()]}) ${h < 12 ? '오전' : '오후'} ${h % 12 === 0 ? 12 : h % 12}:${mm}`;
+}
+// 배정표가 읽는 메모 모양('토 13:00') — parseClinicMemo로 같은 칸에 넣는다
+function clinicBookingMemo(bk) { return bk ? `${bk.clinic_day} ${bk.clinic_time}` : ''; }
+
 // ── 클리닉 배정표 ──────────────────────────────
 // 클리닉 메모는 자유 입력이라 형식이 제각각이다("일요일 11시", "일 5시", "수요일 하교 후",
 // "월요일 3시, 서술형 제외"...). 요일·시간을 읽을 수 있는 만큼만 격자에 배치하고,
@@ -3728,6 +3866,14 @@ function openClinicMemoEdit(sid) {
   document.getElementById('clinic-memo-modal-info').textContent = [row.cls, row.week].filter(Boolean).join(' · ');
   const ta = document.getElementById('clinic-memo-modal-text');
   ta.value = row.memo;
+  // 학생이 웹사이트에서 신청한 시간 — 배정표는 메모보다 이 시간을 따른다
+  const bkEl = document.getElementById('clinic-memo-booking');
+  if (row.booking) {
+    const b = row.booking;
+    bkEl.innerHTML = `<span class="clinic-booked" style="margin-left:0">신청</span> 학생이 웹사이트에서 신청: <strong>${escapeHtml(clinicBookingLabel(b))}</strong>`
+      + `<br><span style="color:var(--gray);font-size:11.5px">신청 ${escapeHtml(siDate(b.created_at))}${b.change_count ? ` · 바꾼 횟수 ${b.change_count}` : ''} · 배정표는 메모의 요일·시간보다 이 시간을 따릅니다</span>`;
+    bkEl.style.display = '';
+  } else { bkEl.style.display = 'none'; bkEl.innerHTML = ''; }
   previewClinicMemoEdit();
   // 문자 내용은 지난번 창에서 고친 문구를 이어 쓴다 (처음엔 기본 등원 확인 안내). 발송처도 지난번 선택을 따른다
   document.getElementById('clinic-memo-sms-text').value = _clinicMemoSmsTpl;
@@ -4002,8 +4148,8 @@ function clinicMemoSmsText() {
   if (!row) return '';
   const template = document.getElementById('clinic-memo-sms-text').value;
   const memo = document.getElementById('clinic-memo-modal-text').value.trim();
-  // 메모가 비면 '클리닉 일정:' 줄을 통째로 뺀다 (fillSmsTemplate)
-  return fillSmsTemplate(template, { 이름: row.name, 주차: row.week, 클리닉: memo });
+  // 메모가 비면 '클리닉 일정:' 줄을 통째로 뺀다 (fillSmsTemplate). 학생이 신청한 시간이 있으면 그 시간을 쓴다
+  return fillSmsTemplate(template, { 이름: row.name, 주차: row.week, 클리닉: row.booking ? clinicBookingLabel(row.booking) : memo });
 }
 
 function renderClinicMemoSms() {
@@ -4074,6 +4220,11 @@ async function sendClinicMemoSms() {
 function previewClinicMemoEdit() {
   const memo = document.getElementById('clinic-memo-modal-text').value.trim();
   const box = document.getElementById('clinic-memo-modal-preview');
+  const bkRow = _clinicMemoRows[_clinicMemoEditId];
+  if (bkRow && bkRow.booking) {
+    box.innerHTML = `배정표에는 학생이 신청한 <strong>${escapeHtml(clinicBookingLabel(bkRow.booking))}</strong>으로 들어갑니다. 메모에 적은 요일·시간은 배정에 쓰지 않아요.`;
+    return;
+  }
   if (!memo) { box.innerHTML = '메모가 비어 있습니다.'; return; }
   const parsed = parseClinicMemo(memo);
   if (!parsed.length) {
@@ -4245,7 +4396,20 @@ async function loadClinicSchedule(force = true) {
     ? await api(`scores?week_id=in.(${allWeekIds.join(',')})&select=id,student_id,week_id,clinic_memo,clinic_target,clinic_attend,retest_pass,item_scores,homework_rate,${ITEM_KEYS.join(',')}`) || []
     : [];
   if (seq !== _clinicLoadSeq) return;
-  const hasClinic = sc => sc.clinic_target === true || (sc.clinic_memo || '').trim() !== '';
+  // 학생이 웹사이트에서 신청한 클리닉(clinic_bookings, 2026-11). 신청이 있으면 메모의 요일·시간 대신 신청 시간으로 배치한다.
+  // 표를 못 읽어도(서버 업데이트 전 등) 배정표는 메모만으로 예전처럼 그린다.
+  const bkRes = allWeekIds.length
+    ? await apiReq(`clinic_bookings?week_id=in.(${allWeekIds.join(',')})&status=eq.booked&select=id,student_id,week_id,clinic_day,clinic_time,clinic_at,change_count,created_at,updated_at`)
+    : { ok: true, data: [] };
+  if (seq !== _clinicLoadSeq) return;
+  const bookingOf = {};   // `${student_id}:${week_id}` → 신청
+  (bkRes.ok && Array.isArray(bkRes.data) ? bkRes.data : []).forEach(b => { bookingOf[`${b.student_id}:${b.week_id}`] = b; });
+  // 점수 행이 아직 없는 학생의 신청도 배정표에 올린다(이름만 — 메모 창·출석 체크는 점수 행이 생긴 뒤에)
+  const rowKeys = new Set(allRows.map(sc => `${sc.student_id}:${sc.week_id}`));
+  Object.values(bookingOf).forEach(b => {
+    if (!rowKeys.has(`${b.student_id}:${b.week_id}`)) allRows.push({ id: 'b' + b.id, student_id: b.student_id, week_id: b.week_id, clinic_memo: '', clinic_target: false, clinic_attend: false, retest_pass: {}, item_scores: null, homework_rate: null, _bookingOnly: true });
+  });
+  const hasClinic = sc => sc.clinic_target === true || (sc.clinic_memo || '').trim() !== '' || !!bookingOf[`${sc.student_id}:${sc.week_id}`];
   const latestWeek = {}; // class_id → 클리닉 흔적이 있는 최신 주차
   allRows.forEach(sc => {
     if (!hasClinic(sc)) return;
@@ -4300,10 +4464,12 @@ async function loadClinicSchedule(force = true) {
     if (cls && latestWeek[cls.id]) g.weekOf[cls.name] = latestWeek[cls.id].label || latestWeek[cls.id].test_date;
     const memo = (sc.clinic_memo || '').trim();
     const sid = sc.id; // 이름을 눌러 메모를 고칠 때 PATCH할 scores 행
-    _clinicMemoRows[sid] = { name: st.name, cls: cls ? cls.name : '', week: g.weekOf[cls ? cls.name : ''] || '', memo: sc.clinic_memo || '',
+    const booking = bookingOf[`${sc.student_id}:${sc.week_id}`] || null;
+    if (!sc._bookingOnly) _clinicMemoRows[sid] = { name: st.name, cls: cls ? cls.name : '', week: g.weekOf[cls ? cls.name : ''] || '', memo: sc.clinic_memo || '',
       // 문자 보내기 구역용 — 연락처·과제%·과제평가는 창을 열 때 새로 읽는다 (이 화면의 조회엔 과제평가가 없다)
       studentId: sc.student_id, classId: weekById[sc.week_id].class_id, weekId: sc.week_id,
-      attend: sc.clinic_attend === true };   // 클리닉 출석(한 주에 한 번). 이름 앞 동그라미로 바꾼다
+      attend: sc.clinic_attend === true,     // 클리닉 출석(한 주에 한 번). 이름 앞 동그라미로 바꾼다
+      booking };                             // 학생이 웹사이트에서 신청한 시간 (없으면 null)
     // 과제 수행률은 이름 뒤 괄호로 표기. NULL(미기재·과제 없음)이면 붙이지 않는다.
     const hw = (sc.homework_rate === null || sc.homework_rate === undefined) ? null : sc.homework_rate;
 
@@ -4337,7 +4503,8 @@ async function loadClinicSchedule(force = true) {
     // 재시험 배지가 붙지 않는 학생이므로 hwOnly로 표시해 '과제' 배지로 구분한다.
     // 일정을 읽지 못하면 예전처럼 표에서 빼고, 과제 기한이 적혀 있으면 기한 명단에 올린다.
     const hwOnly = hasCut && scored.length > 0 && retestItems.length === 0;
-    const parsed = parseClinicMemo(memo);
+    // 학생이 신청한 시간이 있으면 그 시간이 메모의 요일·시간보다 우선한다
+    const parsed = booking ? parseClinicMemo(clinicBookingMemo(booking)) : parseClinicMemo(memo);
     if (hwOnly) {
       // 기한 명단은 배정표와 별개로 유지한다 — 배정표에 올라간 학생도 기한은 여기서 한눈에 본다
       const due = clinicHwDeadline(memo);
@@ -4347,7 +4514,7 @@ async function loadClinicSchedule(force = true) {
 
     if (parsed.length) {
       const clsName = cls ? cls.name : '';
-      parsed.forEach(e => g.entries.push({ ...e, id: st.id, sid, name: st.name, hw, items: retestItems, hwOnly, cls: clsName }));
+      parsed.forEach(e => g.entries.push({ ...e, id: st.id, sid, name: st.name, hw, items: retestItems, hwOnly, cls: clsName, booking, noRow: !!sc._bookingOnly }));
     } else if (sc.clinic_target === true) {
       g.unassigned.push({ id: st.id, sid, name: st.name, memo, hw, items: retestItems, cls: cls ? cls.name : '' });
     } else if (!/통과/.test(memo)) {
@@ -4412,7 +4579,10 @@ async function loadClinicSchedule(force = true) {
     // 남은 재시험이 없는데 메모 일정으로 올라온 학생 — 재시험 배지가 없어 왜 표에 있는지 알 수 없으므로 표시한다
     const hwOnlyTag = e => e.hwOnly ? `<span class="clinic-hwonly" title="남은 재시험 없음 — 메모에 적힌 일정(과제 클리닉 등)">과제</span>` : '';
     // 학생 하나를 block 칩으로 감싼다 — 몰린 칸이 가로로 늘어나지 않고 아래로 쌓이는 근거
-    const chip = e => `<span class="clinic-chip${_clinicMemoRows[e.sid]?.attend ? ' came' : ''}" data-chip-sid="${e.sid}">${clinicAttendBox(e.sid)}${clinicNameLink(e.sid, e.name)}${exactTag(e)}${hwTag(e)}${itemTag(e)}${hwOnlyTag(e)}${noteTag(e)}</span>`;
+    const bookedTag = e => e.booking ? `<span class="clinic-booked" title="학생이 웹사이트에서 신청 — ${attrEsc(clinicBookingLabel(e.booking))}${e.booking.change_count ? ` (바꾼 횟수 ${e.booking.change_count})` : ''}">신청</span>` : '';
+    const chip = e => e.noRow
+      ? `<span class="clinic-chip" title="이번 주 점수 행이 아직 없어 메모 창·출석 체크는 점수를 입력한 뒤에 쓸 수 있어요"><span style="display:inline-block;width:20px"></span>${escapeHtml(e.name)}${bookedTag(e)}</span>`
+      : `<span class="clinic-chip${_clinicMemoRows[e.sid]?.attend ? ' came' : ''}" data-chip-sid="${e.sid}">${clinicAttendBox(e.sid)}${clinicNameLink(e.sid, e.name)}${exactTag(e)}${hwTag(e)}${itemTag(e)}${hwOnlyTag(e)}${noteTag(e)}${bookedTag(e)}</span>`;
     // 요일을 여러 개 적은 학생("수 / 목 시간 미정")은 해당 요일 행마다 나온다 — 시간 있는 일정과 같은 규칙
     const cell = (day, key) => g.entries
       .filter(e => e.day === day && e.min === key)
@@ -4430,6 +4600,7 @@ async function loadClinicSchedule(force = true) {
       + (usedAbbrs.length ? ' &nbsp;·&nbsp; 재시험 남은 항목 — ' + usedAbbrs.map(o =>
           `<span class="clinic-item" style="margin-left:0">${escapeHtml(o.abbr)}</span> ${escapeHtml(o.label)}`).join(' &nbsp; ') : '')
       + (g.entries.some(e => e.hwOnly) ? ` &nbsp;·&nbsp; <span class="clinic-hwonly" style="margin-left:0">과제</span> 남은 재시험은 없고 메모에 일정만 적힌 학생 (과제 클리닉 등)` : '')
+      + (g.entries.some(e => e.booking) ? ` &nbsp;·&nbsp; <span class="clinic-booked" style="margin-left:0">신청</span> 학생이 웹사이트에서 신청한 시간 (메모보다 우선)` : '')
       + (timed.some(e => e.exact) ? ` &nbsp;·&nbsp; <span class="clinic-exact" style="margin-left:0">2:45</span> 30분 단위가 아닌 시각 (앞쪽 30분 칸에 표시)` : '')
       + (untimed.length ? ` &nbsp;·&nbsp; 연한 배경 '시간 미정' 칸은 요일만 정해지고 시간은 아직 안 정해진 학생` : '')
       + `</p>`;
@@ -5221,11 +5392,15 @@ async function loadScoreSmsTargets() {
 
 async function buildWeekSmsTargets(classId, weekId) {
   // 과제 내용(weeks.memo)은 점수 입력 탭에서 수시로 고치므로 반 선택 때 받아 둔 목록 대신 지금 값을 읽는다
-  const [students, scores, memoRes] = await Promise.all([
+  const [students, scores, memoRes, bkRes] = await Promise.all([
     api(`students?class_id=eq.${classId}&is_active=eq.true&order=name.asc&select=*`),
     api(`scores?week_id=eq.${weekId}&select=*`),
-    api(`weeks?id=eq.${weekId}&select=memo`)
+    api(`weeks?id=eq.${weekId}&select=memo`),
+    apiReq(`clinic_bookings?week_id=eq.${weekId}&status=eq.booked&select=student_id,clinic_day,clinic_time,clinic_at`)
   ]);
+  // 학생이 웹사이트에서 신청한 클리닉 시간이 있으면 {클리닉}에 메모 대신 그 시간을 넣는다
+  const bookingOfSt = {};
+  (bkRes && bkRes.ok && Array.isArray(bkRes.data) ? bkRes.data : []).forEach(b => { bookingOfSt[b.student_id] = b; });
   const weekRow = (window._scoreSmsWeeks || []).find(w => w.id == weekId);
   const items = normalizeItemConfig(weekRow?.item_config).filter(it => it.active);
 
@@ -5264,7 +5439,7 @@ async function buildWeekSmsTargets(classId, weekId) {
       totalText: `${fmtSmsNum(scored.reduce((a, x) => a + x.value, 0))}/${fmtSmsNum(scored.filter(hasMax).reduce((a, x) => a + x.max, 0))}`,
       retestTargets: below.filter(x => pass[x.key] !== true).map(x => x.label || '항목'),
       retestPassed: below.filter(x => pass[x.key] === true).map(x => x.label || '항목'),
-      clinicMemo: (sc && sc.clinic_memo) || '',
+      clinicMemo: bookingOfSt[st.id] ? clinicBookingLabel(bookingOfSt[st.id]) : ((sc && sc.clinic_memo) || ''),
       // 과제 수행률은 학부모 화면과 같은 기준: '과제 없음' 주차거나 미기재(null)면 비워서 줄이 빠지게 한다
       hwText: (sc && sc.no_homework !== true && sc.homework_rate !== null && sc.homework_rate !== undefined && sc.homework_rate !== '')
         ? `과제 수행률: ${sc.homework_rate}%` : '',
@@ -5725,16 +5900,25 @@ async function pickNoticeClinicMissed() {
     const recent = sortByTestDate(weeksRes).filter(w => (seen[w.class_id] = (seen[w.class_id] || 0) + 1) <= 8);
     const weekById = {}, recency = {};
     recent.forEach((w, i) => { weekById[w.id] = w; recency[w.id] = i; });
-    const rows = recent.length
-      ? await api(`scores?week_id=in.(${recent.map(w => w.id).join(',')})&select=id,student_id,week_id,clinic_memo,clinic_target,clinic_attend,retest_pass,item_scores,${ITEM_KEYS.join(',')}`)
-      : [];
+    const [rows, bkRes] = recent.length ? await Promise.all([
+      api(`scores?week_id=in.(${recent.map(w => w.id).join(',')})&select=id,student_id,week_id,clinic_memo,clinic_target,clinic_attend,retest_pass,item_scores,${ITEM_KEYS.join(',')}`),
+      apiReq(`clinic_bookings?week_id=in.(${recent.map(w => w.id).join(',')})&status=eq.booked&select=student_id,week_id,clinic_day,clinic_time,clinic_at`)
+    ]) : [[], { ok: true, data: [] }];
     if (!Array.isArray(rows)) throw new Error('scores');
     if (seq !== _noticeLoadSeq) return;   // 그사이 반을 바꿨다
-    const hasClinic = sc => sc.clinic_target === true || (sc.clinic_memo || '').trim() !== '';
+    // 학생이 웹사이트에서 신청한 클리닉도 배정표처럼 '와야 하는 학생'으로 보고, {클리닉}에는 신청 시간을 넣는다
+    const bookingOf = {};
+    (bkRes && bkRes.ok && Array.isArray(bkRes.data) ? bkRes.data : []).forEach(b => { bookingOf[`${b.student_id}:${b.week_id}`] = b; });
+    const hasClinic = sc => sc.clinic_target === true || (sc.clinic_memo || '').trim() !== '' || !!bookingOf[`${sc.student_id}:${sc.week_id}`];
     const basis = {};   // class_id → 기준 주차
     rows.forEach(sc => {
       if (!hasClinic(sc)) return;
       const w = weekById[sc.week_id];
+      if (w && (!basis[w.class_id] || recency[w.id] < recency[basis[w.class_id].id])) basis[w.class_id] = w;
+    });
+    // 점수 행 없이 신청만 있는 학생의 기준 주차도 잡는다
+    Object.values(bookingOf).forEach(b => {
+      const w = weekById[b.week_id];
       if (w && (!basis[w.class_id] || recency[w.id] < recency[basis[w.class_id].id])) basis[w.class_id] = w;
     });
     const rowOf = {};
@@ -5743,8 +5927,9 @@ async function pickNoticeClinicMissed() {
     _noticeTargets.forEach(t => {
       const w = basis[t.classId];
       const sc = rowOf[t.id];
-      t.clinic = { week: w ? (w.label || w.test_date || '') : '', memo: ((sc && sc.clinic_memo) || '').trim(),
-                   expected: !!(w && clinicExpectedOf(sc, w.item_config)), attended: !!(sc && sc.clinic_attend === true) };
+      const bk = w ? bookingOf[`${t.id}:${w.id}`] : null;
+      t.clinic = { week: w ? (w.label || w.test_date || '') : '', memo: bk ? clinicBookingLabel(bk) : ((sc && sc.clinic_memo) || '').trim(),
+                   expected: !!(w && (bk || clinicExpectedOf(sc, w.item_config))), attended: !!(sc && sc.clinic_attend === true) };
       if (t.clinic.expected && !t.clinic.attended && noticePhone(t)) missed.add(t.id);
     });
     const weekLines = classIds.map(cid => {
@@ -7034,7 +7219,8 @@ function initNoteHeights() {
 // ── 학생 상세 화면 (학생 관리 탭, 2026-11) ─────────────────────────
 // 학생 목록에서 이름을 누르면 목록 대신 그 학생 한 명의 화면이 뜬다('← 학생 목록으로'·브라우저 뒤로가기로 돌아옴).
 // 요약(출석률·결석·클리닉 출석·과제 평균·남은 재시험·최근 4주 평균) · 주차별 성적(주차를 고르면 그 주 기록 전부) · 출결 ·
-// 특이사항 · 학교 내신(school_grades) · 모의고사 · 상담 준비 초안(counsel_drafts) · 반 이동·퇴원 기록(data_history).
+// 특이사항 · 학교 내신(school_grades) · 모의고사 · 상담 기록(counsel_notes) · 반 이동·퇴원 기록(data_history).
+// (9월에 시험한 AI 상담 준비 초안 counsel_drafts는 운영에 쓰지 않아 보여주지 않는다)
 // 여기서 고치는 건 이름 · 특이사항 · 학교 내신뿐이다. 점수는 점수 입력 탭, PIN·연락처는 학생 목록에서 고친다.
 // 학생 정보를 못 읽으면 화면 전체를, 나머지는 그 구역만 '불러오지 못함'으로 둔다.
 let _si = null;      // { st, weeks:[{ w, sc }], mocks:[{ e, sc }], grades:[] | null, counsel:[] | null, history:[] | null, editId }
@@ -7076,7 +7262,7 @@ async function openStudentInfo(id) {
       apiReqRetry(`scores?student_id=eq.${id}&select=*`),
       apiReqRetry(`mock_scores?student_id=eq.${id}&select=*`),
       apiReq(`school_grades?student_id=eq.${id}&order=school_year.desc,semester.desc,id.desc&select=*`),
-      apiReq(`counsel_drafts?student_id=eq.${id}&order=created_at.desc&select=id,created_at,updated_at,status,period_weeks,edited_draft,ai_draft,teacher_notes`),
+      apiReq(`counsel_notes?student_id=eq.${id}&order=counsel_date.desc,id.desc&select=*`),
       apiReq(`data_history?table_name=eq.students&row_id=eq.${id}&order=changed_at.desc&limit=100&select=id,op,changed_at,old_row,new_row`)
     ]);
     if (seq !== _siSeq) return;
@@ -7110,7 +7296,7 @@ async function openStudentInfo(id) {
       grades: sgR.ok && Array.isArray(sgR.data) ? sgR.data : null,
       counsel: cdR.ok && Array.isArray(cdR.data) ? cdR.data : null,
       history: hiR.ok && Array.isArray(hiR.data) ? hiR.data : null,
-      editId: null };
+      editId: null, noteEdit: null };
     renderStudentInfo();
   } catch (e) {
     if (seq !== _siSeq) return;
@@ -7196,7 +7382,7 @@ function renderStudentInfo() {
     +   `<div class="si-card"><h4 class="si-h">특이사항 <small>칸에서 나가면 저장 · 학생 목록과 같은 값</small><span id="si-note-st" style="font-size:11px;font-weight:600;color:var(--gray)"></span></h4>`
     +   `<textarea class="si-note" id="si-note" onblur="saveStudentInfoNote()" placeholder="예) 형제 재원, 수요일 학원 늦음">${escapeHtml(st.note || '')}</textarea></div>`
     +   `<div class="si-card"><h4 class="si-h">모의고사</h4><div id="si-mocks">${_si.mocks ? '' : failed}</div></div>`
-    +   `<div class="si-card"><h4 class="si-h">상담 기록 <small>상담 준비 초안</small></h4><div id="si-counsel">${_si.counsel ? '' : failed}</div></div>`
+    +   `<div class="si-card"><h4 class="si-h">상담 기록${_si.counsel ? ' <button class="btn btn-gold btn-sm" onclick="editSiNote(\'new\')">＋ 상담 기록 추가</button>' : ''}</h4><div id="si-counsel">${_si.counsel ? '' : failed}</div></div>`
     +   `<div class="si-card"><h4 class="si-h">반 이동 · 퇴원 기록 <small>2026-09 이후 변경 이력</small></h4><div id="si-moves">${_si.history ? '' : failed}</div></div>`
     + `</div></div>`;
   if (_si.weeks) { renderSiWeeks(); renderSiAttendance(); }
@@ -7436,21 +7622,98 @@ function renderSiMocks() {
       }).join('') + `</tbody></table></div>`;
 }
 
-// ── 상담 기록 (counsel_drafts — 상담 준비 초안) ──
+// ── 상담 기록 (counsel_notes, 2026-11) ──
+// 날짜 · 대상(학부모/학생) · 방법(전화/대면/문자) · 작성자 · 내용. 최신 날짜가 위. 고치거나 지우면 변경 이력에 남는다.
+const SI_NOTE_TARGETS = ['학부모', '학생', '기타'];
+const SI_NOTE_METHODS = ['전화', '대면', '문자', '기타'];
+const SI_NOTE_AUTHORS = ['선생님', '평일 조교', '주말 조교'];
+const SI_NOTE_AUTHOR_KEY = 'counselNoteAuthor.v1';   // 이 기기에서 마지막으로 고른 작성자
+
+function siTodayKST() {
+  const d = new Date(Date.now() + 9 * 3600 * 1000);
+  return d.toISOString().slice(0, 10);
+}
+
+function editSiNote(id) {
+  if (!_si || !_si.counsel) return;
+  _si.noteEdit = id;
+  renderSiCounsel();
+  if (id) document.getElementById('sn-content')?.focus();
+}
+
 function renderSiCounsel() {
   const box = document.getElementById('si-counsel');
   if (!box || !_si || !_si.counsel) return;
-  if (!_si.counsel.length) { box.innerHTML = '<p class="si-muted" style="font-size:12.5px;margin:0">상담 기록이 없습니다.</p>'; return; }
-  box.innerHTML = _si.counsel.map(c => {
-    const draft = (c.edited_draft || c.ai_draft || '').trim();
-    return `<div style="padding:8px 0;border-bottom:1px solid var(--light-gray)">`
-      + `<div style="font-size:12.5px;color:var(--navy)"><strong>${siDate(c.created_at)}</strong>`
-      + (c.status ? ` <span class="badge badge-active" style="margin-left:4px">${escapeHtml(({ pending: '상담 전', draft: '초안', done: '상담 완료', sent: '전달함' })[c.status] || c.status)}</span>` : '')
-      + (c.updated_at && siDate(c.updated_at) !== siDate(c.created_at) ? ` <span class="si-muted" style="font-size:11px">(고침 ${siDate(c.updated_at)})</span>` : '') + `</div>`
-      + (c.teacher_notes ? `<div style="font-size:12.5px;margin-top:4px;white-space:pre-wrap">${escapeHtml(c.teacher_notes)}</div>` : '')
-      + (draft ? `<details class="si-draft"><summary>${c.edited_draft ? '다듬은 상담 내용' : '상담 초안'} 보기</summary><div>${escapeHtml(draft)}</div></details>` : '')
-      + `</div>`;
-  }).join('');
+  const notes = _si.counsel;
+  const ed = _si.noteEdit;
+  const row = ed && ed !== 'new' ? notes.find(n => n.id === ed) : null;
+  let lastAuthor = '';
+  try { lastAuthor = localStorage.getItem(SI_NOTE_AUTHOR_KEY) || ''; } catch (e) {}
+  const opt = (vals, cur) => vals.map(x => `<option value="${escapeHtml(x)}"${x === cur ? ' selected' : ''}>${escapeHtml(x)}</option>`).join('');
+  const form = !ed ? '' : `<div style="background:var(--cream);border-radius:10px;padding:10px 12px;margin-bottom:10px">`
+    + `<div class="si-form" style="margin-top:0">`
+    + `<div><label>날짜</label><input type="date" id="sn-date" value="${escapeHtml(row ? row.counsel_date : siTodayKST())}"></div>`
+    + `<div><label>대상</label><select id="sn-target">${opt(SI_NOTE_TARGETS, row ? row.target : '학부모')}</select></div>`
+    + `<div><label>방법</label><select id="sn-method">${opt(SI_NOTE_METHODS, row ? row.method : '전화')}</select></div>`
+    + `<div><label>작성자</label><select id="sn-author"><option value=""></option>${opt(SI_NOTE_AUTHORS, row ? row.author : lastAuthor)}</select></div>`
+    + `</div>`
+    + `<textarea class="si-note" id="sn-content" style="margin-top:8px;min-height:80px" placeholder="상담 내용 — 예) 어머니와 통화. 단어 암기 습관 이야기, 다음 주부터 클리닉 토 1시로 고정">${escapeHtml(row ? row.content : '')}</textarea>`
+    + `<div style="display:flex;gap:6px;margin-top:8px;align-items:center"><button class="btn btn-primary btn-sm" onclick="saveSiNote()">${row ? '수정 저장' : '저장'}</button>`
+    + `<button class="btn btn-light btn-sm" onclick="editSiNote(null)">취소</button><span id="sn-status" style="font-size:11.5px;color:var(--gray)"></span></div></div>`;
+  const list = notes.length
+    ? notes.map(n => `<div style="padding:9px 0;border-bottom:1px solid var(--light-gray)${n.id === ed ? ';opacity:.45' : ''}">`
+        + `<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">`
+        + `<div style="font-size:12.5px;color:var(--navy)"><strong>${escapeHtml(String(n.counsel_date || '').replace(/-/g, '.'))}</strong>`
+        + `<span class="si-muted"> · ${[n.target, n.method, n.author].filter(Boolean).map(escapeHtml).join(' · ')}</span></div>`
+        + `<div style="white-space:nowrap"><button class="btn btn-light btn-sm" onclick="editSiNote(${n.id})">수정</button> <button class="btn btn-danger btn-sm" onclick="deleteSiNote(${n.id})">삭제</button></div></div>`
+        + `<div style="font-size:13px;line-height:1.7;margin-top:4px;white-space:pre-wrap;word-break:break-all">${escapeHtml(n.content || '')}</div></div>`).join('')
+    : (ed ? '' : '<p class="si-muted" style="font-size:12.5px;margin:0">아직 상담 기록이 없습니다. <b>＋ 상담 기록 추가</b>로 남겨 주세요.</p>');
+  box.innerHTML = form + list;
+}
+
+async function saveSiNote() {
+  if (!_si || !_si.counsel || !_si.noteEdit) return;
+  const status = document.getElementById('sn-status');
+  const content = document.getElementById('sn-content').value.trim();
+  const date = document.getElementById('sn-date').value;
+  if (!content) { status.style.color = 'var(--red)'; status.textContent = '상담 내용을 적어주세요.'; return; }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { status.style.color = 'var(--red)'; status.textContent = '날짜를 골라주세요.'; return; }
+  const body = { counsel_date: date, target: document.getElementById('sn-target').value || null, method: document.getElementById('sn-method').value || null,
+    author: document.getElementById('sn-author').value || null, content };
+  try { if (body.author) localStorage.setItem(SI_NOTE_AUTHOR_KEY, body.author); } catch (e) {}
+  const editId = _si.noteEdit === 'new' ? null : _si.noteEdit;
+  const sid = _si.st.id;
+  status.style.color = 'var(--gray)'; status.textContent = '저장 중…';
+  const r = editId
+    ? await apiReq(`counsel_notes?id=eq.${editId}`, 'PATCH', body, 'return=representation')
+    : await apiReq('counsel_notes', 'POST', { ...body, student_id: sid }, 'return=representation');
+  if (!_si || _si.st.id !== sid) return;
+  if (!r.ok || !Array.isArray(r.data) || !r.data.length) {
+    status.style.color = 'var(--red)';
+    status.textContent = r.status === 403 ? '❌ 저장 공간이 아직 준비되지 않았어요(서버 업데이트 필요).' : `❌ 저장하지 못했어요. (${r.status || '연결 실패'}) 다시 눌러주세요.`;
+    return;
+  }
+  const saved = r.data[0];
+  _si.counsel = editId ? _si.counsel.map(n => n.id === editId ? saved : n) : [saved, ..._si.counsel];
+  _si.counsel.sort((a, b) => String(b.counsel_date).localeCompare(String(a.counsel_date)) || (b.id - a.id));
+  _si.noteEdit = null;
+  renderStudentInfo();
+  showToast(editId ? '✅ 상담 기록을 고쳤어요.' : '✅ 상담 기록을 남겼어요.');
+}
+
+async function deleteSiNote(id) {
+  if (!_si || !_si.counsel) return;
+  const n = _si.counsel.find(x => x.id === id);
+  if (!n) return;
+  if (!confirm(`${String(n.counsel_date).replace(/-/g, '.')} 상담 기록을 지울까요?\n(변경 이력 탭에 지운 내용이 남습니다)`)) return;
+  const sid = _si.st.id;
+  const r = await apiReq(`counsel_notes?id=eq.${id}`, 'DELETE');
+  if (!_si || _si.st.id !== sid) return;
+  if (!r.ok) { showToast(`❌ 지우지 못했어요. (${r.status || '연결 실패'})`, 4000); return; }
+  _si.counsel = _si.counsel.filter(x => x.id !== id);
+  if (_si.noteEdit === id) _si.noteEdit = null;
+  renderStudentInfo();
+  showToast('상담 기록을 지웠어요.');
 }
 
 // ── 반 이동 · 퇴원 기록 (data_history의 students 변경) ──

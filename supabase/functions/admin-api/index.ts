@@ -13,6 +13,8 @@
 //     브라우저가 서명 업로드 주소로 직접 올린다 (함수 메모리·시간 제한을 피하려고).
 // v17 (2026-11-21): school_grades(학교 성적·내신) 허용 목록 추가 — 학생 관리 탭 '학생 정보' 창에서
 //     조회·추가·수정·삭제한다. 스키마: supabase/school-grades.sql. 다른 동작은 v16과 같다.
+// v18 (2026-11-21): counsel_notes(상담 기록) · clinic_bookings(학생 클리닉 신청) 허용 목록 추가.
+//     스키마: supabase/counsel-and-clinic.sql. 학생 쪽 신청은 clinic-book 함수가 따로 처리한다.
 
 const SUPABASE_URL = Deno.env.get("SB_URL")!;
 const SERVICE_ROLE = Deno.env.get("SB_SERVICE_ROLE")!;
@@ -27,6 +29,8 @@ const ALLOWED_TABLES = new Set([
   "counsel_drafts",
   // 학교 성적(내신) — 학생 정보 창 (v17, 스키마: supabase/school-grades.sql)
   "school_grades",
+  // 상담 기록 · 학생 클리닉 신청 (v18, 스키마: supabase/counsel-and-clinic.sql)
+  "counsel_notes", "clinic_bookings",
 ]);
 // 읽기만 허용하는 표
 const READ_ONLY_TABLES = new Set(["data_history"]);

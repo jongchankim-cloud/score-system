@@ -7,6 +7,7 @@
   ],
   "rewrites": [
     { "source": "/api/parent-login", "destination": "https://rcpzinsdocmpnfxkfbil.supabase.co/functions/v1/parent-login" },
+    { "source": "/api/clinic-book", "destination": "https://rcpzinsdocmpnfxkfbil.supabase.co/functions/v1/clinic-book" },
     { "source": "/vocab-study/", "destination": "https://jongchankim-cloud.github.io/vocab-study/" },
     { "source": "/vocab-study/:path*", "destination": "https://jongchankim-cloud.github.io/vocab-study/:path*" }
   ]

@@ -62,6 +62,81 @@
         opacity: 0.6;
         cursor: default;
       }
+      /* 클리닉 신청 (2026-11) */
+      .cb-current {
+        background: var(--accent-light);
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-bottom: 12px;
+        font-size: 14px;
+        color: var(--navy);
+        line-height: 1.6;
+      }
+      .cb-current b {
+        font-size: 16px;
+      }
+      .cb-slots {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 8px;
+        margin: 8px 0 4px;
+      }
+      .cb-slot {
+        padding: 11px 8px;
+        border: 1.5px solid var(--border);
+        border-radius: 10px;
+        background: var(--white);
+        color: var(--navy);
+        font-size: 13.5px;
+        font-weight: 600;
+        font-family: "Noto Sans KR", sans-serif;
+        cursor: pointer;
+      }
+      .cb-slot:hover {
+        border-color: var(--accent-ink);
+      }
+      .cb-slot.on {
+        background: var(--navy);
+        border-color: var(--navy);
+        color: var(--white);
+      }
+      .cb-slot:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .cb-label {
+        font-size: 12.5px;
+        color: var(--gray);
+        margin-top: 4px;
+      }
+      .cb-note {
+        font-size: 11.5px;
+        color: var(--gray);
+        line-height: 1.7;
+        margin-top: 10px;
+      }
+      .cb-msg {
+        font-size: 13px;
+        font-weight: 600;
+        margin-top: 10px;
+      }
+      .cb-msg.ok {
+        color: var(--green);
+      }
+      .cb-msg.err {
+        color: var(--red);
+      }
+      .cb-cancel {
+        margin-top: 10px;
+        background: none;
+        border: none;
+        color: var(--red);
+        font-size: 12.5px;
+        font-weight: 600;
+        font-family: "Noto Sans KR", sans-serif;
+        text-decoration: underline;
+        cursor: pointer;
+      }
       .mock-report-msg {
         font-size: 12px;
         color: var(--red);
@@ -473,6 +548,14 @@
           <div class="student-class" id="result-class"></div>
         </div>
 
+        <!-- 클리닉 신청 (2026-11): 선생님이 정해 둔 시간 중에서 고른다. 신청·변경·취소는 학부모·선생님께 문자 -->
+        <div class="card" id="clinic-book-card" style="display: none">
+          <div class="card-header">
+            <h2>클리닉 신청</h2>
+          </div>
+          <div class="card-body" id="clinic-book-body"></div>
+        </div>
+
         <div class="card">
           <div class="card-header">
             
@@ -782,6 +865,98 @@
         }
 
         renderPeriodSelector();
+        loadClinicBooking();
+      }
+
+      // ── 클리닉 신청 (2026-11) ──
+      // 같은 도메인의 /api/clinic-book (vercel.json rewrite → Supabase 함수 clinic-book). 로그인 세션 쿠키로 학생을 확인한다.
+      // 선생님이 관리자 화면에서 정한 시간 중 하나를 고르고, 바꾸거나 취소할 때마다 학부모님·선생님께 문자가 간다.
+      const CLINIC_BOOK_URL = "/api/clinic-book";
+      let clinicState = null;
+      let clinicBusy = false;
+
+      async function loadClinicBooking() {
+        const card = document.getElementById("clinic-book-card");
+        try {
+          const res = await fetch(CLINIC_BOOK_URL, { method: "GET" });
+          if (!res.ok) { card.style.display = "none"; return; }
+          clinicState = await res.json();
+          renderClinicBooking();
+        } catch (e) {
+          card.style.display = "none";   // 신청 기능이 안 돼도 성적 화면은 그대로
+        }
+      }
+
+      function renderClinicBooking(msg, ok) {
+        const card = document.getElementById("clinic-book-card");
+        const body = document.getElementById("clinic-book-body");
+        const s = clinicState;
+        if (!s || !s.enabled) { card.style.display = "none"; return; }
+        card.style.display = "block";
+        const b = s.booking;
+        let html = "";
+        if (b) {
+          html += `<div class="cb-current">신청한 클리닉<br><b>${escapeHtml(b.label)}</b>${b.past ? " <span style=\"color:var(--gray);font-size:12px\">(시작했거나 지났어요)</span>" : ""}</div>`;
+        }
+        const slots = s.slots || [];
+        if (s.canChange && slots.length) {
+          html += `<div class="cb-label">${b ? "다른 시간으로 바꾸려면 고르세요" : "원하는 클리닉 시간을 골라 주세요"}</div>`;
+          html += `<div class="cb-slots">${slots.map((x, i) => {
+            const on = b && b.day === x.day && b.time === x.time;
+            return `<button type="button" class="cb-slot${on ? " on" : ""}" ${clinicBusy || on ? "disabled" : ""} onclick="pickClinicSlot(${i})">${escapeHtml(x.label)}</button>`;
+          }).join("")}</div>`;
+          if (b) html += `<button type="button" class="cb-cancel" ${clinicBusy ? "disabled" : ""} onclick="cancelClinicBooking()">클리닉 신청 취소</button>`;
+        } else if (!b) {
+          html += `<div class="cb-label">${s.week ? "지금 고를 수 있는 클리닉 시간이 없어요." : "이번 주 시험 주차가 아직 등록되지 않았어요. 잠시 뒤 다시 확인해 주세요."}</div>`;
+        } else if (!s.canChange) {
+          html += `<div class="cb-label">시작했거나 지난 클리닉은 바꿀 수 없어요. 필요하면 선생님께 직접 연락해 주세요.</div>`;
+        }
+        html += `<div class="cb-note">신청 · 시간 변경 · 취소를 하면 학부모님과 선생님께 문자로 알려드려요.<br>클리닉 전날 오후 6시에 안내 문자가 한 번 더 가요. 시간은 클리닉 시작 전까지 바꿀 수 있어요.</div>`;
+        if (msg) html += `<div class="cb-msg ${ok ? "ok" : "err"}">${escapeHtml(msg)}</div>`;
+        body.innerHTML = html;
+      }
+
+      async function clinicRequest(method, payload) {
+        clinicBusy = true;
+        renderClinicBooking("처리 중이에요...", true);
+        try {
+          const res = await fetch(CLINIC_BOOK_URL, {
+            method,
+            headers: { "Content-Type": "application/json" },
+            body: payload ? JSON.stringify(payload) : undefined,
+          });
+          const data = await res.json().catch(() => ({}));
+          clinicBusy = false;
+          if (res.status === 401) { renderClinicBooking("로그인이 만료됐어요. 다시 로그인해 주세요.", false); return null; }
+          if (!res.ok) { renderClinicBooking(data.message || "처리하지 못했어요. 잠시 후 다시 해 주세요.", false); return null; }
+          clinicState = data;
+          return data;
+        } catch (e) {
+          clinicBusy = false;
+          renderClinicBooking("연결이 원활하지 않아요. 잠시 후 다시 해 주세요.", false);
+          return null;
+        }
+      }
+
+      async function pickClinicSlot(i) {
+        const s = clinicState;
+        const x = s && (s.slots || [])[i];
+        if (!x || clinicBusy) return;
+        const before = s.booking ? s.booking.label : null;
+        const q = before
+          ? `클리닉 시간을 바꿀까요?\n${before} → ${x.label}\n\n학부모님과 선생님께 문자가 갑니다.`
+          : `${x.label} 클리닉을 신청할까요?\n\n학부모님과 선생님께 문자가 갑니다.`;
+        if (!confirm(q)) return;
+        const r = await clinicRequest("POST", { day: x.day, time: x.time });
+        if (r) renderClinicBooking(before ? `${x.label}(으)로 바꿨어요.` : `${x.label} 클리닉을 신청했어요.`, true);
+      }
+
+      async function cancelClinicBooking() {
+        const s = clinicState;
+        if (!s || !s.booking || clinicBusy) return;
+        if (!confirm(`${s.booking.label} 클리닉 신청을 취소할까요?\n\n학부모님과 선생님께 문자가 갑니다.`)) return;
+        const r = await clinicRequest("DELETE");
+        if (r) renderClinicBooking("클리닉 신청을 취소했어요.", true);
       }
 
       // 'M.D' → 정렬용 숫자(월*100+일).
@@ -1404,6 +1579,8 @@
         document.getElementById("chart-card").style.display = "none";
         document.getElementById("mock-score-section").style.display = "none";
         document.getElementById("mock-score-section").innerHTML = "";
+        document.getElementById("clinic-book-card").style.display = "none";
+        clinicState = null;
         document.getElementById("input-name").value = "";
         document.getElementById("input-pin").value = "";
         document.getElementById("error-msg").classList.remove("show");
