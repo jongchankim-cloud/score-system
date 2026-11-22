@@ -7,10 +7,11 @@
 //  POST   { day, time } (쿠키) → 신청(문자 없음) / 시간 변경 → 학부모(students.phone) · 선생님(설정 teacherPhone)께 문자
 //  DELETE (쿠키)               → 신청 취소 → 학부모 · 선생님께 문자
 //
-// 설정: app_settings key 'clinicBooking.v1' = { enabled, teacherPhone, slots: { '<탭>': [{ day:'토', time:'13:00' }] },
-//         templates: { change, cancel, remind } }  — 문자 문구(관리자 화면에서 고침, 비어 있으면 기본 문구)
-//   탭은 클리닉 배정표와 같다 — 반 이름에 '보성'이 들어가면 '보성여고', 나머지는 classes.grade.
-//   ★ admin.html clinicTabOf와 같은 규칙. 한쪽만 바꾸면 관리자가 정한 시간이 학생 화면에 안 뜬다.
+// 설정: app_settings key 'clinicBooking.v1' = { enabled, teacherPhone, hours: [{ day:'일', start:'10:00', end:'18:00' }],
+//         interval: 30|60, templates: { change, cancel, remind } }
+//   hours = 모든 학년 공통 운영 시간. 학생은 start부터 interval분마다, end(문 닫는 시각) 전까지의 시각 중 하나를 고른다.
+//   ★ admin.html cbRowTimes와 같은 규칙(관리자 화면이 '몇 개 열리는지'를 이 규칙으로 보여준다).
+//   templates = 문자 문구(관리자 화면에서 고침, 비어 있으면 기본 문구)
 // 클리닉 날짜: 그 반의 '이번 주' 주차(시험일이 오늘 이전인 가장 최근 주차)의 시험 다음 날부터 7일 안에서 그 요일.
 //   다음 시험 날에 지난주 클리닉이 아직 남아 있으면 그 시각이 지날 때까지 지난주를 '이번 주'로 본다.
 // 시간 변경·취소는 지금 신청한 클리닉이 시작하기 전까지만 된다. 바꾼 횟수가 MAX_CHANGES를 넘으면 막는다(문자 남용 방지).
@@ -143,9 +144,24 @@ function slotLabel(at: number): string {
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${k.getUTCMonth() + 1}/${k.getUTCDate()}(${DAYS[k.getUTCDay()]}) ${ampm} ${h12}:${mm}`;
 }
-function tabOf(cls: any): string {
-  if (cls && /보성/.test(cls.name || "")) return "보성여고";
-  return (cls && cls.grade) || "학년 미지정";
+// 운영 시간 → 고를 수 있는 { day, time } 목록 (겹치는 시각은 한 번만)
+function slotsFromHours(settings: any): { day: string; time: string }[] {
+  const interval = Number(settings.interval) === 60 ? 60 : 30;
+  const minutes = (t: string) => { const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(t || ""); return m ? parseInt(m[1]) * 60 + parseInt(m[2]) : null; };
+  const seen = new Set<string>();
+  const out: { day: string; time: string }[] = [];
+  for (const h of Array.isArray(settings.hours) ? settings.hours : []) {
+    if (!h || !DAYS.includes(h.day)) continue;
+    const a = minutes(h.start), b = minutes(h.end);
+    if (a === null || b === null) continue;
+    for (let t = a; t < b; t += interval) {
+      const time = `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+      if (seen.has(h.day + time)) continue;
+      seen.add(h.day + time);
+      out.push({ day: h.day, time });
+    }
+  }
+  return out;
 }
 
 // ── 문자 (send-sms와 같은 CoolSMS 호출) ──
@@ -209,15 +225,14 @@ async function loadContext(sid: number) {
     if (prev) { week = past[1].w; testDate = past[1].t; booking = prev; }
     else booking = rows.find((r: any) => r.week_id === week.id) || null;
   }
-  const tab = tabOf(cls);
-  const rawSlots: any[] = Array.isArray(settings.slots?.[tab]) ? settings.slots[tab] : [];
+  const rawSlots = slotsFromHours(settings);
   const slots = week && testDate !== null
     ? rawSlots.map((s) => ({ day: s.day, time: s.time, at: slotInstant(testDate as number, s.day, s.time) }))
         .filter((s) => s.at !== null && (s.at as number) > now)
         .sort((a, b) => (a.at as number) - (b.at as number))
         .map((s) => ({ ...s, label: slotLabel(s.at as number), at: new Date(s.at as number).toISOString() }))
     : [];
-  return { student, cls, tab, settings, enabled, week, testDate, slots, booking };
+  return { student, cls, settings, enabled, week, testDate, slots, booking };
 }
 
 function publicState(ctx: any) {

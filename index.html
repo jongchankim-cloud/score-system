@@ -75,14 +75,20 @@
       .cb-current b {
         font-size: 16px;
       }
+      .cb-day {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--navy);
+        margin: 14px 0 0;
+      }
       .cb-slots {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-        gap: 8px;
-        margin: 8px 0 4px;
+        grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+        gap: 6px;
+        margin: 6px 0 4px;
       }
       .cb-slot {
-        padding: 11px 8px;
+        padding: 9px 4px;
         border: 1.5px solid var(--border);
         border-radius: 10px;
         background: var(--white);
@@ -901,10 +907,20 @@
         const slots = s.slots || [];
         if (s.canChange && slots.length) {
           html += `<div class="cb-label">${b ? "다른 시간으로 바꾸려면 고르세요" : "원하는 클리닉 시간을 골라 주세요"}</div>`;
-          html += `<div class="cb-slots">${slots.map((x, i) => {
+          // 날짜별로 묶고 버튼에는 시각만 ('11/23(월) 오후 3:00' → 날짜 '11/23(월)' · 시각 '오후 3:00'). 서버가 시간순으로 준다.
+          const groups = [];
+          slots.forEach((x, i) => {
+            const sp = x.label.indexOf(" ");
+            const date = sp > 0 ? x.label.slice(0, sp) : x.label;
+            const time = sp > 0 ? x.label.slice(sp + 1) : x.label;
+            let g = groups[groups.length - 1];
+            if (!g || g.date !== date) groups.push((g = { date, items: [] }));
+            g.items.push({ x, i, time });
+          });
+          html += groups.map((g) => `<div class="cb-day">${escapeHtml(g.date)}</div><div class="cb-slots">${g.items.map(({ x, i, time }) => {
             const on = b && b.day === x.day && b.time === x.time;
-            return `<button type="button" class="cb-slot${on ? " on" : ""}" ${clinicBusy || on ? "disabled" : ""} onclick="pickClinicSlot(${i})">${escapeHtml(x.label)}</button>`;
-          }).join("")}</div>`;
+            return `<button type="button" class="cb-slot${on ? " on" : ""}" ${clinicBusy || on ? "disabled" : ""} onclick="pickClinicSlot(${i})">${escapeHtml(time)}</button>`;
+          }).join("")}</div>`).join("");
           if (b) html += `<button type="button" class="cb-cancel" ${clinicBusy ? "disabled" : ""} onclick="cancelClinicBooking()">클리닉 신청 취소</button>`;
         } else if (!b) {
           html += `<div class="cb-label">${s.week ? "지금 고를 수 있는 클리닉 시간이 없어요." : "이번 주 시험 주차가 아직 등록되지 않았어요. 잠시 뒤 다시 확인해 주세요."}</div>`;

@@ -248,9 +248,13 @@
   .clinic-booked { display:inline-block; margin-left:3px; padding:0 5px; border-radius:4px; background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; font-size:10.5px; font-weight:700; line-height:16px; vertical-align:middle; }
   .cb-group { border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-bottom:10px; }
   .cb-group h5 { font-size:13px; color:var(--navy); margin:0 0 8px; }
-  .cb-chip { display:inline-flex; align-items:center; gap:4px; background:var(--light-gray); border-radius:14px; padding:4px 6px 4px 11px; font-size:12.5px; color:var(--navy); margin:0 6px 6px 0; }
-  .cb-chip button { border:none; background:none; color:var(--gray); cursor:pointer; font-size:14px; line-height:1; padding:0 3px; }
-  .cb-chip button:hover { color:var(--red); }
+  .cb-hrow { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-bottom:6px; font-size:12.5px; color:var(--navy); }
+  .cb-hrow select, .cb-hrow input, .cb-add select { padding:6px 8px; border:1.5px solid var(--border); border-radius:6px; font-size:12.5px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); background:var(--white); outline:none; }
+  .cb-hrow > button { border:none; background:none; color:var(--gray); cursor:pointer; font-size:15px; line-height:1; padding:0 4px; }
+  .cb-hrow > button:hover { color:var(--red); }
+  .cb-hsum { font-size:12px; color:var(--gray); }
+  .cb-hsum.err { color:var(--red); font-weight:600; }
+  .cb-hours-total { font-size:12.5px; color:var(--navy); margin-top:8px; line-height:1.6; }
   .cb-add { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:4px; }
   .cb-tpl { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:6px 12px; padding:10px 0; border-top:1px dashed var(--border); }
   .cb-tpl:first-of-type { border-top:none; padding-top:2px; }
@@ -977,14 +981,14 @@
         </button>
       </div>
       <div class="section-body" id="cb-settings-body" style="display:none">
-        <p style="font-size:12px;color:var(--gray);margin:0 0 12px;line-height:1.7">학생이 성적 확인 화면에서 아래 시간 중 하나를 골라 클리닉을 신청합니다. 처음 신청할 때는 문자가 가지 않고, 시간 변경 · 취소 때 <strong>학부모님과 아래 번호로</strong> 문자가 가며, 클리닉 <strong>전날 오후 6시</strong>에 학생·학부모께 안내 문자가 갑니다. 문구는 맨 아래 '문자 문구'에서 고칠 수 있어요. 신청한 시간은 배정표에 <span class="clinic-booked">신청</span> 표시와 함께 들어가며, 메모에 적힌 요일·시간보다 우선합니다.</p>
+        <p style="font-size:12px;color:var(--gray);margin:0 0 12px;line-height:1.7">학생이 성적 확인 화면에서 아래 <strong>운영 시간 안의 시각</strong>(30분 또는 1시간 간격)을 하나 골라 클리닉을 신청합니다. 운영 시간은 모든 학년 공통이고, 한 번 정하면 매주 그대로 쓰입니다. 처음 신청할 때는 문자가 가지 않고, 시간 변경 · 취소 때 <strong>학부모님과 아래 번호로</strong> 문자가 가며, 클리닉 <strong>전날 오후 6시</strong>에 학생·학부모께 안내 문자가 갑니다. 문구는 맨 아래 '문자 문구'에서 고칠 수 있어요. 신청한 시간은 배정표에 <span class="clinic-booked">신청</span> 표시와 함께 들어가며, 메모에 적힌 요일·시간보다 우선합니다.</p>
         <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:var(--navy);margin-bottom:12px;cursor:pointer">
           <input type="checkbox" id="cb-enabled" style="width:17px;height:17px"> 학생 클리닉 신청 받기
         </label>
         <div class="form-row" style="margin-bottom:6px">
           <div class="form-group" style="max-width:260px"><label>알림 받을 선생님 번호</label><input type="text" id="cb-teacher" placeholder="01012345678" inputmode="numeric"></div>
         </div>
-        <div id="cb-slot-groups"></div>
+        <div class="cb-group" id="cb-hours"></div>
         <div class="cb-group" id="cb-templates"></div>
         <div style="display:flex;align-items:center;gap:10px;margin-top:12px">
           <button class="btn btn-primary btn-sm" onclick="saveClinicBookingSettings()">설정 저장</button>
@@ -3489,9 +3493,9 @@ function attrEsc(str) {
 }
 
 // ── 학생 클리닉 신청 설정 (2026-11) ─────────────────────────
-// app_settings 'clinicBooking.v1' = { enabled, teacherPhone, slots: { '<탭>': [{ day, time:'HH:MM' }] }, templates: { change, cancel, remind } }.
-// 탭은 배정표와 같은 clinicTabOf(반 이름 '보성' → 보성여고, 나머지는 학년). 학생 화면은 clinic-book 함수가 이 값을 읽는다
-// (★ supabase/functions/clinic-book/index.ts tabOf와 같은 규칙).
+// app_settings 'clinicBooking.v1' = { enabled, teacherPhone, hours: [{ day, start:'HH:MM', end:'HH:MM' }], interval: 30|60, templates: { change, cancel, remind } }.
+// 운영 시간은 모든 학년 공통(2026-11 운영 요청). 학생은 start부터 interval분마다, end(문 닫는 시각) 전까지의 시각 중 하나를 고른다.
+// 학생 화면은 clinic-book 함수가 이 값을 읽는다 (★ supabase/functions/clinic-book/index.ts slotsFromHours와 같은 규칙 — cbRowTimes).
 const CLINIC_BOOKING_KEY = 'clinicBooking.v1';
 const CB_DAYS = ['월', '화', '수', '목', '금', '토', '일'];
 let _cbSettings = null;   // 불러온 설정(화면에서 고친 값 포함) · null=아직 못 읽음
@@ -3508,12 +3512,19 @@ const CB_TEMPLATE_INFO = [
   { key: 'cancel', title: '신청을 취소했을 때', to: '학부모님 · 선생님', vars: ['이름', '반', '클리닉'], note: '{클리닉}은 취소한 시간', sample: { '클리닉': '11/29(토) 오후 1:00' } },
   { key: 'remind', title: '클리닉 전날 오후 6시', to: '학생 · 학부모님', vars: ['이름', '반', '클리닉'], sample: { '클리닉': '11/29(토) 오후 1:00' } }
 ];
-const _cbPick = {};       // 탭 → 마지막으로 고른 { day, time } — 같은 요일 시간을 연달아 넣기 쉽게 다시 그려도 유지
 
-function cbTabs() {
-  const order = [...new Set(classes.map(c => clinicTabOf(c)))];
-  Object.keys((_cbSettings && _cbSettings.slots) || {}).forEach(t => { if (!order.includes(t)) order.push(t); });
-  return order.sort();
+function cbMinutes(t) { const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(t || ''); return m ? (+m[1]) * 60 + (+m[2]) : null; }
+function cbHHMM(min) { return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`; }
+// 운영 시간 한 줄 → 학생이 고를 수 있는 시각들. 시작부터 간격마다, 끝 시각(문 닫는 시각) 전까지.
+// ★ clinic-book slotsFromHours와 같은 규칙
+function cbRowTimes(row, interval) {
+  const a = cbMinutes(row.start), b = cbMinutes(row.end), out = [];
+  if (a === null || b === null) return out;
+  for (let t = a; t < b; t += interval) out.push(cbHHMM(t));
+  return out;
+}
+function cbSortHours(rows) {
+  return rows.slice().sort((x, y) => (CB_DAYS.indexOf(x.day) - CB_DAYS.indexOf(y.day)) || String(x.start).localeCompare(String(y.start)));
 }
 
 function isClinicBookingSettingsOpen() { return document.getElementById('cb-settings-body').style.display !== 'none'; }
@@ -3535,12 +3546,15 @@ async function loadClinicBookingSettings() {
     const t = v.templates && v.templates[k];
     templates[k] = typeof t === 'string' && t.trim() ? t : CB_DEFAULT_TEMPLATES[k];
   });
-  _cbSettings = { enabled: v.enabled === true, teacherPhone: v.teacherPhone || '', slots: JSON.parse(JSON.stringify(v.slots || {})), templates };
+  const hours = (Array.isArray(v.hours) ? v.hours : [])
+    .filter(h => h && CB_DAYS.includes(h.day) && cbMinutes(h.start) !== null && cbMinutes(h.end) !== null)
+    .map(h => ({ day: h.day, start: h.start, end: h.end }));
+  _cbSettings = { enabled: v.enabled === true, teacherPhone: v.teacherPhone || '', hours: cbSortHours(hours), interval: v.interval === 60 ? 60 : 30, templates };
   st.textContent = _cbSettings.enabled ? '· 신청 받는 중' : '· 꺼져 있음';
   st.style.color = _cbSettings.enabled ? 'var(--green)' : 'var(--gray)';
   document.getElementById('cb-enabled').checked = _cbSettings.enabled;
   document.getElementById('cb-teacher').value = _cbSettings.teacherPhone;
-  renderClinicBookingSlots();
+  renderClinicBookingHours();
   renderClinicBookingTemplates();
 }
 
@@ -3601,39 +3615,83 @@ function resetClinicBookingTemplate(key) {
   onClinicBookingTemplateInput(key);
 }
 
-function renderClinicBookingSlots() {
-  const box = document.getElementById('cb-slot-groups');
+function renderClinicBookingHours() {
+  const box = document.getElementById('cb-hours');
   if (!_cbSettings) { box.innerHTML = ''; return; }
-  const dayIdx = d => CB_DAYS.indexOf(d);
-  box.innerHTML = cbTabs().map(tab => {
-    const list = (_cbSettings.slots[tab] || []).slice().sort((a, b) => (dayIdx(a.day) - dayIdx(b.day)) || a.time.localeCompare(b.time));
-    _cbSettings.slots[tab] = list;
-    const t = attrEsc(tab);
-    return `<div class="cb-group"><h5>${escapeHtml(tab)} <span style="font-weight:400;color:var(--gray);font-size:11.5px">${list.length ? `신청 가능 시간 ${list.length}개` : '시간이 없으면 이 학년 학생에게는 신청 칸이 안 보여요'}</span></h5>`
-      + `<div>${list.map((x, i) => `<span class="cb-chip">${escapeHtml(x.day)} ${escapeHtml(x.time)}<button type="button" title="빼기" onclick="removeClinicBookingSlot('${t}', ${i})">✕</button></span>`).join('')}</div>`
-      + `<div class="cb-add"><select id="cb-day-${t}">${CB_DAYS.map(d => `<option${(_cbPick[tab] || {}).day === d ? ' selected' : ''}>${d}</option>`).join('')}</select>`
-      + `<input type="time" id="cb-time-${t}" value="${attrEsc((_cbPick[tab] || {}).time || '13:00')}" step="600"><button class="btn btn-light btn-sm" onclick="addClinicBookingSlot('${t}')">＋ 시간 추가</button></div></div>`;
-  }).join('');
+  const iv = _cbSettings.interval;
+  const rows = _cbSettings.hours;
+  box.innerHTML = `<h5>운영 시간 <span style="font-weight:400;color:var(--gray);font-size:11.5px">— 모든 학년 공통. 끝 시각은 문 닫는 시각이라, 그 전까지의 시각을 고를 수 있어요</span></h5>`
+    + (rows.length ? rows.map((r, i) => `<div class="cb-hrow">`
+        + `<select onchange="onClinicBookingHoursInput(${i}, 'day', this.value)">${CB_DAYS.map(d => `<option${r.day === d ? ' selected' : ''}>${d}</option>`).join('')}</select>`
+        + `<input type="time" step="1800" value="${attrEsc(r.start)}" oninput="onClinicBookingHoursInput(${i}, 'start', this.value)"> ~ `
+        + `<input type="time" step="1800" value="${attrEsc(r.end)}" oninput="onClinicBookingHoursInput(${i}, 'end', this.value)">`
+        + `<span class="cb-hsum" id="cb-hsum-${i}"></span>`
+        + `<button type="button" title="이 줄 빼기" onclick="removeClinicBookingHours(${i})">✕</button></div>`).join('')
+      : '<div style="font-size:12px;color:var(--gray);margin-bottom:6px">아직 운영 시간이 없어요. 아래 버튼으로 요일별 시간을 넣어 주세요.</div>')
+    + `<div class="cb-add"><button class="btn btn-light btn-sm" onclick="addClinicBookingHours()">＋ 운영 시간 추가</button>`
+    + `<label style="font-size:12.5px;color:var(--navy);margin-left:6px">간격 <select id="cb-interval" onchange="onClinicBookingIntervalInput(this.value)"><option value="30"${iv === 30 ? ' selected' : ''}>30분</option><option value="60"${iv === 60 ? ' selected' : ''}>1시간</option></select></label></div>`
+    + `<div class="cb-hours-total" id="cb-hours-total"></div>`;
+  updateClinicBookingHoursSummary();
 }
 
-function addClinicBookingSlot(tab) {
+// 줄마다 '15:00 ~ 17:30 · 6개', 맨 아래 요일별 합계. 겹치는 시각은 한 번만 센다(서버도 한 번만 보여준다).
+function updateClinicBookingHoursSummary() {
   if (!_cbSettings) return;
-  const day = document.getElementById(`cb-day-${tab}`).value;
-  const time = document.getElementById(`cb-time-${tab}`).value;
-  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) { showToast('시간을 골라주세요.'); return; }
-  _cbPick[tab] = { day, time };
-  const list = _cbSettings.slots[tab] = _cbSettings.slots[tab] || [];
-  if (list.some(x => x.day === day && x.time === time)) { showToast('이미 있는 시간이에요.'); return; }
-  list.push({ day, time });
-  renderClinicBookingSlots();
-  document.getElementById('cb-save-status').textContent = '저장하지 않은 변경이 있어요';
+  const iv = _cbSettings.interval;
+  const perDay = {};
+  _cbSettings.hours.forEach((r, i) => {
+    const el = document.getElementById(`cb-hsum-${i}`);
+    const times = cbRowTimes(r, iv);
+    if (el) {
+      const bad = cbMinutes(r.start) === null || cbMinutes(r.end) === null ? '시각을 골라 주세요'
+        : !times.length ? '끝 시각이 시작보다 늦어야 해요' : '';
+      el.className = 'cb-hsum' + (bad ? ' err' : '');
+      el.textContent = bad || `${times[0]} ~ ${times[times.length - 1]} 중 고름 · ${times.length}개`;
+    }
+    (perDay[r.day] = perDay[r.day] || new Set());
+    times.forEach(t => perDay[r.day].add(t));
+  });
+  const days = CB_DAYS.filter(d => perDay[d] && perDay[d].size);
+  const total = days.reduce((n, d) => n + perDay[d].size, 0);
+  const el = document.getElementById('cb-hours-total');
+  if (el) el.innerHTML = total
+    ? `학생이 고를 수 있는 시각: 한 주에 <strong>${total}개</strong> (${days.map(d => `${d} ${perDay[d].size}`).join(' · ')}) — 매주 똑같이 열려요`
+    : '<span style="color:var(--gray)">아직 학생이 고를 수 있는 시각이 없어요.</span>';
 }
 
-function removeClinicBookingSlot(tab, i) {
-  if (!_cbSettings || !_cbSettings.slots[tab]) return;
-  _cbSettings.slots[tab].splice(i, 1);
-  renderClinicBookingSlots();
-  document.getElementById('cb-save-status').textContent = '저장하지 않은 변경이 있어요';
+function markClinicBookingDirty() { document.getElementById('cb-save-status').textContent = '저장하지 않은 변경이 있어요'; }
+
+function onClinicBookingHoursInput(i, field, value) {
+  if (!_cbSettings || !_cbSettings.hours[i]) return;
+  _cbSettings.hours[i][field] = value;
+  updateClinicBookingHoursSummary();
+  markClinicBookingDirty();
+}
+
+function onClinicBookingIntervalInput(value) {
+  if (!_cbSettings) return;
+  _cbSettings.interval = Number(value) === 60 ? 60 : 30;
+  updateClinicBookingHoursSummary();
+  markClinicBookingDirty();
+}
+
+// 새 줄: 마지막 줄의 시간을 그대로, 요일은 그다음 요일로 — 같은 시간대를 여러 요일에 넣기 쉽게
+function addClinicBookingHours() {
+  if (!_cbSettings) return;
+  const last = _cbSettings.hours[_cbSettings.hours.length - 1];
+  const row = last
+    ? { day: CB_DAYS[(CB_DAYS.indexOf(last.day) + 1) % CB_DAYS.length], start: last.start, end: last.end }
+    : { day: '월', start: '15:00', end: '18:00' };
+  _cbSettings.hours.push(row);
+  renderClinicBookingHours();
+  markClinicBookingDirty();
+}
+
+function removeClinicBookingHours(i) {
+  if (!_cbSettings) return;
+  _cbSettings.hours.splice(i, 1);
+  renderClinicBookingHours();
+  markClinicBookingDirty();
 }
 
 async function saveClinicBookingSettings() {
@@ -3642,25 +3700,29 @@ async function saveClinicBookingSettings() {
   const enabled = document.getElementById('cb-enabled').checked;
   const teacherPhone = document.getElementById('cb-teacher').value.replace(/[^0-9]/g, '');
   if (teacherPhone && !/^01\d{8,9}$/.test(teacherPhone)) { status.style.color = 'var(--red)'; status.textContent = '선생님 번호를 확인해주세요 (예: 01012345678).'; return; }
-  const slots = {};
-  Object.keys(_cbSettings.slots).forEach(t => { if (_cbSettings.slots[t].length) slots[t] = _cbSettings.slots[t]; });
+  const interval = _cbSettings.interval === 60 ? 60 : 30;
+  for (let i = 0; i < _cbSettings.hours.length; i++) {
+    const r = _cbSettings.hours[i];
+    if (!cbRowTimes(r, interval).length) { status.style.color = 'var(--red)'; status.textContent = `운영 시간 ${i + 1}번째 줄(${r.day})을 확인해주세요 — 끝 시각이 시작보다 늦어야 해요.`; return; }
+  }
+  const hours = cbSortHours(_cbSettings.hours).map(r => ({ day: r.day, start: r.start, end: r.end }));
   const templates = {};
   for (const t of CB_TEMPLATE_INFO) {
     const v = (_cbSettings.templates[t.key] || '').replace(/\r/g, '');
     if (!v.trim()) { status.style.color = 'var(--red)'; status.textContent = `'${t.title}' 문구가 비어 있어요. 비우려면 '기본 문구로'를 눌러주세요.`; return; }
     templates[t.key] = v;
   }
-  if (enabled && !Object.keys(slots).length && !confirm('신청 가능한 시간이 하나도 없어요. 이대로 켜면 학생 화면에 신청 칸이 보이지 않아요.\n그래도 저장할까요?')) return;
-  const value = { enabled, teacherPhone, slots, templates };
+  if (enabled && !hours.length && !confirm('운영 시간이 하나도 없어요. 이대로 켜면 학생 화면에 신청 칸이 보이지 않아요.\n그래도 저장할까요?')) return;
+  const value = { enabled, teacherPhone, hours, interval, templates };
   status.style.color = 'var(--gray)'; status.textContent = '저장 중…';
   const r = await apiReq('app_settings?on_conflict=key', 'POST', { key: CLINIC_BOOKING_KEY, value, updated_at: new Date().toISOString() }, 'resolution=merge-duplicates,return=minimal');
   if (!r.ok) { status.style.color = 'var(--red)'; status.textContent = `❌ 저장하지 못했어요 (${r.status || '연결 실패'})`; return; }
-  _cbSettings = { enabled, teacherPhone, slots: JSON.parse(JSON.stringify(slots)), templates: { ...templates } };
+  _cbSettings = { enabled, teacherPhone, hours: hours.map(r => ({ ...r })), interval, templates: { ...templates } };
   document.getElementById('cb-teacher').value = teacherPhone;
   const st = document.getElementById('cb-settings-state');
   st.textContent = enabled ? '· 신청 받는 중' : '· 꺼져 있음';
   st.style.color = enabled ? 'var(--green)' : 'var(--gray)';
-  renderClinicBookingSlots();
+  renderClinicBookingHours();
   status.style.color = 'var(--green)'; status.textContent = '저장됨 ✓ — 학생 화면에 바로 반영돼요';
 }
 
