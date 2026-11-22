@@ -367,6 +367,11 @@
   .mrep-preview-head { display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--navy); }
   .mrep-preview canvas { max-width:100%; height:auto; display:block; margin:8px auto 0; box-shadow:0 1px 4px rgba(0,0,0,.12); }
   /* 주차 시험지 (스캔 PDF, 2026-11) */
+  .cb-auto { font-size:13px; color:var(--navy); background:var(--cream); border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin:0 0 12px; }
+  .cb-auto label { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-weight:600; cursor:pointer; }
+  .cb-auto input[type=checkbox] { width:16px; height:16px; }
+  .cb-auto input[type=number] { width:58px; padding:4px 6px; border:1.5px solid var(--border); border-radius:6px; font-size:13px; font-family:inherit; color:var(--navy); }
+  .cb-auto-hint { font-size:11.5px; color:var(--gray); line-height:1.7; margin-top:6px; }
   .wt-crop { width:320px; border:1px solid var(--border); border-radius:3px; cursor:zoom-in; display:block; background:var(--white); }
   .wt-crop.empty { height:72px; }
   #week-test-box .btn:disabled { opacity:.45; cursor:not-allowed; }
@@ -1006,6 +1011,12 @@
         <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:var(--navy);margin-bottom:12px;cursor:pointer">
           <input type="checkbox" id="cb-enabled" style="width:17px;height:17px"> 학생 클리닉 신청 받기
         </label>
+        <div class="cb-auto">
+          <label><input type="checkbox" id="cb-auto-enabled" onchange="markClinicBookingDirty()"> 시험을 모두 통과하고 과제를
+            <input type="number" id="cb-auto-hw" min="0" max="100" step="1" inputmode="numeric" oninput="markClinicBookingDirty()">% 이상 한 학생은 클리닉 신청을 받지 않기</label>
+          <div class="cb-auto-hint">이미 신청해 둔 학생도 점수·과제%가 입력되면 10분 안에 <strong>자동 취소</strong>됩니다(문자 없음, 메모의 신청 시간 줄도 지움). 학생 화면에는 '이번 주는 클리닉이 없어요'로 보여요.<br>
+            커트가 있는 항목이 모두 커트 이상(재시험 통과 체크한 항목은 통과로 봄)이어야 하고, 점수가 빈 항목이 있으면 적용하지 않아요. '과제 없음' 주차는 과제 기준을 넘은 것으로 봅니다.</div>
+        </div>
         <div class="form-row" style="margin-bottom:6px">
           <div class="form-group" style="max-width:260px"><label>알림 받을 선생님 번호</label><input type="text" id="cb-teacher" placeholder="01012345678" inputmode="numeric"></div>
         </div>
@@ -3574,7 +3585,8 @@ function attrEsc(str) {
 }
 
 // ── 학생 클리닉 신청 설정 (2026-11) ─────────────────────────
-// app_settings 'clinicBooking.v1' = { enabled, teacherPhone, hours: [{ day, start:'HH:MM', end:'HH:MM' }], interval: 30|60, templates: { change, cancel, remind } }.
+// app_settings 'clinicBooking.v1' = { enabled, teacherPhone, hours: [{ day, start:'HH:MM', end:'HH:MM' }], interval: 30|60, templates: { change, cancel, remind },
+//   autoCancel: { enabled, hwMin } }. autoCancel = 시험 모두 통과 + 과제 hwMin% 이상이면 신청 안 받고 자동 취소(clinic-book isExempt). 값이 없으면 켜짐 · 90.
 // 운영 시간은 모든 학년 공통(2026-11 운영 요청). 학생은 start부터 interval분마다, end(문 닫는 시각) 전까지의 시각 중 하나를 고른다.
 // 학생 화면은 clinic-book 함수가 이 값을 읽는다 (★ supabase/functions/clinic-book/index.ts slotsFromHours와 같은 규칙 — cbRowTimes).
 const CLINIC_BOOKING_KEY = 'clinicBooking.v1';
@@ -3608,6 +3620,13 @@ function cbSortHours(rows) {
   return rows.slice().sort((x, y) => (CB_DAYS.indexOf(x.day) - CB_DAYS.indexOf(y.day)) || String(x.start).localeCompare(String(y.start)));
 }
 
+// ★ clinic-book autoCancelOf와 같은 기본값 — 값이 없으면 켜짐 · 90%
+function cbAutoCancelOf(v) {
+  const a = (v && v.autoCancel) || {};
+  const hw = Number(a.hwMin);
+  return { enabled: a.enabled !== false, hwMin: a.hwMin !== undefined && a.hwMin !== null && a.hwMin !== '' && Number.isFinite(hw) && hw >= 0 && hw <= 100 ? hw : 90 };
+}
+
 function isClinicBookingSettingsOpen() { return document.getElementById('cb-settings-body').style.display !== 'none'; }
 
 function toggleClinicBookingSettings(force) {
@@ -3630,7 +3649,9 @@ async function loadClinicBookingSettings() {
   const hours = (Array.isArray(v.hours) ? v.hours : [])
     .filter(h => h && CB_DAYS.includes(h.day) && cbMinutes(h.start) !== null && cbMinutes(h.end) !== null)
     .map(h => ({ day: h.day, start: h.start, end: h.end }));
-  _cbSettings = { enabled: v.enabled === true, teacherPhone: v.teacherPhone || '', hours: cbSortHours(hours), interval: v.interval === 60 ? 60 : 30, templates };
+  _cbSettings = { enabled: v.enabled === true, teacherPhone: v.teacherPhone || '', hours: cbSortHours(hours), interval: v.interval === 60 ? 60 : 30, templates, autoCancel: cbAutoCancelOf(v) };
+  document.getElementById('cb-auto-enabled').checked = _cbSettings.autoCancel.enabled;
+  document.getElementById('cb-auto-hw').value = _cbSettings.autoCancel.hwMin;
   st.textContent = _cbSettings.enabled ? '· 신청 받는 중' : '· 꺼져 있음';
   st.style.color = _cbSettings.enabled ? 'var(--green)' : 'var(--gray)';
   document.getElementById('cb-enabled').checked = _cbSettings.enabled;
@@ -3793,12 +3814,16 @@ async function saveClinicBookingSettings() {
     if (!v.trim()) { status.style.color = 'var(--red)'; status.textContent = `'${t.title}' 문구가 비어 있어요. 비우려면 '기본 문구로'를 눌러주세요.`; return; }
     templates[t.key] = v;
   }
+  const hwText = document.getElementById('cb-auto-hw').value.trim();
+  const hwMin = Number(hwText);
+  if (!/^\d{1,3}$/.test(hwText) || hwMin > 100) { status.style.color = 'var(--red)'; status.textContent = '과제 기준(%)은 0~100 사이 숫자로 적어주세요.'; return; }
+  const autoCancel = { enabled: document.getElementById('cb-auto-enabled').checked, hwMin };
   if (enabled && !hours.length && !confirm('운영 시간이 하나도 없어요. 이대로 켜면 학생 화면에 신청 칸이 보이지 않아요.\n그래도 저장할까요?')) return;
-  const value = { enabled, teacherPhone, hours, interval, templates };
+  const value = { enabled, teacherPhone, hours, interval, templates, autoCancel };
   status.style.color = 'var(--gray)'; status.textContent = '저장 중…';
   const r = await apiReq('app_settings?on_conflict=key', 'POST', { key: CLINIC_BOOKING_KEY, value, updated_at: new Date().toISOString() }, 'resolution=merge-duplicates,return=minimal');
   if (!r.ok) { status.style.color = 'var(--red)'; status.textContent = `❌ 저장하지 못했어요 (${r.status || '연결 실패'})`; return; }
-  _cbSettings = { enabled, teacherPhone, hours: hours.map(r => ({ ...r })), interval, templates: { ...templates } };
+  _cbSettings = { enabled, teacherPhone, hours: hours.map(r => ({ ...r })), interval, templates: { ...templates }, autoCancel: { ...autoCancel } };
   document.getElementById('cb-teacher').value = teacherPhone;
   const st = document.getElementById('cb-settings-state');
   st.textContent = enabled ? '· 신청 받는 중' : '· 꺼져 있음';

@@ -110,6 +110,7 @@
 - `clinic_bookings`: `id, student_id, week_id(→weeks CASCADE), clinic_day('월'~'일'), clinic_time('HH:MM'), clinic_at(timestamptz), status(booked|cancelled), change_count, reminded_at, created_at, updated_at`, `unique(student_id, week_id)`.
   학생 쪽은 Supabase 함수 `clinic-book`(세션 쿠키, 문자 발송, 그 주 `scores.clinic_memo`에 '일요일 3시' 한 줄 관리(직전 신청 줄을 찾아 바꿈) — 점수 행이 없으면 만들지 않음: scores 기본값이 점수 0·출석 true), 전날 안내는 `clinic-remind`(pg_cron 매일 09:00 UTC = 18:00 KST, reminded_at으로 한 번만). 관리자 배정표·문자가 읽는다(admin-api v18).
 - 신청 설정은 `app_settings` key `clinicBooking.v1` = `{ enabled, teacherPhone, hours: [{ day, start:'HH:MM', end:'HH:MM' }], interval: 30|60, templates: { change, cancel, remind } }` — hours는 모든 학년 공통 운영 시간(학생은 start부터 interval분마다 end 전까지의 시각을 고름, clinic-book `slotsFromHours` ★ admin `cbRowTimes`와 같은 규칙) — templates는 문자 문구(칸 `{이름}` `{반}` `{클리닉}` `{이전 클리닉}`), 없거나 비면 함수의 기본 문구.
+- 클리닉 필요 없음 자동 취소(2026-11-22, `supabase/clinic-autocancel.sql`): 설정 `autoCancel: { enabled, hwMin }`(없으면 켜짐·90). clinic-book `isExempt` — 그 주 커트 있는 사용 항목이 모두 커트 이상(또는 retest_pass true, 빈 점수 있으면 아님) + (`no_homework` 또는 `homework_rate` ≥ hwMin)이면 신청 막음(POST 409 `not_needed`)·앞으로 있을 신청 취소(문자 없음, 메모 신청 줄 지움 `cancelForPass`). 신청 뒤 점수가 들어오면 pg_cron 'clinic-pass-sweep'(10분마다 POST `clinic-book?sweep=1` → `sweepPassed`)이 정리, clinic-remind도 안내 전에 정리를 부른다. ★ 항목 규칙은 admin `normalizeItemConfig`·`itemVal`·`isBelowCut`과 같아야 함(clinic-book `cutItems`·`itemScore`).
 
 ## item_config JSON 규약
 
