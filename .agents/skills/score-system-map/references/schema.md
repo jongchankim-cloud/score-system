@@ -66,7 +66,7 @@
 - `counsel_notes`: `id, student_id, counsel_date(date), target(학부모·학생·기타), method(전화·대면·문자·기타), author(선생님·평일 조교·주말 조교), content, created_at, updated_at`. 관리자 학생 상세 화면에서만 쓴다(admin-api v18).
 - `clinic_bookings`: `id, student_id, week_id(→weeks CASCADE), clinic_day('월'~'일'), clinic_time('HH:MM'), clinic_at(timestamptz), status(booked|cancelled), change_count, reminded_at, created_at, updated_at`, `unique(student_id, week_id)`.
   학생 쪽은 Supabase 함수 `clinic-book`(세션 쿠키, 문자 발송), 전날 안내는 `clinic-remind`(pg_cron 매일 09:00 UTC = 18:00 KST, reminded_at으로 한 번만). 관리자 배정표·문자가 읽는다(admin-api v18).
-- 신청 설정은 `app_settings` key `clinicBooking.v1` = `{ enabled, teacherPhone, slots: { '<배정표 탭>': [{ day, time }] } }`.
+- 신청 설정은 `app_settings` key `clinicBooking.v1` = `{ enabled, teacherPhone, slots: { '<배정표 탭>': [{ day, time }] }, templates: { change, cancel, remind } }` — templates는 문자 문구(칸 `{이름}` `{반}` `{클리닉}` `{이전 클리닉}`), 없거나 비면 함수의 기본 문구.
 
 ## item_config JSON 규약
 

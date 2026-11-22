@@ -29,7 +29,7 @@ Supabase Edge Function 3개. **소스는 이 레포에 없다** — 호출 계�
 | 함수 | 사용처 | 역할 |
 |------|--------|------|
 | `admin-api` | admin.html 전체 | 비밀번호 검증 후 PostgREST를 service_role로 대행 |
-| `send-sms` | admin.html 문자 탭 4종 | `{ messages: [...] }` 전송 |
+| `send-sms` | admin.html 문자 3경로(클리닉 메모 창·성적 문자·전체 공지) — 모두 `postSms` | `{ password, messages: [...] }` — 관리자 비밀번호가 맞아야 보냄(2026-11). 소스는 .gitignore 대상(옛 비밀키 보호) |
 | `parent-login` | index.html | 이름+PIN 검증 후 학생 데이터 **묶음 전체**를 한 번에 반환 |
 
 `index.html`은 `admin-api`를 쓰지 않는다. 학부모 화면이 보는 모든 데이터는 `parent-login`의 응답 하나에서 나온다.

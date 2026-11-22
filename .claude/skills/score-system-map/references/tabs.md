@@ -16,7 +16,7 @@
 | 조교 메모 | `tab-memo` | 670~ | 3847~3910 | `addMemo` 3872 · `loadMemos` 3883 · `deleteMemo` 3905 |
 | 성적 문자 발송 | `tab-score-sms` | 701~ | 2956~3210 | `loadScoreSmsTargets` 3054 · `composeScoreSms` 3102 · `sendScoreSms` 3183 · 템플릿 설정 2984~3037 · **문자 종류 전환(2026-11)** `pickScoreSmsKind`: 성적 문자 / 전체 공지(`#tab-score-sms.notice-mode`로 `.score-only`/`.notice-only` 표시 전환). 전체 공지 = `notice-class`(전체 반 포함, CLASS_SELECT_IDS 밖, `fillNoticeClassSelect`) → `loadNoticeTargets` → `renderNoticeList`·`composeNoticeSms`({이름}{반}{주차}{클리닉}) · `pickNoticeClinicMissed`(배정표와 같은 기준 주차에서 `clinicExpectedOf` && !clinic_attend만 체크) · `sendNoticeSms`. 문구는 localStorage `noticeSms.v1` |
 | 변경 이력 · 되돌리기 | `tab-history` | 배정표 탭 뒤 | `// ── 변경 이력` 블록 | `loadHistory` · `restoreHistoryEntry` · `restoreHistoryUpTo` — `data_history`(읽기 전용) 조회, 되돌리기는 scores PATCH/POST |
-| 클리닉 배정표 | `tab-clinic-schedule` | 성적 문자 탭 뒤 | `// ── 클리닉 배정표` 블록 | `loadClinicSchedule` · `parseClinicMemo` · 학년 탭 `clinicTabOf`(반 이름에 '보성' → '보성여고' 탭, 나머지는 classes.grade. 주차 뒤처짐 판정은 실제 학년끼리) · 출석 체크 `toggleClinicAttend`(scores.clinic_attend, 한 주에 한 번) · `clinicExpectedOf`(배정표 대상 판정, 전체 공지 '클리닉 미참석만 선택'에 공유) · 이름 클릭 메모 창 `openClinicMemoEdit`/`saveClinicMemoEdit` — 최근 4주 점수 표(`loadClinicMemoRetest`: 맨 윗줄=기준 주차 전 항목 입력칸+커트 미달 칸 밑 재시험 체크, 아래 3주는 보기만) · 바뀐 칸만 저장(`collectClinicMemoScores`·`collectClinicMemoRetest`, 지우면 확인, 저장 직전 재조회로 충돌 확인, 저장 시 `syncScoreTabCells`로 점수 입력 탭 같은 주차 줄도 맞춤) · **학생 클리닉 신청(2026-11)**: 신청(clinic_bookings, status=booked)이 있으면 `clinicBookingMemo`로 메모 대신 그 시간에 배치·`신청` 배지(점수 행 없는 신청은 이름만) · 메모 창에 신청 표시(`#clinic-memo-booking`) · 문자 {클리닉}=신청 시간(`clinicBookingLabel`) · 탭 맨 아래 '학생 클리닉 신청 설정' 카드(`toggleClinicBookingSettings`/`saveClinicBookingSettings`, app_settings `clinicBooking.v1` = { enabled, teacherPhone, slots: { 탭: [{day,time}] } }) |
+| 클리닉 배정표 | `tab-clinic-schedule` | 성적 문자 탭 뒤 | `// ── 클리닉 배정표` 블록 | `loadClinicSchedule` · `parseClinicMemo` · 학년 탭 `clinicTabOf`(반 이름에 '보성' → '보성여고' 탭, 나머지는 classes.grade. 주차 뒤처짐 판정은 실제 학년끼리) · 출석 체크 `toggleClinicAttend`(scores.clinic_attend, 한 주에 한 번) · `clinicExpectedOf`(배정표 대상 판정, 전체 공지 '클리닉 미참석만 선택'에 공유) · 이름 클릭 메모 창 `openClinicMemoEdit`/`saveClinicMemoEdit` — 최근 4주 점수 표(`loadClinicMemoRetest`: 맨 윗줄=기준 주차 전 항목 입력칸+커트 미달 칸 밑 재시험 체크, 아래 3주는 보기만) · 바뀐 칸만 저장(`collectClinicMemoScores`·`collectClinicMemoRetest`, 지우면 확인, 저장 직전 재조회로 충돌 확인, 저장 시 `syncScoreTabCells`로 점수 입력 탭 같은 주차 줄도 맞춤) · **학생 클리닉 신청(2026-11)**: 신청(clinic_bookings, status=booked)이 있으면 `clinicBookingMemo`로 메모 대신 그 시간에 배치·`신청` 배지(점수 행 없는 신청은 이름만) · 메모 창에 신청 표시(`#clinic-memo-booking`) · 문자 {클리닉}=신청 시간(`clinicBookingLabel`) · 탭 맨 아래 '학생 클리닉 신청 설정' 카드(`toggleClinicBookingSettings`/`saveClinicBookingSettings`, app_settings `clinicBooking.v1` = { enabled, teacherPhone, slots: { 탭: [{day,time}] }, templates: { change, cancel, remind } }) · 문자 문구 칸 3개 `renderClinicBookingTemplates`(미리보기 `previewClinicBookingTemplate`, 칸 버튼 `insertClinicBookingVar`, `resetClinicBookingTemplate`, 기본 문구 `CB_DEFAULT_TEMPLATES` ★ clinic-book·clinic-remind 기본 문구와 같아야 함). 처음 신청은 문자 없음, 변경·취소는 학부모+선생님 |
 
 ## 탭 추가 시 손대야 하는 5곳
 
@@ -35,7 +35,7 @@
 ```
 반 선택 → load{X}Weeks() → 주차 선택 → load{X}Targets() → 체크박스 목록 렌더
                                                         → toggleAll{X}() 전체선택
-                                                        → send{X}Sms() → SMS_FUNCTION_URL POST { messages }
+                                                        → send{X}Sms() → postSms(messages) → SMS_FUNCTION_URL POST { password: adminPassword, messages }
 ```
 
 - 수신처는 `students.phone`(학부모) / `students.student_phone`(학생) 중 선택. `_scoreSmsRecipient`(성적 문자·전체 공지 공용), `_clinicMemoSmsRecipient`(클리닉 메모 창) 전역이 이를 보관한다.
@@ -62,4 +62,4 @@ result-section ── showResult()
 
 ## 학생 화면(index.html) 클리닉 신청 (2026-11)
 
-`showResult` 끝에서 `loadClinicBooking` → `/api/clinic-book`(vercel.json rewrite → Supabase 함수 `clinic-book`, 세션 쿠키). `renderClinicBooking` · `pickClinicSlot`(POST {day,time}) · `cancelClinicBooking`(DELETE). 서버가 학부모·선생님께 문자. 전날 안내는 `clinic-remind`(pg_cron 'clinic-remind', 매일 18:00 KST). 설정이 꺼져 있으면 카드가 안 보인다.
+`showResult` 끝에서 `loadClinicBooking` → `/api/clinic-book`(vercel.json rewrite → Supabase 함수 `clinic-book`, 세션 쿠키). `renderClinicBooking` · `pickClinicSlot`(POST {day,time}) · `cancelClinicBooking`(DELETE). 서버가 문자: 처음 신청은 없음, 변경·취소는 학부모·선생님(문구는 설정 templates, 칸 {이름}{반}{클리닉}{이전 클리닉}). 전날 안내는 `clinic-remind`(pg_cron 'clinic-remind', 매일 18:00 KST). 설정이 꺼져 있으면 카드가 안 보인다.
