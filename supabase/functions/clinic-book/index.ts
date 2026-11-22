@@ -7,12 +7,17 @@
 //  POST   { day, time } (쿠키) → 신청(문자 없음) / 시간 변경 → 학부모(students.phone) · 선생님(설정 teacherPhone)께 문자
 //  DELETE (쿠키)               → 신청 취소 → 학부모 · 선생님께 문자
 //  신청 · 변경 · 취소 때 그 주 클리닉 메모(scores.clinic_memo)에도 '일요일 3시'처럼 한 줄로 맞춘다(syncClinicMemo).
+//  POST ?sweep=1 (쿠키 없음)   → 정리: 앞으로 있을 신청 중 '클리닉 필요 없음'이 된 학생 것을 취소 (DB 예약 작업이 10분마다, clinic-remind가 안내 전에 부른다)
+//
+// 클리닉 필요 없음(2026-11-22 운영 요청): 그 주 시험을 모두 통과하고 과제를 기준(기본 90%) 이상 한 학생은 신청을 받지 않고,
+//   이미 신청했으면(점수가 나중에 입력된 경우) 자동 취소한다. 문자는 보내지 않고 메모의 신청 시간 줄만 지운다. isExempt 참고.
 //
 // 설정: app_settings key 'clinicBooking.v1' = { enabled, teacherPhone, hours: [{ day:'일', start:'10:00', end:'18:00' }],
 //         interval: 30|60, templates: { change, cancel, remind } }
 //   hours = 모든 학년 공통 운영 시간. 학생은 start부터 interval분마다, end(문 닫는 시각) 전까지의 시각 중 하나를 고른다.
 //   ★ admin.html cbRowTimes와 같은 규칙(관리자 화면이 '몇 개 열리는지'를 이 규칙으로 보여준다).
 //   templates = 문자 문구(관리자 화면에서 고침, 비어 있으면 기본 문구)
+//   autoCancel = { enabled, hwMin } — 클리닉 필요 없음 자동 취소(값이 없으면 켜짐 · 90%)
 // 클리닉 날짜: 그 반의 '이번 주' 주차(시험일이 오늘 이전인 가장 최근 주차)의 시험 다음 날부터 7일 안에서 그 요일.
 //   다음 시험 날에 지난주 클리닉이 아직 남아 있으면 그 시각이 지날 때까지 지난주를 '이번 주'로 본다.
 // 시간 변경·취소는 지금 신청한 클리닉이 시작하기 전까지만 된다. 바꾼 횟수가 MAX_CHANGES를 넘으면 막는다(문자 남용 방지).
@@ -44,6 +49,69 @@ function templateOf(settings: any, kind: string): string {
 }
 function fillTemplate(tpl: string, vals: Record<string, string>): string {
   return Object.entries(vals).reduce((s, [k, v]) => s.split(`{${k}}`).join(v), tpl);
+}
+
+// ── 클리닉 필요 없음 판정 (2026-11-22) ──
+// 그 주 시험을 모두 통과 = 커트가 있는 사용 항목이 하나 이상이고, 그 항목마다 점수가 커트 이상이거나 '재시험 통과' 체크됨.
+//   (점수가 비어 있는 항목이 있으면 아직 모르는 것으로 보고 통과로 치지 않는다. 커트가 없는 주차는 판정하지 않는다)
+// 과제 = '과제 없음' 주차이거나 과제%가 기준(hwMin) 이상. 과제%가 비어 있으면 통과로 치지 않는다.
+// ★ 항목 읽는 규칙은 admin.html normalizeItemConfig · itemVal · isBelowCut과 같아야 한다(고정 4칸 + item_scores의 추가 항목).
+const DEFAULT_HW_MIN = 90;
+const FIXED_ITEMS = [
+  { key: "word_score", active: true }, { key: "reading_score", active: true },
+  { key: "mc_score", active: true }, { key: "item4_score", active: false },
+];
+const PASS_COLS = "word_score,reading_score,mc_score,item4_score,item_scores,retest_pass,homework_rate,no_homework";
+function autoCancelOf(settings: any): { enabled: boolean; hwMin: number } {
+  const a = settings?.autoCancel || {};
+  const hw = Number(a.hwMin);
+  return { enabled: a.enabled !== false, hwMin: a.hwMin !== undefined && a.hwMin !== null && a.hwMin !== "" && Number.isFinite(hw) && hw >= 0 && hw <= 100 ? hw : DEFAULT_HW_MIN };
+}
+// 사용 중이고 커트가 있는 항목 [{ key, cut }]
+function cutItems(itemConfig: any): { key: string; cut: number }[] {
+  const items = itemConfig && Array.isArray(itemConfig.items) ? itemConfig.items : null;
+  if (!items) return [];   // 항목 설정이 없는 주차는 기본값(커트 없음)
+  const out: { key: string; cut: number }[] = [];
+  const seen = new Set<string>();
+  const take = (src: any, key: string, defActive: boolean) => {
+    const active = src.active === undefined ? defActive : !!src.active;
+    const cut = src.cut === undefined || src.cut === null || src.cut === "" ? null : parseFloat(src.cut);
+    if (active && cut !== null && !isNaN(cut)) out.push({ key, cut });
+  };
+  for (const def of FIXED_ITEMS) {
+    seen.add(def.key);
+    const src = items.find((it: any) => it && it.key === def.key);
+    if (src) take(src, def.key, def.active);
+  }
+  for (const src of items) {
+    if (!src || typeof src.key !== "string" || !src.key || seen.has(src.key)) continue;
+    seen.add(src.key);
+    take(src, src.key, true);
+  }
+  return out;
+}
+function itemScore(row: any, key: string): unknown {
+  const bag = row.item_scores;
+  if (bag && bag[key] !== undefined) return bag[key];
+  return row[key];
+}
+function isExempt(itemConfig: any, row: any, hwMin: number): boolean {
+  if (!row) return false;
+  const items = cutItems(itemConfig);
+  if (!items.length) return false;
+  const pass = row.retest_pass || {};
+  for (const it of items) {
+    if (pass[it.key] === true) continue;
+    const raw = itemScore(row, it.key);
+    if (raw === null || raw === undefined || raw === "") return false;
+    const v = parseFloat(String(raw));
+    if (isNaN(v) || v < it.cut) return false;
+  }
+  if (row.no_homework === true) return true;
+  const hw = row.homework_rate;
+  if (hw === null || hw === undefined || hw === "") return false;
+  const h = parseFloat(String(hw));
+  return !isNaN(h) && h >= hwMin;
 }
 
 const CORS = {
@@ -202,7 +270,7 @@ async function loadContext(sid: number) {
   const cls = student.classes || {};
   const [setR, wkR] = await Promise.all([
     rest(`app_settings?key=eq.${encodeURIComponent(SETTING_KEY)}&select=value`),
-    rest(`weeks?class_id=eq.${student.class_id}&select=id,label,test_date,created_at`),
+    rest(`weeks?class_id=eq.${student.class_id}&select=id,label,test_date,created_at,item_config`),
   ]);
   const settings = Array.isArray(setR.data) && setR.data[0] ? (setR.data[0].value || {}) : {};
   const enabled = settings.enabled === true;
@@ -239,15 +307,78 @@ async function loadContext(sid: number) {
 function publicState(ctx: any) {
   const b = ctx.booking && ctx.booking.status === "booked" ? ctx.booking : null;
   const bAt = b ? Date.parse(b.clinic_at) : null;
+  // 클리닉 필요 없음이면 고를 시간을 내려보내지 않는다. 취소된(자동이든 학생이든) 앞으로의 신청이 있으면 그 시간을 알려 준다.
+  const gone = ctx.exempt && ctx.booking && ctx.booking.status === "cancelled" && Date.parse(ctx.booking.clinic_at) > Date.now()
+    ? slotLabel(Date.parse(ctx.booking.clinic_at)) : null;
   return {
     enabled: ctx.enabled,
     student: { name: ctx.student.name, class_name: ctx.cls.name || "" },
     week: ctx.week ? { id: ctx.week.id, label: ctx.week.label || ctx.week.test_date || "" } : null,
-    slots: ctx.enabled ? ctx.slots : [],
+    slots: ctx.enabled && !ctx.exempt ? ctx.slots : [],
     booking: b ? { day: b.clinic_day, time: b.clinic_time, at: b.clinic_at, label: slotLabel(bAt as number), past: (bAt as number) <= Date.now() } : null,
-    canChange: !!(ctx.enabled && (!b || (bAt as number) > Date.now())),
+    canChange: !!(ctx.enabled && !ctx.exempt && (!b || (bAt as number) > Date.now())),
     changesLeft: Math.max(0, MAX_CHANGES - (ctx.booking ? ctx.booking.change_count || 0 : 0)),
+    exempt: ctx.exempt ? { hwMin: ctx.hwMin } : null,
+    cancelledLabel: gone,
+    autoCancelled: !!ctx.autoCancelled,
   };
+}
+
+// 클리닉 필요 없음 → 앞으로 있을 신청을 취소(문자 없음)하고 메모의 신청 시간 줄을 지운다.
+// 읽은 뒤 학생이 시간을 바꿨으면(clinic_at이 달라짐) 건드리지 않는다 — 다음 정리 때 다시 본다.
+async function cancelForPass(b: any): Promise<any | null> {
+  const r = await rest(`clinic_bookings?id=eq.${b.id}&status=eq.booked&clinic_at=eq.${encodeURIComponent(b.clinic_at)}`, {
+    method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify({ status: "cancelled", reminded_at: null }),
+  });
+  if (r.status >= 400 || !Array.isArray(r.data) || !r.data.length) return null;
+  const memo = await syncClinicMemo(b.student_id, b.week_id, memoLine(b.clinic_day, b.clinic_time), null);
+  console.log("클리닉 자동 취소(모두 통과) | 신청", b.id, "| 학생", b.student_id, "| 주차", b.week_id, "| 메모", memo);
+  return r.data[0];
+}
+
+// 이 학생의 '이번 주'가 클리닉 필요 없음인지 보고, 그렇다면 앞으로 있을 신청을 취소한다
+async function applyAutoCancel(ctx: any, sid: number) {
+  const ac = autoCancelOf(ctx.settings);
+  ctx.hwMin = ac.hwMin;
+  ctx.exempt = false;
+  if (!ac.enabled || !ctx.week || !cutItems(ctx.week.item_config).length) return;
+  const r = await rest(`scores?student_id=eq.${sid}&week_id=eq.${ctx.week.id}&select=${PASS_COLS}&order=id.asc&limit=1`);
+  const row = Array.isArray(r.data) ? r.data[0] : null;
+  ctx.exempt = isExempt(ctx.week.item_config, row, ac.hwMin);
+  const b = ctx.booking;
+  if (ctx.exempt && b && b.status === "booked" && b.week_id === ctx.week.id && Date.parse(b.clinic_at) > Date.now()) {
+    const c = await cancelForPass(b);
+    if (c) { ctx.booking = c; ctx.autoCancelled = true; }
+  }
+}
+
+// 정리: 앞으로 있을 모든 신청 중 클리닉 필요 없음이 된 것을 취소한다(점수·과제%가 신청 뒤에 입력된 경우)
+async function sweepPassed() {
+  const setR = await rest(`app_settings?key=eq.${encodeURIComponent(SETTING_KEY)}&select=value`);
+  if (setR.status >= 400) return { error: "settings_failed" };
+  const settings = Array.isArray(setR.data) && setR.data[0] ? (setR.data[0].value || {}) : {};
+  const ac = autoCancelOf(settings);
+  if (!ac.enabled) return { enabled: false, checked: 0, cancelled: 0 };
+  const bk = await rest(`clinic_bookings?status=eq.booked&clinic_at=gt.${encodeURIComponent(new Date(Date.now()).toISOString())}&select=id,student_id,week_id,clinic_day,clinic_time,clinic_at`);
+  if (bk.status >= 400 || !Array.isArray(bk.data)) return { error: "bookings_failed" };
+  if (!bk.data.length) return { enabled: true, checked: 0, cancelled: 0 };
+  const weekIds = [...new Set(bk.data.map((b: any) => b.week_id))];
+  const sids = [...new Set(bk.data.map((b: any) => b.student_id))];
+  const [wk, sc] = await Promise.all([
+    rest(`weeks?id=in.(${weekIds.join(",")})&select=id,item_config`),
+    rest(`scores?week_id=in.(${weekIds.join(",")})&student_id=in.(${sids.join(",")})&select=id,student_id,week_id,${PASS_COLS}&order=id.asc`),
+  ]);
+  if (wk.status >= 400 || sc.status >= 400 || !Array.isArray(wk.data) || !Array.isArray(sc.data)) return { error: "read_failed" };
+  const cfg: Record<number, any> = {};
+  wk.data.forEach((w: any) => { cfg[w.id] = w.item_config; });
+  const rowOf: Record<string, any> = {};
+  sc.data.forEach((r: any) => { const k = `${r.student_id}:${r.week_id}`; if (!rowOf[k]) rowOf[k] = r; });
+  let cancelled = 0;
+  for (const b of bk.data) {
+    if (!isExempt(cfg[b.week_id], rowOf[`${b.student_id}:${b.week_id}`], ac.hwMin)) continue;
+    if (await cancelForPass(b)) cancelled++;
+  }
+  return { enabled: true, checked: bk.data.length, cancelled };
 }
 
 // ── 클리닉 메모(scores.clinic_memo)에 신청 시간 한 줄 (2026-11 운영 요청) ──
@@ -314,16 +445,31 @@ async function notify(ctx: any, kind: "new" | "change" | "cancel", label: string
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  // 정리 호출(DB 예약 작업 · clinic-remind). 쿠키 없이 누가 불러도 규칙에 맞는 신청만 취소하므로 해가 없다.
+  if (new URL(req.url).searchParams.has("sweep")) {
+    if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
+    try {
+      const out: any = await sweepPassed();
+      return json(out, out.error ? 502 : 200);
+    } catch (e) {
+      console.log("clinic-book 정리 오류:", String(e));
+      return json({ error: "server_error" }, 500);
+    }
+  }
   const sid = await sessionStudentId(req);
   if (!sid) return json({ error: "session_expired" }, 401);
   try {
     const ctx: any = await loadContext(sid);
     if (ctx.error) return json({ error: ctx.error }, 401);
+    await applyAutoCancel(ctx, sid);
 
     if (req.method === "GET") return json(publicState(ctx));
 
     if (!ctx.enabled) return json({ error: "closed", message: "지금은 클리닉 신청을 받지 않아요." }, 403);
     if (!ctx.week) return json({ error: "no_week", message: "이번 주 시험 주차가 아직 등록되지 않았어요." }, 409);
+    if (ctx.exempt && req.method === "POST") {
+      return json({ ...publicState(ctx), error: "not_needed", message: `이번 주는 시험을 모두 통과하고 과제도 ${ctx.hwMin}% 이상 해서 클리닉 신청이 필요 없어요.` }, 409);
+    }
     const cur = ctx.booking && ctx.booking.status === "booked" ? ctx.booking : null;
     const curAt = cur ? Date.parse(cur.clinic_at) : null;
     if (cur && (curAt as number) <= Date.now()) {

@@ -7,6 +7,8 @@
 // 학생이 시간을 바꾸면 clinic-book이 reminded_at을 비우므로, 바뀐 시간이 내일이면 다시 안내된다.
 // 아무나 불러도 해가 없게: KST 17시 전에는 아무것도 하지 않는다(내일 안내를 너무 일찍 보내지 않게).
 // 문구: 관리자 화면 '학생 클리닉 신청 설정'에서 고친 문구(app_settings 'clinicBooking.v1'.templates.remind), 비어 있으면 기본 문구.
+// 안내 전에 clinic-book 정리(?sweep=1)를 먼저 불러, 시험을 모두 통과하고 과제 기준을 넘은 학생의 신청은 취소해 둔다
+// (그 학생에게 안내가 가지 않게. 정리가 실패해도 안내는 그대로 보낸다).
 // 필요한 환경변수(프로젝트 공용): SB_URL, SB_SERVICE_ROLE, COOLSMS_API_KEY, COOLSMS_API_SECRET, SENDER_PHONE
 
 const SUPABASE_URL = Deno.env.get("SB_URL")!;
@@ -83,6 +85,11 @@ Deno.serve(async (_req) => {
   const todayK = Date.UTC(nowK.getUTCFullYear(), nowK.getUTCMonth(), nowK.getUTCDate());
   const from = new Date(todayK + DAY_MS - KST).toISOString();       // 내일 0시(KST)
   const to = new Date(todayK + 2 * DAY_MS - KST).toISOString();     // 모레 0시(KST)
+  try {
+    await fetch(`${SUPABASE_URL}/functions/v1/clinic-book?sweep=1`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}", signal: AbortSignal.timeout(20000),
+    });
+  } catch (e) { console.log("클리닉 정리 호출 실패(안내는 계속):", String(e)); }
   const stamp = new Date().toISOString();
   // 내일 클리닉 중 아직 안내하지 않은 것을 맡는다 — 이 PATCH가 돌려준 행만 보낸다(두 번 불려도 한 번만 간다)
   const claim = await rest(
