@@ -15,6 +15,9 @@
 //     조회·추가·수정·삭제한다. 스키마: supabase/school-grades.sql. 다른 동작은 v16과 같다.
 // v18 (2026-11-21): counsel_notes(상담 기록) · clinic_bookings(학생 클리닉 신청) 허용 목록 추가.
 //     스키마: supabase/counsel-and-clinic.sql. 학생 쪽 신청은 clinic-book 함수가 따로 처리한다.
+// v19 (2026-11-22): 주차 시험지(학생별 스캔 PDF) — 같은 보관함에 w{weeks.id}/{students.id}.pdf 경로를 허용하고,
+//     storage list에 week_ids, remove에 week_id를 받는다(결과 키는 'w{id}'). 모의고사 경로·동작은 그대로.
+//     스키마: supabase/week-tests.sql (weeks.report_published).
 
 const SUPABASE_URL = Deno.env.get("SB_URL")!;
 const SERVICE_ROLE = Deno.env.get("SB_SERVICE_ROLE")!;
@@ -37,7 +40,7 @@ const READ_ONLY_TABLES = new Set(["data_history"]);
 
 // 모의고사 분석지 보관함 (v16)
 const REPORT_BUCKET = "mock-reports";
-const REPORT_PATH_RE = /^\d+\/\d+\.pdf$/;
+const REPORT_PATH_RE = /^w?\d+\/\d+\.pdf$/;   // {시험id}/{학생id}.pdf · w{주차id}/{학생id}.pdf (v19)
 const REPORT_PREVIEW_SEC = 300; // 관리자 미리보기 링크 유효 시간
 
 const CORS = {
@@ -84,10 +87,11 @@ async function storageFetch(sub: string, init: RequestInit): Promise<{ status: n
   return { status: res.status, data };
 }
 
-async function listExamReports(examId: number) {
+// folder: 모의고사는 '시험id', 주차 시험지는 'w주차id' (v19)
+async function listExamReports(folder: number | string) {
   const r = await storageFetch(`object/list/${REPORT_BUCKET}`, {
     method: "POST", headers: storageHeaders,
-    body: JSON.stringify({ prefix: String(examId), limit: 1000, offset: 0, sortBy: { column: "name", order: "asc" } }),
+    body: JSON.stringify({ prefix: String(folder), limit: 1000, offset: 0, sortBy: { column: "name", order: "asc" } }),
   });
   if (r.status >= 400 || !Array.isArray(r.data)) return r;
   const files = r.data
@@ -104,15 +108,17 @@ async function handleStorage(s: any): Promise<Response> {
   const op = s?.op;
   const badPath = (p: unknown) => typeof p !== "string" || !REPORT_PATH_RE.test(p);
 
-  // 시험 여러 개의 업로드 현황 { "<examId>": [{student_id, updated_at, size}] }
+  // 시험(또는 주차) 여러 개의 업로드 현황 { "<examId>" | "w<weekId>": [{student_id, updated_at, size}] }
   if (op === "list") {
     const ids = Array.isArray(s.exam_ids) ? s.exam_ids.map(Number).filter((n: number) => Number.isInteger(n) && n > 0) : [];
-    if (!ids.length || ids.length > 50) return jres({ error: "bad_exam_ids" }, 400);
+    const wids = Array.isArray(s.week_ids) ? s.week_ids.map(Number).filter((n: number) => Number.isInteger(n) && n > 0) : [];
+    const folders = [...ids.map(String), ...wids.map((n: number) => `w${n}`)];
+    if (!folders.length || folders.length > 50) return jres({ error: "bad_exam_ids" }, 400);
     const out: Record<string, unknown> = {};
-    for (const id of ids) {
-      const r = await listExamReports(id);
+    for (const f of folders) {
+      const r = await listExamReports(f);
       if (r.status >= 400) return jres({ error: "storage_error", detail: r.data }, r.status);
-      out[id] = r.data;
+      out[f] = r.data;
     }
     return jres({ files: out });
   }
@@ -138,15 +144,17 @@ async function handleStorage(s: any): Promise<Response> {
     return jres({ url: `${SUPABASE_URL}/storage/v1${signed}` });
   }
 
-  // 파일 삭제 (paths 지정) 또는 시험 하나의 분석지 전부 삭제 (exam_id)
+  // 파일 삭제 (paths 지정) 또는 시험(exam_id)·주차(week_id, v19) 하나의 파일 전부 삭제
   if (op === "remove") {
     let paths: string[] = [];
-    if (s.exam_id !== undefined) {
-      const id = Number(s.exam_id);
+    if (s.exam_id !== undefined || s.week_id !== undefined) {
+      const isWeek = s.week_id !== undefined;
+      const id = Number(isWeek ? s.week_id : s.exam_id);
       if (!Number.isInteger(id) || id <= 0) return jres({ error: "bad_exam_id" }, 400);
-      const r = await listExamReports(id);
+      const folder = isWeek ? `w${id}` : String(id);
+      const r = await listExamReports(folder);
       if (r.status >= 400) return jres({ error: "storage_error", detail: r.data }, r.status);
-      paths = (r.data as any[]).map((f) => `${id}/${f.student_id}.pdf`);
+      paths = (r.data as any[]).map((f) => `${folder}/${f.student_id}.pdf`);
     } else {
       if (!Array.isArray(s.paths) || !s.paths.length || s.paths.length > 500 || s.paths.some(badPath)) {
         return jres({ error: "bad_path" }, 400);

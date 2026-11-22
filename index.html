@@ -1378,14 +1378,15 @@
 
       // 링크는 누를 때마다 새로 받는다 (5분 뒤 만료 — 문자·카톡으로 퍼져도 곧 열리지 않게).
       // 새 창을 먼저 열어 두고 주소를 나중에 넣어야 휴대폰 사파리의 팝업 차단에 걸리지 않는다.
-      async function openMockReport(examId, btn) {
-        const msg = document.getElementById("mock-report-msg");
+      // report: 모의고사는 시험 id, 주차 시험지는 'w주차id' (parent-login GET ?report=)
+      async function openReportLink(report, btn, msgId, what) {
+        const msg = document.getElementById(msgId);
         if (msg) msg.textContent = "";
         if (btn) btn.disabled = true;
         const w = window.open("", "_blank");
         try {
           const res = await fetch(
-            `${PARENT_LOGIN_URL}?report=${encodeURIComponent(examId)}`,
+            `${PARENT_LOGIN_URL}?report=${encodeURIComponent(report)}`,
             { method: "GET" },
           );
           const data = res.ok ? await res.json() : null;
@@ -1396,10 +1397,27 @@
           if (w) w.close();
           if (msg)
             msg.textContent =
-              "분석지를 열지 못했습니다. 잠시 후 다시 시도해 주세요.";
+              `${what}를 열지 못했습니다. 잠시 후 다시 시도해 주세요.`;
         } finally {
           if (btn) btn.disabled = false;
         }
+      }
+
+      function openMockReport(examId, btn) {
+        return openReportLink(String(examId), btn, "mock-report-msg", "분석지");
+      }
+
+      // ── 주차 시험지 (학생별 스캔 PDF, 2026-11-22) ──
+      // parent-login이 '학부모에게 공개'된 이 반 주차 중 이 학생 파일이 있는 주차 id만 weekReports로 보낸다.
+      // 서버가 아직 이 값을 안 보내면(배포 전) 버튼이 생기지 않는다.
+      function weekReportButtonHtml(weekId) {
+        if (!(Array.isArray(loginData?.weekReports) && loginData.weekReports.includes(weekId))) return "";
+        return `<button class="btn btn-primary" style="margin-top:14px" onclick="openWeekReport(${weekId}, this)">📄 시험지 보기</button>
+        <div class="mock-report-msg" id="week-report-msg"></div>`;
+      }
+
+      function openWeekReport(weekId, btn) {
+        return openReportLink(`w${weekId}`, btn, "week-report-msg", "시험지");
       }
 
       function renderChart() {
@@ -1625,6 +1643,7 @@
           </div>`
           }
           ${noticeHtml}
+          ${weekReportButtonHtml(weekId)}
         </div>
       </div>`;
         } catch (e) {
