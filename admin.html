@@ -1107,7 +1107,7 @@
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-primary" style="flex:1" onclick="saveClinicMemoEdit()">저장</button>
-      <button class="btn" style="flex:1;background:var(--light-gray);color:var(--navy)" onclick="closeClinicMemoModal()">취소</button>
+      <button class="btn" style="flex:1;background:var(--light-gray);color:var(--navy)" onclick="requestCloseClinicMemoModal()">취소</button>
     </div>
    </div>
    <!-- 클리닉 미참석(등원 확인) 안내 문자를 이 학생 한 명에게 보낸다 -->
@@ -2003,6 +2003,7 @@ async function loadScoreInputs() {
   memoEl.dataset.weekId = weekId;
 
   currentItemConfig = normalizeItemConfig(weekData?.[0]?.item_config);
+  _itemCfgAdopted.week = null;
   currentWeekGroupId = weekData?.[0]?.group_id || null;
   renderItemConfigEditor();
   toggleGroupEdit('week', false);  // 주차가 바뀌면 편집 중이던 그룹 선택은 닫는다
@@ -2094,6 +2095,55 @@ function removeItemConfigRow(btn) {
   renderItemConfigEditor();
 }
 
+// ── 그룹 안 다른 반의 항목 설정으로 맞추기 (2026-11) ──
+// '항목 구성이 다른 반' 경고 옆 버튼. 그 반 주차(시험)의 항목·만점을 편집 칸으로 가져온다 — 저장은 하지 않는다
+// (확인 후 [항목 설정 저장]을 눌러야 그룹에 적용). 저장 방향을 헷갈려 맞는 반 설정을 덮어쓰는 일을 막는다.
+// 커트는 반마다 다를 수 있으므로 이 반에 저장돼 있던 같은 칸(key와 이름이 같은 항목)의 커트는 지키고,
+// 이 반에 없던 칸(또는 항목 설정을 한 번도 저장하지 않은 새 주차)은 그 반 커트를 그대로 받는다.
+const _itemCfgAdopted = { week: null, mock: null };   // 불러왔지만 아직 저장하지 않은 반 이름
+const _groupCfgRows = { week: [], mock: [] };          // 경고를 그릴 때 쓴 그룹 행 — 버튼이 고른 행을 찾는다
+
+function adoptedItemConfig(fromCfg, selfSavedItems, defaults) {
+  const mine = {};
+  (selfSavedItems || []).forEach(it => { if (it && it.key) mine[it.key] = it; });
+  return normalizeItemConfig(fromCfg, defaults).map(it => {
+    const m = mine[it.key];
+    if (!m || String(m.label ?? '').trim() !== String(it.label ?? '').trim()) return { ...it };
+    return { ...it, cut: (m.cut === undefined || m.cut === null || m.cut === '') ? null : parseFloat(m.cut) };
+  });
+}
+
+// 경고 밑 버튼들 — 같은 설정을 쓰는 반은 하나로
+function groupAdoptButtons(kind, rows, sig) {
+  const seen = new Set();
+  return rows.filter(r => { const k = sig(r.item_config); if (seen.has(k)) return false; seen.add(k); return true; })
+    .map(r => {
+      const name = classes.find(c => c.id === r.class_id)?.name || `반 #${r.class_id}`;
+      return `<button type="button" class="btn btn-light btn-sm" style="margin:6px 6px 0 0" onclick="adoptGroupItemConfig('${kind}', ${r.id})">${escapeHtml(name)} 설정으로 맞추기</button>`;
+    }).join('');
+}
+
+function adoptGroupItemConfig(kind, rowId) {
+  const isMock = kind === 'mock';
+  const rows = _groupCfgRows[kind] || [];
+  const from = rows.find(r => r.id === rowId);
+  if (!from) return;
+  const selfId = parseInt(document.getElementById(isMock ? 'mock-score-exam' : 'score-week').value);
+  const self = rows.find(r => r.id === selfId);
+  const selfSaved = self && self.item_config && Array.isArray(self.item_config.items) ? self.item_config.items : null;
+  const cfg = adoptedItemConfig(from.item_config, selfSaved, isMock ? DEFAULT_MOCK_ITEM_CONFIG : DEFAULT_ITEM_CONFIG);
+  const name = classes.find(c => c.id === from.class_id)?.name || `반 #${from.class_id}`;
+  _itemCfgAdopted[kind] = name;
+  if (isMock) { currentMockItemConfig = cfg; renderMockItemConfigEditor(); refreshMockGroupInfo(); }
+  else { currentItemConfig = cfg; renderItemConfigEditor(); refreshGroupInfo(); }
+  showToast(`📋 ${name} 항목 설정을 불러왔어요. 확인 후 [항목 설정 저장]을 눌러야 적용돼요.`, 4000);
+}
+
+function adoptedNoteHtml(kind) {
+  const name = _itemCfgAdopted[kind];
+  return name ? `<br><span class="warn">📋 ${escapeHtml(name)} 항목 설정을 편집 칸에 불러왔어요 — 아직 저장 전입니다. 확인 후 [항목 설정 저장]을 눌러야 이 그룹에 적용돼요.</span>` : '';
+}
+
 // ── 비교 그룹 평균 (학부모 화면에 보이는 값과 같은 기준) ──
 // 학부모 화면(index.html)은 group_id가 같은 주차 전체의 점수를 모아
 // "현재 주차의 항목 설정"으로 총점을 계산한다. 여기서도 같은 방식으로 계산해
@@ -2135,8 +2185,10 @@ async function refreshGroupInfo() {
     // (활성 항목과 만점이 다르면 학부모 화면에서 총점 기준이 어긋난다)
     const sig = cfg => normalizeItemConfig(cfg).filter(it => it.active).map(it => `${it.key}:${it.max}`).join('|');
     const mySig = currentItemConfig.filter(it => it.active).map(it => `${it.key}:${it.max}`).join('|');
-    const mismatched = currentGroupWeeks.filter(w => sig(w.item_config) !== mySig)
-      .map(w => classes.find(c => c.id === w.class_id)?.name || `반 #${w.class_id}`);
+    // 지금 보는 주차는 빼고 본다 — 편집 칸에서 고친 것(아직 저장 전)은 '다른 반'이 아니다
+    const mismatchedRows = currentGroupWeeks.filter(w => w.id !== weekId && sig(w.item_config) !== mySig);
+    const mismatched = mismatchedRows.map(w => classes.find(c => c.id === w.class_id)?.name || `반 #${w.class_id}`);
+    _groupCfgRows.week = currentGroupWeeks;
 
     let html = `비교 그룹 <strong>${currentGroupWeeks.length}개 반</strong> (${escapeHtml(classNames.join(', '))})<br>`
       + `그룹 평균 <strong>${avg === null ? '–' : avg + '점'}</strong>`
@@ -2150,8 +2202,11 @@ async function refreshGroupInfo() {
     }
     if (mismatched.length) {
       html += `<br><span class="warn">⚠️ 항목 구성(활성 항목·만점)이 다른 반: ${escapeHtml(mismatched.join(', '))}`
-        + ` — [항목 설정 저장]을 누르면 그룹 전체의 항목·만점이 현재 설정으로 통일됩니다.</span>`;
+        + ` — [항목 설정 저장]을 누르면 그룹 전체의 항목·만점이 <strong>지금 이 반 설정</strong>으로 통일됩니다.`
+        + ` 다른 반 설정이 맞다면 아래 버튼으로 불러온 뒤 저장하세요.</span><br>`
+        + groupAdoptButtons('week', mismatchedRows, sig);
     }
+    html += adoptedNoteHtml('week');
     el.innerHTML = html;
   } catch (e) {
     el.innerHTML = '<span class="warn">비교 그룹 평균을 불러오지 못했습니다.</span>';
@@ -2417,6 +2472,7 @@ async function saveItemConfig() {
     const failed = results.filter(r => !r.ok).length;
     if (failed) { showToast(`❌ 항목 설정 저장 실패 (${failed}개 반)`); refreshGroupInfo(); return; }
     currentItemConfig = normalizeItemConfig({ items });
+    _itemCfgAdopted.week = null;
     renderItemConfigEditor();
     // 캐시된 점수 위에 입력 중이던 값 병합 후 재렌더 (미저장 점수 유지)
     const base = scoreCache[weekId] ? JSON.parse(JSON.stringify(scoreCache[weekId])) : {};
@@ -4063,12 +4119,36 @@ function closeClinicMemoModal() {
   _clinicHwSeq++;      // 과제 조회도 마찬가지
 }
 
+// 창을 열 때와 달라진 내용이 있는지 — 메모 · 이번 주 점수 · 재시험 통과 · 과제 (저장 안 하고 닫을 때 묻기용, 2026-11).
+// 아직 불러오지 못한 구역은 손댈 수 없었으므로 '변경 없음'으로 본다. 문자 문구는 저장 대상이 아니라 보지 않는다.
+function clinicMemoHasUnsavedChanges() {
+  const row = _clinicMemoRows[_clinicMemoEditId];
+  if (!row) return false;
+  if (document.getElementById('clinic-memo-modal-text').value.trim() !== (row.memo || '').trim()) return true;
+  if (_clinicRetestLoaded) {
+    if (clinicRetestKey(collectClinicMemoRetest(_clinicRetestLoaded.pass)) !== clinicRetestKey(_clinicRetestLoaded.pass)) return true;
+    const sc = collectClinicMemoScores();
+    if (!sc || Object.keys(sc).length) return true;   // 숫자가 아닌 값을 넣은 것도 고친 것
+  }
+  if (_clinicHwLoaded) {
+    if (normClinicHwRate(document.getElementById('clinic-memo-hw-rate').value.trim()) !== _clinicHwLoaded.shownRate) return true;
+    if (document.getElementById('clinic-memo-hw-eval').value.trim() !== String(_clinicHwLoaded.shownEval ?? '').trim()) return true;
+  }
+  return false;
+}
+
+// 취소 버튼 · Esc처럼 사람이 닫을 때 — 저장하지 않은 내용이 있으면 한 번 묻는다
+function requestCloseClinicMemoModal() {
+  if (clinicMemoHasUnsavedChanges() && !confirm('저장하지 않은 내용이 있어요.\n저장하지 않고 닫을까요?')) return;
+  closeClinicMemoModal();
+}
+
 // Esc로 메모 창을 닫는다 (취소 버튼과 같은 동작)
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (document.getElementById('guest-modal')?.style.display === 'flex') { closeGuestModal(); return; }
   if (document.getElementById('clinic-memo-modal').style.display === 'none') return;
-  closeClinicMemoModal();
+  requestCloseClinicMemoModal();
 });
 
 // ── 메모 수정 창의 '최근 4주 점수 · 재시험 통과' 구역 ─────────────────────
@@ -6234,6 +6314,7 @@ async function loadMockScoreInputs() {
   const examRow = await api(`mock_exams?id=eq.${examId}&select=item_config,group_id`);
   if (seq !== _mockLoadSeq) return;
   currentMockItemConfig = normalizeItemConfig(examRow?.[0]?.item_config, DEFAULT_MOCK_ITEM_CONFIG);
+  _itemCfgAdopted.mock = null;
   currentMockGroupId = examRow?.[0]?.group_id || null;
   renderMockItemConfigEditor();
   toggleGroupEdit('mock', false);  // 시험이 바뀌면 편집 중이던 그룹 선택은 닫는다
@@ -6355,6 +6436,7 @@ async function saveMockItemConfig() {
     const failed = results.filter(r => !r.ok).length;
     if (failed) { showToast(`❌ 항목 설정 저장 실패 (${failed}개 반)`); refreshMockGroupInfo(); return; }
     currentMockItemConfig = normalizeItemConfig({ items }, DEFAULT_MOCK_ITEM_CONFIG);
+    _itemCfgAdopted.mock = null;
     renderMockItemConfigEditor();
     const base = mockScoreCache[examId] ? JSON.parse(JSON.stringify(mockScoreCache[examId])) : {};
     Object.keys(preserved).forEach(sid => { base[sid] = { ...(base[sid] || {}), ...preserved[sid] }; });
@@ -6414,8 +6496,9 @@ async function refreshMockGroupInfo() {
 
     const sig = cfg => normalizeItemConfig(cfg, DEFAULT_MOCK_ITEM_CONFIG).filter(it => it.active).map(it => `${it.key}:${it.max}`).join('|');
     const mySig = currentMockItemConfig.filter(it => it.active).map(it => `${it.key}:${it.max}`).join('|');
-    const mismatched = currentMockGroupExams.filter(e => sig(e.item_config) !== mySig)
-      .map(e => classes.find(c => c.id === e.class_id)?.name || `반 #${e.class_id}`);
+    const mismatchedRows = currentMockGroupExams.filter(e => e.id !== examId && sig(e.item_config) !== mySig);
+    const mismatched = mismatchedRows.map(e => classes.find(c => c.id === e.class_id)?.name || `반 #${e.class_id}`);
+    _groupCfgRows.mock = currentMockGroupExams;
 
     let html = `비교 그룹 <strong>${currentMockGroupExams.length}개 반</strong> (${escapeHtml(classNames.join(', '))})<br>`
       + `그룹 평균 <strong>${avg === null ? '–' : avg + '점'}</strong>`
@@ -6429,8 +6512,11 @@ async function refreshMockGroupInfo() {
     }
     if (mismatched.length) {
       html += `<br><span class="warn">⚠️ 항목 구성(활성 항목·만점)이 다른 반: ${escapeHtml(mismatched.join(', '))}`
-        + ` — [항목 설정 저장]을 누르면 그룹 전체의 항목·만점이 현재 설정으로 통일됩니다.</span>`;
+        + ` — [항목 설정 저장]을 누르면 그룹 전체의 항목·만점이 <strong>지금 이 반 설정</strong>으로 통일됩니다.`
+        + ` 다른 반 설정이 맞다면 아래 버튼으로 불러온 뒤 저장하세요.</span><br>`
+        + groupAdoptButtons('mock', mismatchedRows, sig);
     }
+    html += adoptedNoteHtml('mock');
     el.innerHTML = html;
   } catch (e) {
     el.innerHTML = '<span class="warn">비교 그룹 평균을 불러오지 못했습니다.</span>';
