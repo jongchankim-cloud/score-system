@@ -65,6 +65,13 @@
   `weekReports`(주차 id 목록)로 알려 주고 `GET ?report=w<주차id>`로 5분짜리 링크를 준다. `deleteWeek`는 그 주차 파일도 지운다(실패 무시).
 - 스캔 쪽 → 학생 맞추기는 Edge Function `name-reader`(supabase/functions/name-reader, verify_jwt true, 관리자 비밀번호 확인): 쪽 윗부분 사진 ≤10장 + 반 명단 `{id,name}`을 Gemini(`GEMINI_API_KEY`, counsel-draft와 같은 키)에 보내 `{page, read, student_id|null, confidence}`를 돌려준다. 명단 밖 번호는 버리고 빠진 쪽은 low. DB에는 아무것도 쓰지 않는다.
 
+## 주차 채점 결과 글 (2026-11-22, `supabase/week-results.sql`)
+`week_results`: `id(serial), week_id → weeks ON DELETE CASCADE, student_id → students ON DELETE CASCADE, kind('vocab'|'omr'), data jsonb, created_at, updated_at`, unique(week_id, student_id, kind).
+- `vocab` = GPT 단어·해석 채점 결과(`{v, title, words:[{no, mark O|X, word, answer, blank, correct, reason}], sentences:[{no, source, answer, blank, percent, score, max, reason, correct}], score:{word, wordMax, sentence, sentenceMax, total, totalMax}}`),
+  `omr` = 학생별 기입 답안(`{v, title, notes, sections:[{label, type mc|fill|write, score, max, items}], total}` — mc `{no, mine, correct, ok}`, fill `{no, score, max, entries:[{num, answer, blank, ok?}], key:[{num, answer}]}`, write `{no, score, max, answer, blank, correct, note}`). 모양은 admin.html `wrVocabData`/`wrOmrData`가 만들고 index.html이 그대로 그린다.
+- admin-api **v21**부터 허용 목록. RLS 켜짐 · anon/authenticated 권한 없음. UPDATE/DELETE는 `log_row_history`로 `data_history`에 남는다.
+- 학부모 공개는 주차 시험지와 같은 `weeks.report_published`. parent-login이 공개된 본인 반 주차 중 결과가 있는 것을 `weekResults`(`{주차id: ['vocab','omr']}`)로 알려 주고 `GET ?result=w<주차id>`로 `{results:{vocab?, omr?}}`를 준다(같은 반·공개·본인만).
+
 ## mock_scores
 `id, exam_id, student_id, item1_score~item4_score, score, absent, memo, retest_pass`
 - `score`는 **레거시 총점 컬럼이지만 계속 채운다.** 학부모 화면이 항목 컬럼 없이도 총점·평균을 계산할 수 있게 하기 위함(L3605 주석). 항목 점수를 저장할 때 합계를 반드시 `score`에도 넣을 것.

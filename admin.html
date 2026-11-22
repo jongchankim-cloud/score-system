@@ -389,6 +389,22 @@
   .wt-other-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
   .wt-confirm { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; color:var(--navy); background:var(--cream); border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin:8px 0; }
   .wt-confirm label { display:flex; align-items:center; gap:6px; cursor:pointer; }
+  /* 채점 결과 글 (GPT, 2026-11) */
+  #wr-box { margin-top:14px; }
+  #wr-box .btn:disabled { opacity:.45; cursor:not-allowed; }
+  .wr-text { width:100%; box-sizing:border-box; min-height:84px; padding:8px 10px; border:1.5px solid var(--border); border-radius:8px; font-size:12.5px; font-family:inherit; color:var(--navy); resize:vertical; }
+  .wr-input-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:6px; }
+  .wr-review { margin-top:10px; border:1px solid var(--border); border-radius:10px; padding:10px 12px; background:var(--white); }
+  .wr-map { display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; font-size:12.5px; color:var(--navy); background:var(--cream); border-radius:8px; padding:8px 10px; margin:8px 0 6px; }
+  .wr-map select, .wr-table select, .wr-q select { padding:4px 6px; border:1.5px solid var(--border); border-radius:6px; font-size:12.5px; font-family:inherit; color:var(--navy); }
+  .wr-table td { vertical-align:top; font-size:12.5px; }
+  .wr-card { border:1.5px solid var(--orange); border-radius:8px; padding:8px 12px; margin:10px 0; font-size:12.5px; color:var(--navy); }
+  .wr-card-head { margin-bottom:4px; }
+  .wr-q { border-top:1px dashed var(--border); padding:8px 0 4px; line-height:1.6; }
+  .wr-q-text { white-space:pre-line; margin-top:2px; }
+  .wr-q-ctl { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin-top:4px; }
+  .wr-q-ctl label { display:flex; align-items:center; gap:4px; cursor:pointer; }
+  .wr-q-ctl input[type=text] { flex:1; min-width:200px; padding:4px 8px; border:1.5px solid var(--border); border-radius:6px; font-size:12.5px; font-family:inherit; }
   .mock-header { padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; }
   .mock-input-row { padding:8px 0; border-bottom:1px solid var(--light-gray); }
   .mock-input-row .student-name { font-size:13px; font-weight:500; color:var(--navy); }
@@ -586,6 +602,25 @@
           <div id="week-test-review"></div>
           <div class="wt-other" id="week-test-other" style="display:none"></div>
           <div class="mrep-preview" id="week-test-preview" style="display:none"></div>
+        </div>
+        <!-- 채점 결과 글(GPT 단어·해석 / 객관식·어법·서술형 답안, 2026-11). 함수: '// ── 채점 결과 글' 블록 -->
+        <div class="mrep" id="wr-box">
+          <div class="mrep-head">
+            <h4>채점 결과 (GPT 글)</h4>
+            <span class="badge" id="wr-pub-badge"></span>
+          </div>
+          <div id="wr-status"></div>
+          <div id="wr-input" style="display:none">
+            <textarea id="wr-text" class="wr-text" rows="4" placeholder="GPT가 준 채점 결과 글을 통째로 붙여 넣으세요 — '단어·해석 채점 결과' 또는 '학생별 기입 답안(객관식·어법·서술형)'"></textarea>
+            <div class="wr-input-actions">
+              <button class="btn btn-gold btn-sm" onclick="startWrParse()">학생별로 나누기</button>
+              <label class="btn btn-light btn-sm">txt 파일 고르기<input type="file" id="wr-file" accept=".txt,text/plain" style="display:none" onchange="onWrFile(this.files)"></label>
+              <span class="mrep-muted" style="font-size:12px">글 형식은 알아서 구분해요 · 나눈 뒤 확인하고 올려요</span>
+            </div>
+            <div id="wr-parse-msg" style="font-size:12px;margin-top:4px"></div>
+          </div>
+          <div id="wr-review"></div>
+          <div class="wt-other" id="wr-other" style="display:none"></div>
         </div>
       </div>
     </div>
@@ -2056,6 +2091,7 @@ async function loadScoreInputs() {
   toggleGroupEdit('week', false);  // 주차가 바뀌면 편집 중이던 그룹 선택은 닫는다
   refreshGroupInfo();      // 그룹 평균은 느려도 되므로 await 하지 않음
   resetWeekTestPanel(parseInt(weekId));   // 다른 주차의 시험지 현황이 남아 보이지 않게
+  resetWrPanel(parseInt(weekId));
 
   // 캐시가 있어도 항상 DB를 새로 읽는다. 예전엔 한 번 연 주차를 캐시로 다시 그렸는데, 그 사이
   // 다른 사람이 입력한 과제%·평가·메모가 화면에 없는 채로 '전체 저장'되어 지워진 사고가 있었다(8.31 주차).
@@ -2079,6 +2115,7 @@ async function loadScoreInputs() {
   renderScoreInputs(classId, weekId, scoreCache[weekId]);
   releaseTableHeight(container);
   loadWeekTestPanel();   // 학생별 시험지 칸 (명단·점수를 읽은 뒤 — 미응시 학생 건너뛰기에 쓴다)
+  loadWrPanel();         // 채점 결과 글 칸 (명단·점수를 읽은 뒤 — '지금 점수 칸'에 쓴다)
   } catch (e) {
     if (seq !== _scoreLoadSeq) return;
     releaseTableHeight(container);
@@ -6903,7 +6940,7 @@ function renderWeekTestStatus() {
   const missing = ctx.students.filter(st => !ctx.fileInfo[wtPathOf(st.id)]);
   const pubBtn = ctx.published
     ? `<button class="btn btn-light btn-sm" onclick="setWeekTestPublished(false)">공개 중단</button>`
-    : `<button class="btn btn-gold btn-sm" onclick="setWeekTestPublished(true)" ${have.length ? '' : 'disabled title="먼저 시험지를 올려 주세요"'}>학부모에게 공개</button>`;
+    : `<button class="btn btn-gold btn-sm" onclick="setWeekTestPublished(true)" ${have.length || wrResultCount(ctx.weekId) ? '' : 'disabled title="먼저 시험지나 채점 결과를 올려 주세요"'}>학부모에게 공개</button>`;
   const rows = ctx.students.map(st => {
     const path = wtPathOf(st.id);
     const f = ctx.fileInfo[path];
@@ -6931,17 +6968,26 @@ function renderWeekTestStatus() {
 
 function toggleWeekTestList() { _wtListOpen = !_wtListOpen; renderWeekTestStatus(); }
 
+// 시험지와 채점 결과(글)는 같은 '학부모 공개' 스위치(weeks.report_published)를 쓴다
+function wrResultCount(weekId) {
+  return _wrCtx && _wrCtx.weekId === weekId ? new Set(_wrCtx.rows.map(x => x.student_id)).size : 0;
+}
+
 async function setWeekTestPublished(on) {
-  const ctx = _wtCtx;
-  if (!ctx) return;
-  const have = ctx.students.filter(st => ctx.fileInfo[wtPathOf(st.id)]).length;
+  const weekId = _wtCtx ? _wtCtx.weekId : _wrCtx ? _wrCtx.weekId : null;
+  if (!weekId) return;
+  const ctx = _wtCtx && _wtCtx.weekId === weekId ? _wtCtx : null;
+  const have = ctx ? ctx.students.filter(st => ctx.fileInfo[wtPathOf(st.id)]).length : 0;
+  const res = wrResultCount(weekId);
+  const what = [have ? `시험지가 올라간 학생 ${have}명` : '', res ? `채점 결과가 올라간 학생 ${res}명` : ''].filter(Boolean).join(' · ');
   if (!confirm(on
-    ? `이 주차 시험지를 학부모에게 공개할까요?\n시험지가 올라간 학생 ${have}명의 학부모·학생 화면에 '시험지 보기' 버튼이 나타납니다.`
-    : `이 주차 시험지 공개를 중단할까요?\n학부모 화면에서 '시험지 보기' 버튼이 사라집니다. (파일은 그대로 남아요)`)) return;
-  const r = await apiRaw(`weeks?id=eq.${ctx.weekId}`, 'PATCH', { report_published: on });
+    ? `이 주차 시험지·채점 결과를 학부모에게 공개할까요?\n${what || '올라간 것이 없는 학생'}의 학부모·학생 화면에 '시험지 보기'·'채점 결과 보기' 버튼이 나타납니다.`
+    : `이 주차 시험지·채점 결과 공개를 중단할까요?\n학부모 화면에서 '시험지 보기'·'채점 결과 보기' 버튼이 사라집니다. (올린 것은 그대로 남아요)`)) return;
+  const r = await apiRaw(`weeks?id=eq.${weekId}`, 'PATCH', { report_published: on });
   if (!r.ok) { showToast(`❌ ${on ? '공개' : '공개 중단'}에 실패했어요. 다시 시도해 주세요.`, 4000); return; }
-  showToast(on ? '✅ 시험지를 학부모에게 공개했어요!' : '✅ 시험지 공개를 중단했어요.');
+  showToast(on ? '✅ 학부모에게 공개했어요!' : '✅ 공개를 중단했어요.');
   loadWeekTestPanel();
+  loadWrPanel();
 }
 
 // 새 창을 먼저 열어 두고 주소를 나중에 넣는다 — 응답을 기다린 뒤 열면 팝업 차단에 걸린다
@@ -7898,6 +7944,861 @@ async function uploadWeekTests() {
   else clearWeekTestReview();
   showToast(failed.length ? `❌ ${failed.length}명 실패 — 다시 올려 주세요` : `✅ 시험지 ${done}명 올렸어요!`, 3500);
   loadWeekTestPanel();
+}
+
+// ── 채점 결과 글 (GPT · 2026-11-22) ─────────────────────────
+// 조교가 GPT 채점 결과 글을 붙여 넣으면 학생별로 나눠 week_results(kind)에 올리고, 점수 칸에도 넣는다.
+//  · 'vocab' 단어·해석 채점 결과: 학생 머리줄 'OOO  |  학생 답안 PDF 1–2쪽  |  …' 뒤에 [1. 단어 채점 결과] · [2. 문장 해석 채점 결과] · [4. 최종 점수]
+//  · 'omr'   학생별 기입 답안(객관식·어법·서술형): '공통 정답' 뒤에 '01. 이름' / '객관식 20/20 · 어법 8/10 · …' / 문항별 답안
+// 글 모양이 조금 달라도 읽히도록 느슨하게 맞춘다. 학생 화면에 보이면 안 되는 표시([전사 신뢰도 …] · [사용자 제공] 등)는 지운다.
+const WR_KIND_LABEL = { vocab: '단어·해석', omr: '객관식·어법·서술형' };
+const WR_VOCAB_DROP = /\[(?:전사\s*신뢰도[^\]]*|사용자\s*제공|[^\]]*(?:추가|낱말\s*풀이)[^\]]*|성명\s*판독[^\]]*)?\]/g;
+function wrClean(s, drop = WR_VOCAB_DROP) {
+  return String(s || '').replace(drop, '').replace(/[ \t]+\n/g, '\n').replace(/\n[ \t]+/g, '\n').replace(/[ \t]{2,}/g, ' ').trim();
+}
+// OMR 답안의 [] 메모(삽입 표시 반영 · 오른쪽 끝 잘림 …)는 옮겨 적은 사람의 메모라 지운다. 판독 불가만 짧게 남긴다.
+function wrCleanOmr(s) {
+  return wrClean(String(s || '').replace(/\[[^\]]*판독\s*불가[^\]]*\]/g, '\u0001'), /\[[^\]]*\]/g).replace(/\u0001/g, '[판독 불가]');
+}
+function wrNum(s) { const n = parseFloat(String(s ?? '').replace(/,/g, '')); return isFinite(n) ? n : null; }
+function wrRound(n) { return Math.round(n * 100) / 100; }
+function wrFmt(n) { return n === null || n === undefined ? '—' : String(wrRound(n)); }
+function wrIsSep(l) { return /^\s*[─━—\-=_]{8,}\s*$/.test(l); }
+function wrLines(text) { return String(text || '').replace(/^﻿/, '').replace(/\r\n?/g, '\n').split('\n'); }
+
+function detectWrKind(text) {
+  const t = String(text || '');
+  if (/\[\s*1\s*\.\s*단어/.test(t)) return 'vocab';
+  if (/^\s*\d+(?:\([A-Za-z]\))?번\s+학생\s+.+\/\s*정답/m.test(t) || /학생\s*답안\s+\d+(?:\.\d+)?\s*\/\s*\d+/.test(t) || /^\s*기입\s*\d+\s+/m.test(t)) return 'omr';
+  return null;
+}
+
+// '단어 7~10/30점' → { lo:7, hi:10, max:30 }
+function wrStated(line, word) {
+  const m = String(line || '').match(new RegExp(word + '[^\\d\\n]{0,8}?(\\d+(?:\\.\\d+)?)(?:\\s*[~∼]\\s*(\\d+(?:\\.\\d+)?))?\\s*\\/\\s*(\\d+(?:\\.\\d+)?)'));
+  return m ? { lo: wrNum(m[1]), hi: wrNum(m[2] ?? m[1]), max: wrNum(m[3]) } : null;
+}
+
+// '70% / 2.8점 (4점 만점)' · '검토 필요 / 배점 4점'
+function wrSentScore(s) {
+  const t = String(s || '');
+  const out = { percent: null, score: null, max: null, review: /검토/.test(t) };
+  const pm = t.match(/(\d+(?:\.\d+)?)\s*%/); if (pm) out.percent = wrNum(pm[1]);
+  const mm = t.match(/(\d+(?:\.\d+)?)\s*점\s*만점/) || t.match(/배점\s*(\d+(?:\.\d+)?)/) || t.match(/만점\s*(\d+(?:\.\d+)?)/);
+  if (mm) out.max = wrNum(mm[1]);
+  const sm = t.match(/\/\s*(\d+(?:\.\d+)?)\s*점(?!\s*만점)/); if (sm) out.score = wrNum(sm[1]);
+  if (out.percent === null && out.score !== null && out.max) out.percent = wrRound(out.score / out.max * 100);
+  if (out.score === null && out.percent !== null && out.max) out.score = wrRound(out.percent / 100 * out.max);
+  if (out.percent !== null) out.review = false;
+  return out;
+}
+
+function wrParseWordLine(m) {
+  const no = parseInt(m[1]);
+  const mark = /[oO○]/.test(m[2]) ? 'O' : /[xX×]/.test(m[2]) ? 'X' : '?';
+  const rest = m[3];
+  const cut = rest.search(/\s[-–—]\s/);
+  let word = cut >= 0 ? rest.slice(0, cut) : rest;
+  let ans = cut >= 0 ? rest.slice(cut).replace(/^\s[-–—]\s/, '') : '';
+  if (cut < 0) { const b = rest.indexOf('['); if (b > 0) { word = rest.slice(0, b); ans = rest.slice(b); } }
+  let correct = '';
+  ans = ans.replace(/\[\s*정답\s*:?\s*([^\]]*)\]/, (_, c) => { correct = c.trim(); return ''; });
+  const blank = /\[\s*무응답[^\]]*\]/.test(ans);
+  ans = wrClean(ans.replace(/\[\s*무응답[^\]]*\]/g, ''));
+  return { no, mark, word: wrClean(word), answer: ans, blank: blank && !ans, correct, reason: '' };
+}
+
+function parseVocabGrading(text) {
+  const lines = wrLines(text);
+  const out = { kind: 'vocab', title: '', students: [], warnings: [] };
+  for (const l of lines.slice(0, 6)) {
+    const t = l.trim();
+    if (!t || /^📊/.test(t) || /^\[.*\]$/.test(t)) continue;
+    out.title = t.slice(0, 80); break;
+  }
+  const head = lines.slice(0, 40).join('\n');
+  const perWord = (head.match(/단어[^\n]*?각\s*(\d+(?:\.\d+)?)\s*점/) || [])[1];
+  // 학생 구역의 시작: '[1. 단어' 줄 바로 앞의 (빈 줄·구분선이 아닌) 줄이 학생 머리줄
+  const starts = [];
+  lines.forEach((l, i) => {
+    if (!/^\s*\[\s*1\s*\.\s*단어/.test(l)) return;
+    let h = i - 1;
+    while (h >= 0 && (!lines[h].trim() || wrIsSep(lines[h]))) h--;
+    starts.push({ head: h, body: i });
+  });
+  starts.forEach((s, k) => {
+    const end = k + 1 < starts.length ? starts[k + 1].head : lines.length;
+    const headLine = s.head >= 0 ? lines[s.head].trim() : '';
+    const st = { name: headLine.split('|')[0].trim(), note: headLine.split('|').slice(1).map(x => x.trim()).filter(Boolean).join(' · '),
+      words: [], sentences: [], stated: {}, review: '' };
+    let part = 'word', cur = null, field = null;
+    for (let i = s.body; i < end; i++) {
+      const l = lines[i];
+      if (wrIsSep(l)) continue;
+      const sec = l.match(/^\s*\[\s*(\d)\s*\.\s*([^\]]*)\]/);
+      if (sec) {
+        cur = null; field = null;
+        part = /단어/.test(sec[2]) ? 'word' : /해석|문장/.test(sec[2]) ? 'sent' : /점수/.test(sec[2]) ? 'final' : 'other';
+        continue;
+      }
+      if (part === 'word') {
+        const m = l.match(/^\s*(\d{1,3})\s*[.)]\s*([OoXx?？○×])\s+(.*)$/);
+        if (m) { cur = wrParseWordLine(m); st.words.push(cur); field = null; continue; }
+        const r = l.match(/^\s*사유\s*[-:]\s*(.*)$/);
+        if (r && cur) { cur.reason = wrClean(r[1]); field = 'reason'; continue; }
+        if (l.trim() && cur && field === 'reason') cur.reason = wrClean(cur.reason + ' ' + l.trim());
+        continue;
+      }
+      if (part === 'sent') {
+        const m = l.match(/^\s*(\d{1,3})\s*[.)]\s*원문\s*[-:]\s*(.*)$/);
+        if (m) { cur = { no: parseInt(m[1]), source: m[2].trim(), answer: '', percent: null, score: null, max: null, review: false, reason: '', correct: '' }; st.sentences.push(cur); field = 'source'; continue; }
+        if (!cur) continue;
+        const f = l.match(/^\s*(제출된\s*해석|학생\s*해석|평가\s*점수|감점\s*및\s*평가\s*사유|평가\s*사유|감점\s*사유|올바른\s*해석|모범\s*해석)\s*[-:]\s*(.*)$/);
+        if (f) {
+          const k = f[1].replace(/\s/g, '');
+          field = /제출|학생/.test(k) ? 'answer' : /점수/.test(k) ? 'score' : /사유/.test(k) ? 'reason' : 'correct';
+          if (field === 'score') Object.assign(cur, wrSentScore(f[2]));
+          else cur[field] = f[2].trim();
+          continue;
+        }
+        if (l.trim() && field && field !== 'score') cur[field] += '\n' + l.trim();
+        continue;
+      }
+      if (part === 'final') {
+        const t = l.replace(/^\s*-\s*/, '');
+        if (/학생\s*이름/.test(t) && !st.name) st.name = t.split(/[-:]/).slice(1).join('-').trim();
+        if (/검토\s*필요/.test(t)) st.review = t.replace(/^\s*검토\s*필요\s*[-:]\s*/, '').trim();
+        const w = wrStated(t, '단어'), se = wrStated(t, '해석'), tot = wrStated(t, '합계');
+        if (w) st.stated.word = w;
+        if (se) st.stated.sentence = se;
+        if (tot) st.stated.total = tot;
+      }
+    }
+    st.sentences.forEach(x => {
+      x.source = wrClean(x.source); x.answer = wrClean(x.answer); x.reason = wrClean(x.reason); x.correct = wrClean(x.correct);
+      if (x.max === null) x.review = true;
+    });
+    // 만점: 최종 점수 줄 → 맨 위 '각 N점' → 문항 수
+    st.wordMax = st.stated.word?.max ?? (perWord ? wrRound(wrNum(perWord) * st.words.length) : st.words.length);
+    st.sentenceMax = st.stated.sentence?.max ?? wrRound(st.sentences.reduce((a, x) => a + (x.max || 0), 0));
+    if (!st.words.length && !st.sentences.length) out.warnings.push(`${st.name || '이름 없는 학생'}: 채점 내용을 읽지 못했어요`);
+    out.students.push(st);
+  });
+  if (!starts.length) out.warnings.push("학생 구역('[1. 단어 채점 결과]')을 찾지 못했어요");
+  return out;
+}
+
+// OMR: '13(A)번' → '13(A)', '4번' → '4'
+function wrNo(s) { return String(s || '').replace(/\s/g, '').replace(/번$/, ''); }
+// 어법 답 비교용: 대소문자·띄어쓰기·하이픈·마침표 무시
+function wrNorm(s) { return String(s || '').toLowerCase().replace(/[\s\-‐–.,'’]/g, ''); }
+
+function parseOmrAnswers(text) {
+  const lines = wrLines(text);
+  const out = { kind: 'omr', title: '', students: [], warnings: [], key: { mc: {}, fill: {}, write: {} }, notes: [] };
+  const firstSep = lines.findIndex(wrIsSep);
+  for (const l of lines.slice(0, 4)) { const t = l.trim(); if (t) { out.title = t.slice(0, 80); break; } }
+  // 공통 정답: '공통 정답' 줄부터 첫 구분선까지
+  const keyStart = lines.findIndex(l => /^\s*(공통\s*)?정답\s*$/.test(l));
+  if (keyStart >= 0) {
+    for (let i = keyStart + 1; i < (firstSep > keyStart ? firstSep : lines.length); i++) {
+      const t = lines[i].trim();
+      if (!t) continue;
+      const mc = t.match(/^(객관식)\s+(.*)$/);
+      if (mc && /\d+\s*번\s*[①-⑩]/.test(mc[2])) {
+        mc[2].split(/\s+\/\s+/).forEach(p => { const m = p.match(/(\d+)\s*번\s*(.+)/); if (m) out.key.mc[m[1]] = m[2].trim(); });
+        continue;
+      }
+      const g = t.match(/^(\S+?)\s*(\d+(?:\([A-Za-z]\))?)\s*번?\s+(.+)$/);
+      if (g && !/^\d/.test(g[1])) {
+        const no = wrNo(g[2]), ans = g[3].trim();
+        if (/→/.test(ans)) {
+          out.key.fill[no] = ans.split(/\s+\/\s+/).map(p => { const m = p.match(/^\s*(\S+)\s*→\s*(.+)$/); return m ? { num: m[1], answer: m[2].trim() } : null; }).filter(Boolean);
+        } else {
+          out.key.write[no] = { answer: ans.replace(/\s+\/\s+(?=\([A-Za-z]\))/g, '\n'), note: '' };
+        }
+        continue;
+      }
+      out.notes.push(t);
+    }
+    // '서술형 9번의 …' 같은 메모는 그 문항에 붙인다
+    out.notes = out.notes.filter(n => {
+      const m = n.match(/(\d+(?:\([A-Za-z]\))?)\s*번/);
+      const w = m && out.key.write[wrNo(m[1])];
+      if (w) { w.note = w.note ? `${w.note} ${n}` : n; return false; }
+      return true;
+    });
+  }
+  // 학생 구역: 구분선 다음의 '01. 이름' (구분선이 없으면 바로 다음 줄이 '객관식 20/20 · …' 점수 줄인 '01. 이름')
+  const heads = [];
+  lines.forEach((l, i) => {
+    const m = l.match(/^\s*(\d{1,3})\s*[.)]\s+(\S.*?)\s*$/);
+    if (!m || i <= firstSep || /번/.test(m[2]) || m[2].length > 20) return;
+    let p = i - 1; while (p >= 0 && !lines[p].trim()) p--;
+    let n = i + 1; while (n < lines.length && !lines[n].trim()) n++;
+    const scoreNext = n < lines.length && /·/.test(lines[n]) && /\d\s*\/\s*\d/.test(lines[n]) && !/학생\s*답안/.test(lines[n]);
+    if ((p >= 0 && wrIsSep(lines[p])) || scoreNext) heads.push({ at: i, name: m[2] });
+  });
+  heads.forEach((h, k) => {
+    const end = k + 1 < heads.length ? heads[k + 1].at : lines.length;
+    const st = { name: h.name, note: '', stated: {}, sections: [] };
+    let sec = null, item = null;
+    const section = (label, type) => {
+      let s = st.sections.find(x => x.label === label);
+      if (!s) { s = { label, type, items: [] }; st.sections.push(s); }
+      return s;
+    };
+    for (let i = h.at + 1; i < end; i++) {
+      const l = lines[i];
+      if (wrIsSep(l)) { item = null; continue; }
+      const t = l.trim();
+      if (!t) { if (item && item.type === 'write') item = null; continue; }
+      if (/^첨부|PDF\s*\d/.test(t) && !st.note) { st.note = t; continue; }
+      // 점수 줄 '객관식 20/20 · 어법 8/10 · 서술형 6/20 · 합계 34/50'
+      if (/·/.test(t) && /\d\s*\/\s*\d/.test(t) && !/학생\s*답안/.test(t)) {
+        t.split(/\s*[·|]\s*/).forEach(p => { const m = p.match(/^(\S+)\s+(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/); if (m) st.stated[m[1]] = { score: wrNum(m[2]), max: wrNum(m[3]) }; });
+        continue;
+      }
+      // 어법 1번 학생 답안  4/5
+      let m = t.match(/^(\S+?)\s*(\d+(?:\([A-Za-z]\))?)\s*번\s+학생\s*답안\s+(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/);
+      if (m) {
+        sec = section(m[1], 'fill');
+        item = { type: 'fill', no: wrNo(m[2]), score: wrNum(m[3]), max: wrNum(m[4]), entries: [] };
+        sec.items.push(item); continue;
+      }
+      // 객관식 학생 답안 / 서술형 학생 답안
+      m = t.match(/^(\S+)\s+학생\s*답안\s*$/);
+      if (m) { sec = section(m[1], 'pending'); item = null; continue; }
+      // 2번  학생 ③ / 정답 ③ / O
+      m = t.match(/^(\d+(?:\([A-Za-z]\))?)\s*번\s+학생\s+(.*?)\s*\/\s*정답\s+(.*?)\s*\/\s*([OXox?○×])\s*$/);
+      if (m && sec) {
+        if (sec.type === 'pending') sec.type = 'mc';
+        sec.items.push({ no: wrNo(m[1]), mine: wrCleanOmr(m[2]), correct: m[3].trim(), ok: /[Oo○]/.test(m[4]) ? true : /[Xx×]/.test(m[4]) ? false : null });
+        item = null; continue;
+      }
+      // 기입 1  번호 1 → what  /  기입 5  미응답
+      m = t.match(/^기입\s*(\d+)\s+(.*)$/);
+      if (m && item && item.type === 'fill') {
+        const body = m[2];
+        const e = body.match(/^번호\s*(.+?)\s*→\s*(.*)$/);
+        item.entries.push(e ? { num: wrCleanOmr(e[1]), answer: wrCleanOmr(e[2]), blank: false } : { num: '', answer: '', blank: /미응답|무응답/.test(body) || !body.trim() });
+        continue;
+      }
+      // 4번  0/4 (서술형 문항 점수) — 아래 줄들이 학생 답
+      m = t.match(/^(\d+(?:\([A-Za-z]\))?)\s*번\s+(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)\s*$/);
+      if (m && sec) {
+        if (sec.type === 'pending') sec.type = 'write';
+        item = { type: 'write', no: wrNo(m[1]), score: wrNum(m[2]), max: wrNum(m[3]), lines: [] };
+        sec.items.push(item); continue;
+      }
+      if (item && item.type === 'write') { item.lines.push(t); continue; }
+    }
+    st.sections = st.sections.filter(s => s.items.length).map(s => {
+      if (s.type === 'write') s.items = s.items.map(x => {
+        const ans = x.lines.map(wrCleanOmr).filter(Boolean);
+        const blank = !ans.length || ans.every(a => /^(미응답|무응답)$/.test(a.replace(/^\([A-Za-z]\)\s*/, '')));
+        return { no: x.no, score: x.score, max: x.max, answer: ans.join('\n'), blank };
+      });
+      if (s.type === 'fill') s.items = s.items.map(x => ({ no: x.no, score: x.score, max: x.max, entries: x.entries }));
+      return s;
+    });
+    if (!st.sections.length) out.warnings.push(`${st.name}: 답안을 읽지 못했어요`);
+    out.students.push(st);
+  });
+  if (!heads.length) out.warnings.push("학생 구역('01. 이름')을 찾지 못했어요");
+  return out;
+}
+
+// 어법 기입 칸마다 맞음/틀림 — 정답표와 비교해 센 개수가 채점 점수와 같을 때만 표시한다(다르면 채점 기준을 모르므로 표시 안 함)
+function wrMarkFill(item, key) {
+  if (!key || !key.length) return;
+  const okOf = e => {
+    if (e.blank) return false;
+    const nums = String(e.num).split('/').map(x => x.trim());
+    const mine = wrNorm(String(e.answer).split('→').pop());
+    return key.some(k => nums.includes(String(k.num)) && String(k.answer).split(/\s*(?:또는|\/|,)\s*/).some(a => wrNorm(a) === mine));
+  };
+  const marks = item.entries.map(okOf);
+  const per = item.max && item.entries.length ? item.max / item.entries.length : 1;
+  if (Math.abs(marks.filter(Boolean).length * per - item.score) < 0.01) item.entries.forEach((e, i) => { e.ok = marks[i]; });
+}
+
+// 단어·해석: 조교가 정한 값(fix)을 반영한 점수. 아직 정하지 않은 문항이 있으면 null
+function wrVocabScores(st) {
+  const fix = st.fix || {};
+  const marks = st.words.map(w => (w.mark === '?' ? (fix.words?.[w.no]?.mark || '?') : w.mark));
+  const per = st.words.length ? st.wordMax / st.words.length : 0;
+  const wordOpen = marks.filter(m => m === '?').length;
+  const word = wordOpen ? null : wrRound(marks.filter(m => m === 'O').length * per);
+  let sentOpen = 0, sent = 0;
+  st.sentences.forEach(x => {
+    if (x.review) {
+      const p = fix.sentences?.[x.no]?.percent;
+      if (p === undefined || p === null || !x.max) { sentOpen++; return; }
+      sent += p / 100 * x.max;
+    } else sent += x.score ?? (x.percent / 100 * x.max);
+  });
+  const sentence = sentOpen ? null : wrRound(sent);
+  return { word, sentence, wordOpen, sentOpen };
+}
+
+function wrOmrSectionScore(st, s) {
+  const stated = st.stated[s.label];
+  if (s.type === 'mc') {
+    const max = stated?.max ?? s.items.length;
+    const calc = s.items.length ? wrRound(s.items.filter(x => x.ok).length * max / s.items.length) : 0;
+    return { score: stated ? stated.score : calc, max, calc, stated };
+  }
+  const calc = wrRound(s.items.reduce((a, x) => a + (x.score || 0), 0));
+  const max = stated?.max ?? wrRound(s.items.reduce((a, x) => a + (x.max || 0), 0));
+  return { score: stated ? stated.score : calc, max, calc, stated };
+}
+
+// 점수 칸에 넣을 묶음(단어 · 해석 / 객관식 · 어법 · 서술형)
+function wrCats(doc) {
+  if (doc.kind === 'vocab') {
+    const f = doc.students[0];
+    return [{ id: 'word', label: '단어', max: f ? f.wordMax : null }, { id: 'sentence', label: '해석', max: f ? f.sentenceMax : null }];
+  }
+  const out = [];
+  doc.students.forEach(st => st.sections.forEach(s => {
+    if (!out.find(c => c.id === s.label)) out.push({ id: s.label, label: s.label, max: wrOmrSectionScore(st, s).max });
+  }));
+  return out;
+}
+
+function wrCatScores(doc, st) {
+  if (doc.kind === 'vocab') { const s = wrVocabScores(st); return { word: s.word, sentence: s.sentence }; }
+  const o = {};
+  st.sections.forEach(s => { o[s.label] = wrOmrSectionScore(st, s).score; });
+  return o;
+}
+
+function wrDefaultMap(cats, items) {
+  const n = s => String(s || '').replace(/\s/g, '').toLowerCase();
+  const map = {};
+  cats.forEach(c => {
+    const it = items.find(it => n(it.label) && n(it.label) === n(c.label))
+      || items.find(it => n(it.label) && (n(it.label).includes(n(c.label)) || n(c.label).includes(n(it.label))));
+    map[c.id] = it ? it.key : '';
+  });
+  return map;
+}
+
+// 글의 이름 → 반 명단. 똑같은 이름 → 끝 숫자 뗀 이름(김유현 ↔ 김유현1) → '박[판독불가]'처럼 앞부분만 읽힌 이름(남은 학생 중 한 명뿐일 때 '짐작')
+function wrMatchNames(doc, roster) {
+  const norm = s => String(s || '').replace(/\s/g, '');
+  const loose = s => norm(s).replace(/\d+$/, '');
+  const used = new Set();
+  const take = (st, r, how) => { st.sid = r.id; st.how = how; used.add(r.id); };
+  doc.students.forEach(st => { st.sid = null; st.how = null; });
+  doc.students.forEach(st => { const m = roster.filter(r => norm(r.name) === norm(st.name)); if (m.length === 1 && !used.has(m[0].id)) take(st, m[0], 'exact'); });
+  doc.students.forEach(st => { if (st.sid) return; const m = roster.filter(r => !used.has(r.id) && loose(r.name) === loose(st.name)); if (m.length === 1) take(st, m[0], 'loose'); });
+  doc.students.forEach(st => {
+    if (st.sid) return;
+    const pre = norm(st.name).split(/[\[(?]/)[0];
+    if (!pre || pre === norm(st.name)) return;
+    const m = roster.filter(r => !used.has(r.id) && norm(r.name).startsWith(pre));
+    if (m.length === 1) take(st, m[0], 'guess');
+  });
+}
+
+function wrRoster() {
+  const cid = _wr ? _wr.classId : parseInt(document.getElementById('score-class').value);
+  return (studentCache[cid] || []).map(s => ({ id: s.id, name: s.name }));
+}
+function wrStudentOf(doc, sid) {
+  return wrRoster().find(s => s.id === sid) || (doc ? doc.extra.find(x => x.id === sid) : null) || null;
+}
+
+// 점수 표를 다 그린 뒤 부른다 (loadScoreInputs)
+let _wr = null;      // 붙여 넣은 글을 나눈 결과(검토 중)
+let _wrCtx = null;   // 이 주차에 올라간 결과 { weekId, classId, rows, ready, published }
+let _wrSeq = 0, _wrBusy = false, _wrListOpen = false, _wrLast = null, _wrOther = null, _wrOtherTimer = null;
+
+function resetWrPanel(weekId) {
+  if (!document.getElementById('wr-box')) return;
+  if (_wrCtx && _wrCtx.weekId === weekId) return;
+  _wrSeq++;
+  _wrCtx = null;
+  // 다시 읽는 동안 칸 높이를 붙잡아 둔다 — 비우는 순간 페이지가 짧아져 아래로 내린 스크롤이 위로 튀지 않게
+  holdTableHeight(document.getElementById('wr-box'));
+  if (!_wrBusy && _wr && _wr.weekId !== weekId) clearWrReview();
+  document.getElementById('wr-status').innerHTML = '';
+  document.getElementById('wr-pub-badge').textContent = '';
+  document.getElementById('wr-input').style.display = 'none';
+}
+
+async function loadWrPanel() {
+  const weekId = parseInt(document.getElementById('score-week').value);
+  const classId = parseInt(document.getElementById('score-class').value);
+  if (!weekId || !classId || !document.getElementById('wr-box')) return;
+  const seq = ++_wrSeq;
+  const [r, wk] = await Promise.all([
+    apiReqRetry(`week_results?week_id=eq.${weekId}&select=student_id,kind,updated_at`, 'GET'),
+    apiReqRetry(`weeks?id=eq.${weekId}&select=id,report_published`, 'GET')
+  ]);
+  if (seq !== _wrSeq) return;
+  const ready = r.ok && Array.isArray(r.data);
+  _wrCtx = { weekId, classId, rows: ready ? r.data : [], ready,
+    published: wk.ok && Array.isArray(wk.data) && wk.data[0] ? wk.data[0].report_published === true : false };
+  renderWrStatus();
+  if (_wtCtx && _wtCtx.weekId === weekId) renderWeekTestStatus();   // 결과만 올려도 '학부모에게 공개'를 누를 수 있게
+  if (_wr && _wr.weekId === weekId) renderWrReview();
+}
+
+function wrRowsOf(kind) { return _wrCtx ? _wrCtx.rows.filter(x => x.kind === kind) : []; }
+
+function renderWrStatus() {
+  const ctx = _wrCtx;
+  const box = document.getElementById('wr-status');
+  if (!ctx || !box) return;
+  const badge = document.getElementById('wr-pub-badge');
+  const input = document.getElementById('wr-input');
+  releaseTableHeight(document.getElementById('wr-box'));
+  if (!ctx.ready) {
+    badge.textContent = '';
+    input.style.display = 'none';
+    box.innerHTML = '<div class="mrep-note">채점 결과 보관 표가 아직 준비되지 않았어요. 서버 설정이 끝나면 여기서 GPT 채점 결과 글을 올릴 수 있어요.</div>';
+    return;
+  }
+  input.style.display = '';
+  if (ctx.published) { badge.className = 'badge badge-active'; badge.style.cssText = ''; badge.textContent = '학부모 공개 중'; }
+  else { badge.className = 'badge'; badge.style.cssText = 'background:var(--light-gray);color:var(--gray)'; badge.textContent = '학부모 비공개'; }
+  const roster = (studentCache[ctx.classId] || []);
+  const kinds = Object.keys(WR_KIND_LABEL);
+  const by = {}; kinds.forEach(k => { by[k] = {}; wrRowsOf(k).forEach(x => { by[k][x.student_id] = x; }); });
+  const total = ctx.rows.length;
+  const when = x => x && x.updated_at ? escapeHtml(new Date(x.updated_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })) : '';
+  const names = {}; roster.forEach(s => { names[s.id] = s.name; });
+  const ids = [...new Set(ctx.rows.map(x => x.student_id))].sort((a, b) => String(names[a] || '~').localeCompare(String(names[b] || '~'), 'ko'));
+  const rows = ids.map(sid => `<tr><td><strong>${escapeHtml(names[sid] || `학생 ${sid}`)}</strong>${names[sid] ? '' : ' <span class="mrep-muted" style="font-size:11px">(이 반 명단에 없음)</span>'}</td>
+    ${kinds.map(k => `<td>${by[k][sid] ? `<span class="mrep-ok">올림</span> <span class="mrep-muted" style="font-size:11px">${when(by[k][sid])}</span> <button class="btn btn-danger btn-sm" onclick="deleteWrResults('${k}', ${sid})">삭제</button>` : '<span class="mrep-muted">—</span>'}</td>`).join('')}</tr>`).join('');
+  const last = _wrLast && _wrLast.weekId === ctx.weekId ? `<div class="mrep-result">${_wrLast.html}</div>` : '';
+  const pubBtn = ctx.published
+    ? `<button class="btn btn-light btn-sm" onclick="setWeekTestPublished(false)">공개 중단</button>`
+    : `<button class="btn btn-gold btn-sm" onclick="setWeekTestPublished(true)" ${total ? '' : 'disabled title="먼저 채점 결과를 올려 주세요"'}>학부모에게 공개</button>`;
+  box.innerHTML = `${last}
+    <div class="mrep-summary">
+      <div>${kinds.map(k => `${WR_KIND_LABEL[k]} 결과 <strong>${Object.keys(by[k]).length}</strong> / ${roster.length}명`).join(' · ')}</div>
+      <div class="mrep-actions">
+        ${total ? `<button class="btn btn-light btn-sm" onclick="toggleWrList()">${_wrListOpen ? '목록 접기' : '학생별 목록'}</button>` : ''}
+        ${kinds.filter(k => Object.keys(by[k]).length).map(k => `<button class="btn btn-danger btn-sm" onclick="deleteWrResults('${k}')">${WR_KIND_LABEL[k]} 모두 삭제</button>`).join(' ')}
+        ${pubBtn}
+      </div>
+    </div>
+    ${_wrListOpen && total ? `<div class="mrep-list"><table class="data-table"><thead><tr><th>학생</th>${kinds.map(k => `<th>${WR_KIND_LABEL[k]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>` : ''}
+    <div class="mrep-note">학부모 공개는 위 '학생별 시험지'와 함께 켜고 꺼요. 공개하면 이 주차 점수 화면에 '채점 결과 보기'가 생겨요. 결과를 지워도 점수 칸은 그대로 남아요.</div>`;
+}
+
+function toggleWrList() { _wrListOpen = !_wrListOpen; renderWrStatus(); }
+
+async function deleteWrResults(kind, sid) {
+  const ctx = _wrCtx;
+  if (!ctx || _wrBusy) return;
+  const name = sid ? ((studentCache[ctx.classId] || []).find(s => s.id === sid)?.name || `학생 ${sid}`) : '';
+  const n = sid ? 1 : wrRowsOf(kind).length;
+  if (!n) return;
+  if (!confirm(sid
+    ? `${name} 학생의 ${WR_KIND_LABEL[kind]} 채점 결과를 삭제할까요?\n점수 칸은 그대로 남아요.`
+    : `이 주차에 올라간 ${WR_KIND_LABEL[kind]} 채점 결과 ${n}명을 모두 삭제할까요?\n학부모 화면의 결과도 사라지고 되돌릴 수 없어요. 점수 칸은 그대로 남아요.`)) return;
+  const r = await apiReqRetry(`week_results?week_id=eq.${ctx.weekId}&kind=eq.${kind}${sid ? `&student_id=eq.${sid}` : ''}`, 'DELETE');
+  if (!r.ok) { showToast('❌ 채점 결과를 삭제하지 못했어요. 다시 시도해 주세요.', 4000); return; }
+  showToast(sid ? `🗑 ${name} 학생 ${WR_KIND_LABEL[kind]} 결과를 삭제했어요.` : `🗑 ${WR_KIND_LABEL[kind]} 결과 ${n}명을 삭제했어요.`);
+  _wrLast = null;
+  loadWrPanel();
+}
+
+async function onWrFile(files) {
+  const f = files && files[0];
+  const input = document.getElementById('wr-file');
+  if (input) input.value = '';
+  if (!f) return;
+  if (f.size > 3 * 1024 * 1024) { showToast('❌ 파일이 너무 커요 (3MB 이하 글 파일만).', 4000); return; }
+  const text = await f.text().catch(() => '');
+  document.getElementById('wr-text').value = text;
+  startWrParse();
+}
+
+function startWrParse() {
+  if (_wrBusy) return;
+  const weekId = parseInt(document.getElementById('score-week').value);
+  const classId = parseInt(document.getElementById('score-class').value);
+  const text = document.getElementById('wr-text').value || '';
+  const msg = document.getElementById('wr-parse-msg');
+  msg.textContent = '';
+  if (!weekId || !classId) return;
+  if (!text.trim()) { msg.innerHTML = '<span class="mrep-warn">채점 결과 글을 붙여 넣거나 txt 파일을 골라 주세요.</span>'; return; }
+  const kind = detectWrKind(text);
+  if (!kind) { msg.innerHTML = "<span class=\"mrep-warn\">글 형식을 알아보지 못했어요.</span> GPT가 준 '단어·해석 채점 결과' 또는 '학생별 기입 답안' 글 전체를 붙여 넣어 주세요."; return; }
+  const doc = kind === 'vocab' ? parseVocabGrading(text) : parseOmrAnswers(text);
+  if (!doc.students.length) { msg.innerHTML = `<span class="mrep-warn">학생별 결과를 찾지 못했어요.</span> ${escapeHtml(doc.warnings.join(' · '))}`; return; }
+  doc.weekId = weekId; doc.classId = classId; doc.extra = []; doc.confirmed = false;
+  doc.students.forEach(st => { st.fix = { words: {}, sentences: {} }; });
+  if (kind === 'omr') doc.students.forEach(st => st.sections.forEach(s => { if (s.type === 'fill') s.items.forEach(it => wrMarkFill(it, doc.key.fill[it.no])); }));
+  wrMatchNames(doc, wrRoster());
+  doc.cats = wrCats(doc);
+  doc.map = wrDefaultMap(doc.cats, currentItemConfig.filter(it => it.active));
+  _wr = doc;
+  closeWrOther();
+  renderWrReview();
+  document.getElementById('wr-review').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function clearWrReview() {
+  _wr = null;
+  closeWrOther();
+  const el = document.getElementById('wr-review');
+  if (el) el.innerHTML = '';
+}
+
+// 막는 것(학생 미지정·같은 학생 두 번·검토 안 끝남)과 알리기만 하는 것(짐작한 이름·GPT 합계와 다름)
+function wrIssues(doc) {
+  const count = {};
+  doc.students.forEach(st => { if (typeof st.sid === 'number') count[st.sid] = (count[st.sid] || 0) + 1; });
+  return doc.students.map(st => {
+    const block = [], warn = [];
+    if (st.sid === null) block.push('학생을 골라 주세요');
+    if (typeof st.sid === 'number' && count[st.sid] > 1) block.push('같은 학생이 두 번 골라졌어요');
+    if (st.sid === 'skip') return { block, warn, skip: true };
+    if (st.how === 'guess') warn.push('이름 일부만 읽혀 짐작했어요 — 맞는지 확인');
+    if (doc.kind === 'vocab') {
+      const s = wrVocabScores(st);
+      if (s.wordOpen + s.sentOpen) block.push(`검토할 문항 ${s.wordOpen + s.sentOpen}개`);
+      const chk = (v, b, lb) => { if (v !== null && b && (v < b.lo - 0.01 || v > b.hi + 0.01)) warn.push(`${lb} 점수가 GPT 합계(${b.lo === b.hi ? b.lo : `${b.lo}~${b.hi}`})와 달라요`); };
+      chk(s.word, st.stated.word, '단어'); chk(s.sentence, st.stated.sentence, '해석');
+    } else {
+      st.sections.forEach(sec => { const r = wrOmrSectionScore(st, sec); if (r.stated && Math.abs(r.calc - r.stated.score) > 0.01) warn.push(`${sec.label}: 문항 점수 합(${r.calc})과 적힌 점수(${r.stated.score})가 달라요 — 적힌 점수로 넣어요`); });
+    }
+    return { block, warn, skip: false };
+  });
+}
+
+function wrScoreText(doc, st) {
+  const sc = wrCatScores(doc, st);
+  return doc.cats.map(c => `${c.label} ${sc[c.id] === null || sc[c.id] === undefined ? '<span class="mrep-warn">?</span>' : wrFmt(sc[c.id])}/${wrFmt(c.max)}`).join(' · ');
+}
+
+function renderWrReview() {
+  const doc = _wr, el = document.getElementById('wr-review');
+  if (!el) return;
+  if (!doc) { el.innerHTML = ''; return; }
+  const roster = wrRoster();
+  const items = currentItemConfig.filter(it => it.active);
+  const issues = wrIssues(doc);
+  const used = {}; doc.students.forEach((st, i) => { if (typeof st.sid === 'number') (used[st.sid] = used[st.sid] || []).push(i); });
+  const have = {}; wrRowsOf(doc.kind).forEach(x => { have[x.student_id] = true; });
+  const cache = scoreCache[doc.weekId] || {};
+  const mapped = doc.cats.filter(c => doc.map[c.id]);
+  // 점수 넣을 칸
+  const mapHtml = doc.cats.map(c => `<label>${escapeHtml(c.label)} <span class="mrep-muted">(${wrFmt(c.max)}점)</span> →
+      <select onchange="setWrMap('${escapeAttr(c.id)}', this.value)">
+        <option value="">넣지 않음</option>
+        ${items.map(it => `<option value="${escapeAttr(it.key)}" ${doc.map[c.id] === it.key ? 'selected' : ''}>${escapeHtml(it.label || '(이름 없는 항목)')} 칸 (${wrFmt(it.max)}점)</option>`).join('')}
+      </select></label>`).join('');
+  const mapWarn = [...new Set(Object.values(doc.map).filter(Boolean))].map(key => {
+    const it = items.find(x => x.key === key);
+    const cs = doc.cats.filter(c => doc.map[c.id] === key);
+    const sum = wrRound(cs.reduce((a, c) => a + (c.max || 0), 0));
+    return it && it.max !== null && it.max !== undefined && Math.abs(it.max - sum) > 0.01
+      ? `<div class="mrep-warn" style="font-size:12px">⚠ '${escapeHtml(it.label)}' 칸 만점은 ${wrFmt(it.max)}점인데 채점 결과는 ${cs.map(c => escapeHtml(c.label)).join('+')} ${sum}점 만점이에요 — 점수를 그대로 넣어요.</div>` : '';
+  }).join('');
+  const rows = doc.students.map((st, i) => {
+    const is = issues[i];
+    const opts = [`<option value="" ${st.sid === null ? 'selected' : ''}>— 학생 고르기 —</option>`]
+      .concat(roster.map(s => `<option value="${s.id}" ${st.sid === s.id ? 'selected' : ''}>${escapeHtml(s.name)}${(used[s.id] || []).some(j => j !== i) ? ' (다른 글에 골라짐)' : ''}</option>`))
+      .concat(doc.extra.map(x => `<option value="${x.id}" ${st.sid === x.id ? 'selected' : ''}>${escapeHtml(x.name)} · ${escapeHtml(x.className)}</option>`))
+      .concat([`<option value="${WT_OTHER}">다른 반 학생 찾기…</option>`, `<option value="skip" ${st.sid === 'skip' ? 'selected' : ''}>올리지 않음</option>`]).join('');
+    const ext = typeof st.sid === 'number' ? doc.extra.find(x => x.id === st.sid) : null;
+    const row = typeof st.sid === 'number' && !ext ? cache[st.sid] : null;
+    const now = is.skip || st.sid === null ? '' : ext ? `<span class="mrep-muted">${escapeHtml(ext.className)} ${escapeHtml(ext.weekLabel)} 주차에 넣어요</span>`
+      : mapped.length ? [...new Set(mapped.map(c => doc.map[c.id]))].map(key => {
+          const it = items.find(x => x.key === key);
+          const v = row ? itemVal(row, key) : null;
+          const sc = wrCatScores(doc, st);
+          const nv = doc.cats.filter(c => doc.map[c.id] === key).reduce((a, c) => (a === null || sc[c.id] === null || sc[c.id] === undefined ? null : a + sc[c.id]), 0);
+          const differs = v !== null && v !== undefined && v !== '' && nv !== null && !scoreValEq(v, wrRound(nv));
+          return `<span class="${differs ? 'mrep-warn' : ''}">${escapeHtml(it?.label || '')} ${v === null || v === undefined || v === '' ? '—' : escapeHtml(String(v))}${differs ? ` → ${wrFmt(nv)}` : ''}</span>`;
+        }).join(' · ') : '<span class="mrep-muted">넣지 않음</span>';
+    const howNote = st.how === 'loose' ? ' <span class="mrep-muted" style="font-size:11px">비슷한 이름</span>' : st.how === 'guess' ? ' <span class="mrep-warn" style="font-size:11px">짐작</span>' : '';
+    const state = is.skip ? '<span class="mrep-muted">올리지 않아요</span>'
+      : [...is.block.map(t => `<span class="mrep-warn">${escapeHtml(t)}</span>`), ...is.warn.map(t => `<span class="mrep-muted">⚠ ${escapeHtml(t)}</span>`)].join('<br>')
+        || `<span class="mrep-ok">✓</span>${typeof st.sid === 'number' && have[st.sid] && !ext ? ' <span class="mrep-muted" style="font-size:11px">이미 올린 결과를 바꿔요</span>' : ''}`;
+    return `<tr class="${is.block.length ? 'mrep-row-warn' : ''}">
+      <td><strong>${escapeHtml(st.name || '(이름 없음)')}</strong>${st.note ? `<br><span class="mrep-muted" style="font-size:11px">${escapeHtml(st.note)}</span>` : ''}</td>
+      <td><select onchange="setWrStudent(${i}, this.value)">${opts}</select>${howNote}</td>
+      <td style="white-space:nowrap">${is.skip ? '' : wrScoreText(doc, st)}</td>
+      <td>${now}</td>
+      <td>${state}</td></tr>`;
+  }).join('');
+  const missing = roster.filter(s => !used[s.id]);
+  const cards = doc.kind === 'vocab' ? doc.students.map((st, i) => wrVocabReviewCard(st, i)).join('') : '';
+  const blockN = issues.filter(x => x.block.length).length;
+  const sendN = doc.students.filter(st => typeof st.sid === 'number').length;
+  el.innerHTML = `<div class="wr-review">
+    <div class="mrep-preview-head"><span><strong>📄 ${escapeHtml(WR_KIND_LABEL[doc.kind])} 채점 결과</strong>${doc.title ? ` · ${escapeHtml(doc.title)}` : ''} · 학생 ${doc.students.length}명</span>
+      <button class="btn btn-light btn-sm" onclick="clearWrReview()">닫기</button></div>
+    ${doc.warnings.length ? `<div class="mrep-warn" style="font-size:12px">⚠ ${escapeHtml(doc.warnings.join(' · '))}</div>` : ''}
+    <div class="wr-map"><strong>점수 넣을 칸</strong> ${mapHtml}</div>${mapWarn}
+    <div class="mrep-list"><table class="data-table wr-table"><thead><tr><th>채점 글의 이름</th><th>학생</th><th>채점 점수</th><th>지금 점수 칸</th><th>확인할 것</th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${missing.length ? `<div class="mrep-muted" style="font-size:12px;margin-top:4px">채점 글에 없는 이 반 학생: ${missing.slice(0, 15).map(s => escapeHtml(s.name)).join(', ')}${missing.length > 15 ? ` 외 ${missing.length - 15}명` : ''}</div>` : ''}
+    ${cards}
+    <div class="wt-confirm">
+      <label><input type="checkbox" id="wr-confirm" ${doc.confirmed && !blockN ? 'checked' : ''} ${blockN ? 'disabled' : ''} onchange="setWrConfirmed(this.checked)"> 학생 이름${doc.kind === 'vocab' ? '과 검토할 문항' : ''}을 모두 확인했어요</label>
+      <button class="btn btn-gold btn-sm" id="wr-upload-btn" onclick="uploadWr()" ${doc.confirmed && !blockN && sendN && !_wrBusy ? '' : 'disabled'}>결과 올리고 점수 넣기 (${sendN}명)</button>
+      ${blockN ? `<span class="mrep-warn" style="font-size:12px">확인할 학생 ${blockN}명이 남았어요</span>` : ''}
+    </div>
+    <div class="mrep-note">올린 결과는 학부모 공개를 켜야 보여요. 점수 칸에 이미 다른 점수가 있으면 바꾸기 전에 물어봐요.</div>
+  </div>`;
+}
+
+const WR_PCTS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 85, 90, 95, 100];
+function wrVocabReviewCard(st, i) {
+  if (st.sid === 'skip') return '';
+  const qs = st.words.filter(w => w.mark === '?');
+  const ss = st.sentences.filter(x => x.review);
+  if (!qs.length && !ss.length) return '';
+  const wq = qs.map(w => {
+    const f = st.fix.words[w.no] || {};
+    return `<div class="wr-q"><div><strong>단어 ${w.no}번</strong> ${escapeHtml(w.word)} <span class="mrep-muted">· 정답 ${escapeHtml(w.correct || '—')} · 읽은 답 ${escapeHtml(w.answer || '(빈칸)')}</span></div>
+      <div class="wr-q-ctl">
+        <label><input type="radio" name="wr-${i}-w${w.no}" ${f.mark === 'O' ? 'checked' : ''} onchange="setWrWord(${i}, ${w.no}, 'O')"> 맞음</label>
+        <label><input type="radio" name="wr-${i}-w${w.no}" ${f.mark === 'X' ? 'checked' : ''} onchange="setWrWord(${i}, ${w.no}, 'X')"> 틀림</label>
+        <input type="text" placeholder="학생이 쓴 답 (선택 · 학생 화면에 보여요)" value="${escapeAttr(f.answer || '')}" onchange="setWrWordAnswer(${i}, ${w.no}, this.value)">
+      </div></div>`;
+  }).join('');
+  const sq = ss.map(x => {
+    const f = st.fix.sentences[x.no] || {};
+    return `<div class="wr-q"><div><strong>해석 ${x.no}번</strong> <span class="mrep-muted">(${wrFmt(x.max)}점 만점)</span> ${escapeHtml(x.source)}</div>
+      <div class="wr-q-text"><span class="mrep-muted">학생 해석</span> ${escapeHtml(x.answer || '(빈칸)')}</div>
+      ${x.reason ? `<div class="wr-q-text"><span class="mrep-muted">GPT 메모</span> ${escapeHtml(x.reason)}</div>` : ''}
+      <div class="wr-q-ctl">
+        <select onchange="setWrSent(${i}, ${x.no}, this.value)"><option value="">— 점수 고르기 —</option>
+          ${WR_PCTS.map(p => `<option value="${p}" ${f.percent === p ? 'selected' : ''}>${p}% (${wrFmt(p / 100 * x.max)}점)</option>`).join('')}</select>
+        <input type="text" placeholder="감점 사유 (선택 · 학생 화면에 보여요)" value="${escapeAttr(f.reason || '')}" onchange="setWrSentReason(${i}, ${x.no}, this.value)">
+      </div></div>`;
+  }).join('');
+  return `<div class="wr-card"><div class="wr-card-head"><strong>${escapeHtml(st.name)}</strong> — GPT가 확실히 읽지 못한 문항이에요. 시험지를 보고 정해 주세요.</div>${wq}${sq}</div>`;
+}
+
+function setWrMap(cat, key) { if (!_wr) return; _wr.map[cat] = key; renderWrReview(); }
+function setWrConfirmed(on) { if (!_wr) return; _wr.confirmed = !!on; renderWrReview(); }
+function setWrWord(i, no, mark) { const st = _wr?.students[i]; if (!st) return; st.fix.words[no] = { ...(st.fix.words[no] || {}), mark }; renderWrReview(); }
+function setWrWordAnswer(i, no, v) { const st = _wr?.students[i]; if (!st) return; st.fix.words[no] = { ...(st.fix.words[no] || {}), answer: v }; }
+function setWrSent(i, no, v) { const st = _wr?.students[i]; if (!st) return; st.fix.sentences[no] = { ...(st.fix.sentences[no] || {}), percent: v === '' ? null : parseFloat(v) }; renderWrReview(); }
+function setWrSentReason(i, no, v) { const st = _wr?.students[i]; if (!st) return; st.fix.sentences[no] = { ...(st.fix.sentences[no] || {}), reason: v }; }
+function setWrStudent(i, v) {
+  const st = _wr?.students[i];
+  if (!st) return;
+  if (v === WT_OTHER) { renderWrReview(); openWrOther(i); return; }
+  st.sid = v === '' ? null : v === 'skip' ? 'skip' : parseInt(v);
+  _wr.confirmed = false;   // 학생을 바꾸면 다시 확인
+  st.how = st.sid === null || st.sid === 'skip' ? null : _wr.extra.some(x => x.id === st.sid) ? 'other' : 'manual';
+  renderWrReview();
+}
+
+// 다른 반 학생 — 그 학생 반의 같은 주 주차에 올리고 점수도 그 주차에 넣는다 (주차 시험지와 같은 방식)
+function openWrOther(i) {
+  const st = _wr?.students[i];
+  const box = document.getElementById('wr-other');
+  if (!st || !box) return;
+  _wrOther = { i, seq: 0, list: [] };
+  box.style.display = 'block';
+  box.innerHTML = `<div class="mrep-preview-head"><span>채점 글의 <strong>${escapeHtml(st.name)}</strong>을 다른 반 학생으로 — 그 학생 반의 같은 주 주차에 올라가요</span>
+    <button class="btn btn-light btn-sm" onclick="closeWrOther()">닫기</button></div>
+    <input type="text" id="wr-other-q" placeholder="학생 이름" autocomplete="off" oninput="searchWrOther()" value="${escapeAttr(String(st.name || '').replace(/\[[^\]]*\]/g, ''))}">
+    <div class="wt-other-list" id="wr-other-list"></div>
+    <div class="mrep-note" id="wr-other-msg"></div>`;
+  document.getElementById('wr-other-q').focus();
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  searchWrOther();
+}
+
+function closeWrOther() {
+  _wrOther = null;
+  clearTimeout(_wrOtherTimer);
+  const box = document.getElementById('wr-other');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+}
+
+function searchWrOther() {
+  const q = (document.getElementById('wr-other-q')?.value || '').trim();
+  const listEl = document.getElementById('wr-other-list');
+  clearTimeout(_wrOtherTimer);
+  if (!_wrOther || !listEl) return;
+  if (!q) { listEl.innerHTML = ''; return; }
+  _wrOtherTimer = setTimeout(async () => {
+    const o = _wrOther;
+    if (!o) return;
+    const seq = ++o.seq;
+    const res = await apiReqRetry(`students?name=ilike.*${encodeURIComponent(q)}*&is_active=eq.true&order=name.asc&select=id,name,class_id`, 'GET');
+    if (_wrOther !== o || seq !== o.seq) return;
+    if (!res.ok || !Array.isArray(res.data)) { listEl.innerHTML = '<span class="mrep-warn">검색하지 못했어요. 다시 입력해 주세요.</span>'; return; }
+    o.list = res.data.filter(st => st.class_id !== _wr?.classId);
+    listEl.innerHTML = o.list.length
+      ? o.list.map(st => `<button type="button" class="btn btn-light btn-sm" onclick="pickWrOther(${st.id})">${escapeHtml(st.name)} · ${escapeHtml(classes.find(c => c.id === st.class_id)?.name || '반 미지정')}</button>`).join('')
+      : '<span class="mrep-muted">다른 반에서 찾은 학생이 없어요.</span>';
+  }, 250);
+}
+
+async function pickWrOther(sid) {
+  const o = _wrOther, doc = _wr;
+  if (!o || !doc) return;
+  const st = o.list.find(x => x.id === sid);
+  const cls = st && classes.find(c => c.id === st.class_id);
+  const msg = document.getElementById('wr-other-msg');
+  if (!st || !cls) { msg.innerHTML = '<span class="mrep-warn">학생의 반 정보를 찾지 못했어요.</span>'; return; }
+  let x = doc.extra.find(e => e.id === sid);
+  if (!x) {
+    msg.textContent = `${cls.name}의 같은 주 주차를 찾는 중...`;
+    if (!doc.hostWeek) {
+      const h = await apiReqRetry(`weeks?id=eq.${doc.weekId}&select=id,label,test_date,group_id`, 'GET');
+      doc.hostWeek = h.ok && Array.isArray(h.data) ? (h.data[0] || null) : null;
+    }
+    const wk = await apiReqRetry(`weeks?class_id=eq.${cls.id}&select=id,class_id,label,test_date,group_id,created_at`, 'GET');
+    if (_wrOther !== o || _wr !== doc) return;
+    if (!doc.hostWeek || !wk.ok || !Array.isArray(wk.data)) { msg.innerHTML = '<span class="mrep-warn">❌ 주차 정보를 불러오지 못했어요. 다시 눌러 주세요.</span>'; return; }
+    const m = guestMatchWeek(doc.hostWeek, wk.data);
+    if (!m) { msg.innerHTML = `<span class="mrep-warn">${escapeHtml(cls.name)}에 이 주와 같은 주차가 없어요.</span> 점수 입력 탭 '다른 반 학생 입력'으로 이 학생 점수를 먼저 넣으면 그 반 주차가 생겨요.`; return; }
+    x = { id: st.id, name: st.name, classId: cls.id, className: cls.name, weekId: m.week.id, weekLabel: m.week.label || m.week.test_date || '' };
+    doc.extra.push(x);
+  }
+  const target = doc.students[o.i];
+  closeWrOther();
+  if (target) { target.sid = sid; target.how = 'other'; doc.confirmed = false; }
+  renderWrReview();
+  showToast(`${x.name}(${x.className}) 결과는 ${x.className} ${x.weekLabel} 주차로 올라가요`, 3000);
+}
+
+// 올릴 내용 — 학생 화면이 그대로 그린다. GPT 내부 메모(검토 필요 사유 등)는 넣지 않는다.
+function wrVocabData(doc, st) {
+  const s = wrVocabScores(st);
+  const words = st.words.map(w => {
+    const base = { no: w.no, mark: w.mark, word: w.word, answer: w.answer, blank: !!w.blank, correct: w.correct, reason: w.reason };
+    if (w.mark !== '?') return base;
+    const f = st.fix.words[w.no] || {};
+    const typed = (f.answer || '').trim();
+    return { ...base, mark: f.mark, answer: typed || w.answer, blank: !typed && !!w.blank, reason: '' };
+  });
+  const sentences = st.sentences.map(x => {
+    const blank = !x.answer || /^\[\s*무응답[^\]]*\]$/.test(x.answer);
+    const base = { no: x.no, source: x.source, answer: blank ? '' : x.answer, blank, percent: x.percent, score: x.score, max: x.max, reason: x.reason, correct: x.correct };
+    if (!x.review) return base;
+    const f = st.fix.sentences[x.no] || {};
+    return { ...base, percent: f.percent, score: wrRound(f.percent / 100 * x.max), reason: (f.reason || '').trim() };
+  });
+  return { v: 1, title: doc.title, words, sentences,
+    score: { word: s.word, wordMax: st.wordMax, sentence: s.sentence, sentenceMax: st.sentenceMax, total: wrRound(s.word + s.sentence), totalMax: wrRound(st.wordMax + st.sentenceMax) } };
+}
+
+function wrOmrData(doc, st) {
+  const sections = st.sections.map(sec => {
+    const r = wrOmrSectionScore(st, sec);
+    const items = sec.items.map(it => {
+      if (sec.type === 'mc') return { no: it.no, mine: it.mine, correct: it.correct, ok: it.ok };
+      if (sec.type === 'fill') return { no: it.no, score: it.score, max: it.max, entries: it.entries.map(e => ({ num: e.num, answer: e.answer, blank: !!e.blank, ok: e.ok })), key: doc.key.fill[it.no] || [] };
+      const k = doc.key.write[it.no];
+      return { no: it.no, score: it.score, max: it.max, answer: it.answer, blank: !!it.blank, correct: k ? k.answer : '', note: k ? k.note : '' };
+    });
+    return { label: sec.label, type: sec.type, score: r.score, max: r.max, items };
+  });
+  const tot = st.stated['합계'];
+  return { v: 1, title: doc.title, notes: doc.notes, sections,
+    total: tot ? { score: tot.score, max: tot.max } : { score: wrRound(sections.reduce((a, s) => a + (s.score || 0), 0)), max: wrRound(sections.reduce((a, s) => a + (s.max || 0), 0)) } };
+}
+
+async function uploadWr() {
+  const doc = _wr;
+  if (!doc || _wrBusy || !doc.confirmed) return;
+  const issues = wrIssues(doc);
+  if (issues.some(x => x.block.length)) { renderWrReview(); return; }
+  const send = doc.students.filter(st => typeof st.sid === 'number');
+  if (!send.length) return;
+  _wrBusy = true;
+  renderWrReview();
+  const msgEl = document.querySelector('#wr-review .wt-confirm');
+  const say = t => { if (msgEl) msgEl.innerHTML = `<span class="mrep-progress">${escapeHtml(t)}</span>`; };
+  const fail = [];
+  let scoreOk = 0, scoreChanged = 0, scoreSkipped = [];
+  try {
+    await flushScoreAutoSave();
+    // ① 결과 올리기 — 주차별로 한 번에
+    const targetOf = st => { const x = doc.extra.find(e => e.id === st.sid); return x ? x.weekId : doc.weekId; };
+    const byWeek = {};
+    send.forEach(st => { (byWeek[targetOf(st)] = byWeek[targetOf(st)] || []).push(st); });
+    const now = new Date().toISOString();
+    const saved = [];
+    for (const w of Object.keys(byWeek)) {
+      say(`채점 결과 올리는 중... (${saved.length}/${send.length})`);
+      const body = byWeek[w].map(st => ({ week_id: parseInt(w), student_id: st.sid, kind: doc.kind, data: doc.kind === 'vocab' ? wrVocabData(doc, st) : wrOmrData(doc, st), updated_at: now }));
+      const r = await apiReqRetry('week_results?on_conflict=week_id,student_id,kind', 'POST', body, 'resolution=merge-duplicates,return=minimal');
+      if (r.ok) saved.push(...byWeek[w]); else byWeek[w].forEach(st => fail.push(wrStudentOf(doc, st.sid)?.name || st.name));
+    }
+    // ② 점수 칸 — 최신 행을 다시 읽어 바뀐 칸만 (다른 점수가 있으면 먼저 묻는다)
+    const mappedKeys = [...new Set(Object.values(doc.map).filter(Boolean))];
+    if (saved.length && mappedKeys.length) {
+      say('점수 칸 확인 중...');
+      const curItems = currentItemConfig.filter(it => it.active);
+      const weekIds = [...new Set(saved.map(targetOf))];
+      const wk = await apiReqRetry(`weeks?id=in.(${weekIds.join(',')})&select=id,label,item_config`, 'GET');
+      const cfgOf = {}; (wk.ok && Array.isArray(wk.data) ? wk.data : []).forEach(w => { cfgOf[w.id] = normalizeItemConfig(w.item_config).filter(it => it.active); });
+      const jobs = [];
+      for (const w of weekIds) {
+        const items = cfgOf[w];
+        const sts = saved.filter(st => targetOf(st) === w);
+        if (!items) { sts.forEach(st => scoreSkipped.push(wrStudentOf(doc, st.sid)?.name || st.name)); continue; }
+        const got = await apiReqRetry(`scores?week_id=eq.${w}&student_id=in.(${sts.map(st => st.sid).join(',')})&select=*`, 'GET');
+        if (!got.ok || !Array.isArray(got.data)) { sts.forEach(st => scoreSkipped.push(wrStudentOf(doc, st.sid)?.name || st.name)); continue; }
+        const dbOf = {}; got.data.forEach(r => { dbOf[r.student_id] = r; });
+        // 다른 반 주차는 같은 이름의 칸에 넣는다
+        const keyIn = key => { if (w === doc.weekId) return items.some(it => it.key === key) ? key : null; const lb = curItems.find(it => it.key === key)?.label; const it = lb ? items.find(x => x.label === lb) : null; return it ? it.key : null; };
+        sts.forEach(st => {
+          const sc = wrCatScores(doc, st);
+          const vals = {};
+          doc.cats.forEach(c => { const k = doc.map[c.id] && keyIn(doc.map[c.id]); if (!k || sc[c.id] === null || sc[c.id] === undefined) return; vals[k] = wrRound((vals[k] || 0) + sc[c.id]); });
+          if (!Object.keys(vals).length) { scoreSkipped.push(wrStudentOf(doc, st.sid)?.name || st.name); return; }
+          const db = dbOf[st.sid] || null;
+          const diffs = Object.keys(vals).filter(k => { const v = db ? itemVal(db, k) : null; return v !== null && v !== undefined && v !== '' && !scoreValEq(v, vals[k]); })
+            .map(k => ({ k, label: items.find(it => it.key === k)?.label || '', old: itemVal(db, k), nv: vals[k] }));
+          jobs.push({ w, st, items, db, vals, diffs });
+        });
+      }
+      const withDiff = jobs.filter(j => j.diffs.length);
+      let replace = true;
+      if (withDiff.length) {
+        const lines = withDiff.slice(0, 12).map(j => ` · ${wrStudentOf(doc, j.st.sid)?.name || j.st.name}: ${j.diffs.map(d => `${d.label} ${d.old} → ${d.nv}`).join(', ')}`).join('\n');
+        replace = confirm(`⚠️ 점수 칸에 이미 다른 점수가 있는 학생이 ${withDiff.length}명 있어요.\n\n${lines}${withDiff.length > 12 ? `\n 외 ${withDiff.length - 12}명` : ''}\n\n[확인] 채점 결과 점수로 바꾸기\n[취소] 원래 점수는 그대로 두고 빈 칸만 채우기`);
+      }
+      let n = 0;
+      for (const j of jobs) {
+        say(`점수 넣는 중... (${++n}/${jobs.length})`);
+        const base = scoreFieldsOf(j.db, j.items);
+        const screen = JSON.parse(JSON.stringify(base));
+        Object.keys(j.vals).forEach(k => { if (replace || !j.diffs.some(d => d.k === k)) screen.items[k] = j.vals[k]; });
+        const d = scoreDiff(base, screen, j.items);
+        if (!d.any) continue;
+        const plan = scoreWritePlan(d, screen, j.db, j.items, j.w, j.st.sid, j.w === doc.weekId ? currentNoHomework : false);
+        if (!plan) continue;
+        const r = await apiReqRetry(plan.path, plan.method, plan.body, plan.method === 'POST' ? 'return=representation' : 'return=minimal');
+        if (r.ok) { scoreOk++; if (j.diffs.length && replace) scoreChanged++; }
+        else scoreSkipped.push(wrStudentOf(doc, j.st.sid)?.name || j.st.name);
+      }
+      weekIds.forEach(w => { delete scoreCache[w]; invalidateAfterScoreWrite(w); });
+    }
+    const parts = [`✅ ${WR_KIND_LABEL[doc.kind]} 채점 결과 ${saved.length}명 올림`];
+    if (mappedKeys.length && saved.length) parts.push(`점수 ${scoreOk}명 입력${scoreChanged ? `(${scoreChanged}명은 바꿈)` : ''}`);
+    if (fail.length) parts.push(`❌ 결과를 올리지 못한 학생 ${fail.length}명 (${fail.join(', ')}) — 다시 눌러 주세요`);
+    if (scoreSkipped.length) parts.push(`⚠ 점수를 넣지 못한 학생 ${scoreSkipped.length}명 (${scoreSkipped.join(', ')})`);
+    _wrLast = { weekId: doc.weekId, html: parts.map(escapeHtml).join('<br>') };
+    showToast(fail.length ? `⚠ ${saved.length}명 올림 · ${fail.length}명 실패` : `✅ 채점 결과 ${saved.length}명 올림`, 3500);
+    if (!fail.length) { clearWrReview(); document.getElementById('wr-text').value = ''; }
+  } finally {
+    _wrBusy = false;
+    if (_wr) renderWrReview();
+  }
+  // 점수 표를 다시 읽어 방금 넣은 점수가 보이게 (같은 반·주차를 보고 있을 때)
+  if (parseInt(document.getElementById('score-week').value) === doc.weekId) await loadScoreInputs();
+  else loadWrPanel();
 }
 
 // ── 모의고사 분석지 (학생별 PDF) ──────────────────────────

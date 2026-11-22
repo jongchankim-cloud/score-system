@@ -20,6 +20,8 @@
 //     스키마: supabase/week-tests.sql (weeks.report_published).
 // v20 (2026-11-22): sign_upload가 본문 없이 Content-Type: application/json으로 보내 Storage가 400으로 거절하던 문제 —
 //     빈 객체 {}를 보낸다. 이 때문에 주차 시험지·모의고사 분석지 업로드가 처음부터 모두 실패했다(보관함 파일 0개).
+// v21 (2026-11-22): week_results(주차 채점 결과 글 — 단어·해석 / 객관식·어법·서술형) 허용 목록 추가.
+//     스키마: supabase/week-results.sql. 관리자 화면 점수 입력 탭 '채점 결과 (GPT 글)'이 조회·업서트·삭제한다.
 
 const SUPABASE_URL = Deno.env.get("SB_URL")!;
 const SERVICE_ROLE = Deno.env.get("SB_SERVICE_ROLE")!;
@@ -36,6 +38,8 @@ const ALLOWED_TABLES = new Set([
   "school_grades",
   // 상담 기록 · 학생 클리닉 신청 (v18, 스키마: supabase/counsel-and-clinic.sql)
   "counsel_notes", "clinic_bookings",
+  // 주차 채점 결과 글 (v21, 스키마: supabase/week-results.sql)
+  "week_results",
 ]);
 // 읽기만 허용하는 표
 const READ_ONLY_TABLES = new Set(["data_history"]);
