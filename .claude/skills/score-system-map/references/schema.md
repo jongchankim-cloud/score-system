@@ -57,6 +57,14 @@
 - 기능 스위치 `app_settings.mockReports.enabled`(없으면 켜짐). 끄기는 모든 시험 공개를 내리고 관리자 칸을 접는다. 되돌리기 절차: `supabase/mock-reports-rollback.md`.
 - `deleteMockExam`·`deleteClass`는 DB 삭제 뒤 해당 시험 파일을 지운다(실패 무시). `deleteStudent`는 파일을 지우지 않는다 — 시험·학생이 없으면 링크가 발급될 길이 없다.
 
+
+## 주차 시험지 (2026-11-22, `supabase/week-tests.sql`)
+- `weeks.report_published` boolean 기본 false — 그 주차 학생별 시험지(스캔 PDF)를 학부모 화면에 공개할지.
+- 파일은 분석지와 같은 비공개 보관함 `mock-reports`의 `w{weeks.id}/{students.id}.pdf`. admin-api v19가 `w` 경로를 허용하고
+  storage `list`에 `week_ids`(결과 키 'w{id}'), `remove`에 `week_id`를 받는다. parent-login은 공개된 본인 반 주차 중 파일이 있는 것을
+  `weekReports`(주차 id 목록)로 알려 주고 `GET ?report=w<주차id>`로 5분짜리 링크를 준다. `deleteWeek`는 그 주차 파일도 지운다(실패 무시).
+- 스캔 쪽 → 학생 맞추기는 Edge Function `name-reader`(supabase/functions/name-reader, verify_jwt true, 관리자 비밀번호 확인): 쪽 윗부분 사진 ≤10장 + 반 명단 `{id,name}`을 Gemini(`GEMINI_API_KEY`, counsel-draft와 같은 키)에 보내 `{page, read, student_id|null, confidence}`를 돌려준다. 명단 밖 번호는 버리고 빠진 쪽은 low. DB에는 아무것도 쓰지 않는다.
+
 ## mock_scores
 `id, exam_id, student_id, item1_score~item4_score, score, absent, memo, retest_pass`
 - `score`는 **레거시 총점 컬럼이지만 계속 채운다.** 학부모 화면이 항목 컬럼 없이도 총점·평균을 계산할 수 있게 하기 위함(L3605 주석). 항목 점수를 저장할 때 합계를 반드시 `score`에도 넣을 것.

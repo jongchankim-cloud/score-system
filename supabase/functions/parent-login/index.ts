@@ -8,6 +8,7 @@
 //  GET    (쿠키)        → 세션 검증, 성적 데이터, vocab_key (새로고침·뒤로 가기·다른 페이지)
 //  DELETE               → 쿠키 삭제 (로그아웃)
 //  GET ?report=<시험id> (쿠키) → 공개된 본인 모의고사 분석지 PDF의 5분짜리 서명 링크 { url }
+//  GET ?report=w<주차id> (쿠키) → 공개된 본인 주차 시험지(스캔 PDF)의 5분짜리 서명 링크 { url } (2026-11-22)
 //
 // vocab_key 는 PIN 을 확인한 POST 에서만 단어 사이트 DB 에 받아, 서명된 세션 토큰에 넣어 둔다.
 // 그래서 자동 입장(GET)에서도 PIN 없이 단어 사이트 기록을 이어 쓸 수 있다.
@@ -191,6 +192,23 @@ async function publishedReportExamIds(student: any): Promise<number[]> {
   }
 }
 
+// 학부모 화면에 '시험지 보기' 버튼을 띄울 주차 id 목록 (2026-11-22, supabase/week-tests.sql).
+// 조교가 '학부모에게 공개'(weeks.report_published)를 켠 이 반 주차 중 이 학생 파일(w{주차id}/{학생id}.pdf)이 있는 것만.
+// 컬럼이 아직 없거나 오류가 나도 로그인은 그대로 되도록 빈 목록으로 넘긴다.
+async function publishedWeekReportIds(student: any): Promise<number[]> {
+  try {
+    const pub = await rest(
+      `weeks?class_id=eq.${student.class_id}&report_published=is.true&select=id`,
+    );
+    if (!Array.isArray(pub) || !pub.length) return [];
+    const paths = pub.map((w: any) => `w${w.id}/${student.id}.pdf`);
+    const signed = await signReports(paths, 60);
+    return pub.map((w: any) => w.id).filter((id: number) => signed[`w${id}/${student.id}.pdf`]);
+  } catch {
+    return [];
+  }
+}
+
 // ── 학생 성적 데이터 묶음 (기존 로직 그대로) ──
 
 async function loadStudentData(student: any) {
@@ -277,6 +295,7 @@ async function loadStudentData(student: any) {
     mockRankScores,
     mockGroupExamMap,
     mockReports: await publishedReportExamIds(student),
+    weekReports: await publishedWeekReportIds(student),
   };
 }
 
@@ -304,6 +323,20 @@ Deno.serve(async (req) => {
     // 분석지 열기: 링크는 누를 때마다 새로 만든다 (로그인 응답에 넣으면 12시간 세션 중에 만료된다).
     // 같은 반 시험 + 공개된 시험 + 본인 파일일 때만 — 시험 id를 바꿔 넣어도 남의 분석지는 못 연다.
     const reportParam = new URL(req.url).searchParams.get("report");
+    // 주차 시험지: report=w<주차id> — 같은 반 주차 + 공개된 주차 + 본인 파일일 때만
+    if (reportParam !== null && reportParam.startsWith("w")) {
+      const weekId = Number(reportParam.slice(1));
+      if (!Number.isInteger(weekId) || weekId <= 0) return json({ error: "bad_report" }, 400);
+      const st = rows[0];
+      const wk = await rest(
+        `weeks?id=eq.${weekId}&class_id=eq.${st.class_id}&report_published=is.true&select=id`,
+      );
+      if (!Array.isArray(wk) || !wk.length) return json({ error: "report_not_found" }, 404);
+      const path = `w${weekId}/${st.id}.pdf`;
+      const signed = await signReports([path], REPORT_LINK_SEC);
+      if (!signed[path]) return json({ error: "report_not_found" }, 404);
+      return json({ url: signed[path] });
+    }
     if (reportParam !== null) {
       const examId = Number(reportParam);
       if (!Number.isInteger(examId) || examId <= 0) return json({ error: "bad_report" }, 400);
