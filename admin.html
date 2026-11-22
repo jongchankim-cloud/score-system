@@ -981,7 +981,7 @@
         </button>
       </div>
       <div class="section-body" id="cb-settings-body" style="display:none">
-        <p style="font-size:12px;color:var(--gray);margin:0 0 12px;line-height:1.7">학생이 성적 확인 화면에서 아래 <strong>운영 시간 안의 시각</strong>(30분 또는 1시간 간격)을 하나 골라 클리닉을 신청합니다. 운영 시간은 모든 학년 공통이고, 한 번 정하면 매주 그대로 쓰입니다. 처음 신청할 때는 문자가 가지 않고, 시간 변경 · 취소 때 <strong>학부모님과 아래 번호로</strong> 문자가 가며, 클리닉 <strong>전날 오후 6시</strong>에 학생·학부모께 안내 문자가 갑니다. 문구는 맨 아래 '문자 문구'에서 고칠 수 있어요. 신청한 시간은 배정표에 <span class="clinic-booked">신청</span> 표시와 함께 들어가며, 메모에 적힌 요일·시간보다 우선합니다.</p>
+        <p style="font-size:12px;color:var(--gray);margin:0 0 12px;line-height:1.7">학생이 성적 확인 화면에서 아래 <strong>운영 시간 안의 시각</strong>(30분 또는 1시간 간격)을 하나 골라 클리닉을 신청합니다. 운영 시간은 모든 학년 공통이고, 한 번 정하면 매주 그대로 쓰입니다. 처음 신청할 때는 문자가 가지 않고, 시간 변경 · 취소 때 <strong>학부모님과 아래 번호로</strong> 문자가 가며, 클리닉 <strong>전날 오후 6시</strong>에 학생·학부모께 안내 문자가 갑니다. 문구는 맨 아래 '문자 문구'에서 고칠 수 있어요. 신청한 시간은 배정표에 <span class="clinic-booked">신청</span> 표시와 함께 들어가며, 메모에 적힌 요일·시간보다 우선합니다. 그 주 클리닉 메모 맨 윗줄에도 '[클리닉 신청] 11/23(월) 오후 3:30'처럼 자동으로 적혀 학부모 화면 '클리닉 안내'에 보입니다(그 주 점수가 없는 학생은 메모 칸이 없어 배정표에만 표시).</p>
         <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:var(--navy);margin-bottom:12px;cursor:pointer">
           <input type="checkbox" id="cb-enabled" style="width:17px;height:17px"> 학생 클리닉 신청 받기
         </label>
@@ -4097,7 +4097,7 @@ function openClinicMemoEdit(sid) {
   if (row.booking) {
     const b = row.booking;
     bkEl.innerHTML = `<span class="clinic-booked" style="margin-left:0">신청</span> 학생이 웹사이트에서 신청: <strong>${escapeHtml(clinicBookingLabel(b))}</strong>`
-      + `<br><span style="color:var(--gray);font-size:11.5px">신청 ${escapeHtml(siDate(b.created_at))}${b.change_count ? ` · 바꾼 횟수 ${b.change_count}` : ''} · 배정표는 메모의 요일·시간보다 이 시간을 따릅니다</span>`;
+      + `<br><span style="color:var(--gray);font-size:11.5px">신청 ${escapeHtml(siDate(b.created_at))}${b.change_count ? ` · 바꾼 횟수 ${b.change_count}` : ''} · 배정표는 메모의 요일·시간보다 이 시간을 따릅니다 · 신청·변경·취소하면 메모 맨 윗줄 '[클리닉 신청] …'도 자동으로 바뀝니다</span>`;
     bkEl.style.display = '';
   } else { bkEl.style.display = 'none'; bkEl.innerHTML = ''; }
   previewClinicMemoEdit();
