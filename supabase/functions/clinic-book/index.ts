@@ -6,6 +6,7 @@
 //  GET    (쿠키)               → { enabled, student, week, slots:[{day,time,at,label}], booking, canChange }
 //  POST   { day, time } (쿠키) → 신청(문자 없음) / 시간 변경 → 학부모(students.phone) · 선생님(설정 teacherPhone)께 문자
 //  DELETE (쿠키)               → 신청 취소 → 학부모 · 선생님께 문자
+//  신청 · 변경 · 취소 때 그 주 클리닉 메모(scores.clinic_memo)에도 '일요일 3시'처럼 한 줄로 맞춘다(syncClinicMemo).
 //
 // 설정: app_settings key 'clinicBooking.v1' = { enabled, teacherPhone, hours: [{ day:'일', start:'10:00', end:'18:00' }],
 //         interval: 30|60, templates: { change, cancel, remind } }
@@ -249,6 +250,51 @@ function publicState(ctx: any) {
   };
 }
 
+// ── 클리닉 메모(scores.clinic_memo)에 신청 시간 한 줄 (2026-11 운영 요청) ──
+// 조교가 메모에 적던 모양 그대로 '일요일 3시' · '수요일 6시 반'으로 적는다(오전·오후·날짜 없이 — 배정표 parseClinicMemo가 같은 칸으로 읽는다).
+// 관리자 메모 창 · 점수 입력 탭 · 학부모 화면 '클리닉 안내'에 그대로 보인다.
+// 신청하면 맨 위에 넣고, 바꾸면 직전에 신청했던 시간 줄을 지우고 새 줄을 넣고, 취소하면 그 줄만 지운다. 조교가 적은 다른 줄은 그대로.
+// 그 주 점수 행이 없으면(시험을 안 본 학생) 새로 만들지 않는다 — scores 기본값이 점수 0 · 출석으로 들어가 성적·출결이 틀어진다.
+// 조교가 같은 순간 메모를 고쳤을 수 있으므로, 읽은 메모가 그대로일 때만 바꾼다(아니면 다시 읽어 한 번 더).
+const DAY_FULL: Record<string, string> = { "월": "월요일", "화": "화요일", "수": "수요일", "목": "목요일", "금": "금요일", "토": "토요일", "일": "일요일" };
+function memoLine(day: string, time: string): string {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(time || "");
+  if (!m) return "";
+  const h = parseInt(m[1]), mm = parseInt(m[2]);
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${DAY_FULL[day] || day} ${h12}시${mm === 0 ? "" : mm === 30 ? " 반" : ` ${mm}분`}`;
+}
+function memoWithBooking(memo: string | null, oldLine: string | null, newLine: string | null): string | null {
+  const drop = new Set([oldLine, newLine].filter(Boolean).map((x) => (x as string).trim()));
+  const lines = String(memo ?? "").split("\n").filter((l) => !drop.has(l.trim()));
+  if (newLine) lines.unshift(newLine);
+  const out = lines.join("\n").trim();
+  return out ? out : null;
+}
+async function syncClinicMemo(sid: number, weekId: number, oldLine: string | null, newLine: string | null): Promise<"ok" | "same" | "no_row" | "failed"> {
+  try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const r = await rest(`scores?student_id=eq.${sid}&week_id=eq.${weekId}&select=id,clinic_memo&order=id.asc&limit=1`);
+      const row = Array.isArray(r.data) ? r.data[0] : null;
+      if (!row) return "no_row";
+      const old: string | null = row.clinic_memo ?? null;
+      const next = memoWithBooking(old, oldLine, newLine);
+      if ((old ?? "").trim() === (next ?? "")) return "same";
+      const cond = old === null ? "clinic_memo=is.null" : `clinic_memo=eq.${encodeURIComponent(old)}`;
+      const p = await rest(`scores?id=eq.${row.id}&${cond}`, {
+        method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify({ clinic_memo: next }),
+      });
+      if (p.status < 400 && Array.isArray(p.data) && p.data.length) return "ok";
+      if (p.status >= 400) return "failed";
+      // 0건 = 그사이 메모가 바뀜 → 다시 읽어서 한 번 더
+    }
+    return "failed";
+  } catch (e) {
+    console.log("클리닉 메모 반영 실패:", String(e));
+    return "failed";
+  }
+}
+
 // 시간 변경·취소만 학부모와 선생님께 알린다. 처음 신청은 문자를 보내지 않는다(2026-11 운영 요청).
 async function notify(ctx: any, kind: "new" | "change" | "cancel", label: string, oldLabel?: string) {
   if (kind === "new") return { sent: 0, failed: 0 };
@@ -291,8 +337,9 @@ Deno.serve(async (req) => {
       });
       if (r.status >= 400) return json({ error: "save_failed", message: "취소하지 못했어요. 잠시 후 다시 해 주세요." }, 502);
       const sms = await notify(ctx, "cancel", "", slotLabel(curAt as number));
+      const memo = await syncClinicMemo(sid, cur.week_id, memoLine(cur.clinic_day, cur.clinic_time), null);
       ctx.booking = Array.isArray(r.data) && r.data[0] ? r.data[0] : { ...cur, status: "cancelled" };
-      return json({ ...publicState(ctx), sms });
+      return json({ ...publicState(ctx), sms, memo });
     }
 
     if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
@@ -322,8 +369,9 @@ Deno.serve(async (req) => {
     }
     if (!saved) return json({ error: "save_failed", message: "신청하지 못했어요. 잠시 후 다시 해 주세요." }, 502);
     const sms = cur ? await notify(ctx, "change", slot.label, slotLabel(curAt as number)) : await notify(ctx, "new", slot.label);
+    const memo = await syncClinicMemo(sid, saved.week_id ?? ctx.week.id, cur ? memoLine(cur.clinic_day, cur.clinic_time) : null, memoLine(slot.day, slot.time));
     ctx.booking = saved;
-    return json({ ...publicState(ctx), sms });
+    return json({ ...publicState(ctx), sms, memo });
   } catch (e) {
     console.log("clinic-book 오류:", String(e));
     return json({ error: "server_error", message: "잠시 후 다시 해 주세요." }, 500);
