@@ -62,4 +62,4 @@ result-section ── showResult()
 
 ## 학생 화면(index.html) 클리닉 신청 (2026-11)
 
-`showResult` 끝에서 `loadClinicBooking` → `/api/clinic-book`(vercel.json rewrite → Supabase 함수 `clinic-book`, 세션 쿠키). `renderClinicBooking`(날짜별로 묶어 시각 버튼) · `pickClinicSlot`(POST {day,time}) · `cancelClinicBooking`(DELETE). 서버가 문자: 처음 신청은 없음, 변경·취소는 학부모·선생님(문구는 설정 templates, 칸 {이름}{반}{클리닉}{이전 클리닉}). 전날 안내는 `clinic-remind`(pg_cron 'clinic-remind', 매일 18:00 KST). 설정이 꺼져 있으면 카드가 안 보인다.
+`showResult` 끝에서 `loadClinicBooking` → `/api/clinic-book`(vercel.json rewrite → Supabase 함수 `clinic-book`, 세션 쿠키). `renderClinicBooking`(날짜 · 시 · 분 select `#cb-pick-date/hour/minute` → `onClinicPick`, 고르기만으론 저장 안 됨) · 확정 버튼 `submitClinicPick`(POST {day,time}, 변경이면 confirm — 문자 감) · 상태 `clinicPick`·`clinicPickNormalize`/`clinicPickOptions`/`clinicPickSlot`/`clinicPickFromBooking` · `cancelClinicBooking`(DELETE). 서버가 문자: 처음 신청은 없음, 변경·취소는 학부모·선생님(문구는 설정 templates, 칸 {이름}{반}{클리닉}{이전 클리닉}). 전날 안내는 `clinic-remind`(pg_cron 'clinic-remind', 매일 18:00 KST). 설정이 꺼져 있으면 카드가 안 보인다.
