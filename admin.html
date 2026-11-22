@@ -375,9 +375,15 @@
   .wt-crop { width:320px; border:1px solid var(--border); border-radius:3px; cursor:zoom-in; display:block; background:var(--white); }
   .wt-crop.empty { height:72px; }
   #week-test-box .btn:disabled { opacity:.45; cursor:not-allowed; }
-  .wt-files { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12.5px; color:var(--navy); margin:2px 0 8px; }
-  .wt-file { display:inline-flex; align-items:center; gap:4px; background:var(--cream); border:1px solid var(--border); border-radius:6px; padding:3px 8px; }
-  .wt-file .btn { padding:1px 6px; font-size:11px; }
+  .wt-file-table { width:100%; border-collapse:collapse; font-size:12.5px; color:var(--navy); margin:6px 0 4px; }
+  .wt-file-table th { text-align:left; font-weight:600; color:var(--gray); padding:5px 8px; border-bottom:1px solid var(--border); }
+  .wt-file-table td { padding:6px 8px; border-bottom:1px solid var(--border); vertical-align:middle; }
+  .wt-file-table .wt-file-name { word-break:break-all; }
+  .wt-file-table select { padding:4px 6px; border:1.5px solid var(--border); border-radius:6px; font-size:12.5px; font-family:inherit; color:var(--navy); }
+  .wt-file-table .btn { padding:2px 8px; font-size:11.5px; }
+  .wt-other { border:1.5px solid var(--gold); border-radius:8px; padding:10px 12px; margin:8px 0; background:var(--white); font-size:13px; color:var(--navy); }
+  .wt-other input[type=text] { width:220px; max-width:100%; padding:6px 8px; border:1.5px solid var(--border); border-radius:6px; font-size:13px; font-family:inherit; margin-top:6px; }
+  .wt-other-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
   .wt-confirm { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; color:var(--navy); background:var(--cream); border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin:8px 0; }
   .wt-confirm label { display:flex; align-items:center; gap:6px; cursor:pointer; }
   .mock-header { padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; }
@@ -575,6 +581,7 @@
             스캔 순서는 상관없어요 · AI가 쪽마다 손글씨 이름을 읽어 이 반 학생과 맞추고, 학생별로 한 파일로 묶어 확인한 뒤에 올립니다
           </label>
           <div id="week-test-review"></div>
+          <div class="wt-other" id="week-test-other" style="display:none"></div>
           <div class="mrep-preview" id="week-test-preview" style="display:none"></div>
         </div>
       </div>
@@ -6814,11 +6821,14 @@ const WT_CROP = 0.26;          // 쪽 윗부분(이름 칸) 비율 — 썸네일
 const WT_CROP_WIDTH = 900;     // 그 사진의 가로 픽셀 (손글씨가 읽힐 만큼, 쪽당 약 50~100KB)
 const WT_AI_BATCH = 8;         // AI에 한 번에 보내는 쪽 수
 let _wtCtx = null;   // { weekId, classId, students:[{id,name}], fileInfo, published }
-let _wtDoc = null;   // { weekId, files:[{name, bytes, pdf, count}], pages:[{uid, file, pno, assign, thumb, ai, flag, userSet}], reading, confirmed, onlyWarn }
+let _wtDoc = null;   // { weekId, files:[{name, bytes, pdf, count, per}], pages:[{uid, file, pno, assign, thumb, ai, flag, userSet}], extra:[다른 반 학생], extraFiles, stage:'setup'|'review', manual, reading, confirmed, onlyWarn }
 let _wtSeq = 0, _wtBusy = false, _wtListOpen = false, _wtDropReady = false, _wtLastResult = null;
 
-function wtPathOf(sid, ctx = _wtCtx) { return `w${ctx.weekId}/${sid}.pdf`; }
-function wtStudent(sid, ctx = _wtCtx) { return ctx?.students.find(s => s.id === sid) || null; }
+// 다른 반 학생(검토 중 '다른 반 학생 찾기'로 고름)은 그 학생 반의 같은 주 주차 폴더로 — _wtDoc.extra
+function wtExtra(sid) { return (_wtDoc?.extra || []).find(s => s.id === sid) || null; }
+function wtPathOf(sid, ctx = _wtCtx) { const x = wtExtra(sid); return `w${x ? x.weekId : ctx.weekId}/${sid}.pdf`; }
+function wtStudent(sid, ctx = _wtCtx) { return ctx?.students.find(s => s.id === sid) || wtExtra(sid); }
+function wtHasFile(sid, ctx = _wtCtx) { const path = wtPathOf(sid, ctx); return !!(ctx.fileInfo[path] || _wtDoc?.extraFiles?.[path]); }
 
 function initWeekTestDrop() {
   if (_wtDropReady) return;
@@ -6908,6 +6918,7 @@ function renderWeekTestStatus() {
       </div>
       <div class="mrep-actions">
         ${have.length ? `<button class="btn btn-light btn-sm" onclick="toggleWeekTestList()">${_wtListOpen ? '목록 접기' : '학생별 목록'}</button>` : ''}
+        ${have.length ? `<button class="btn btn-danger btn-sm" onclick="deleteAllWeekTests()">모두 삭제</button>` : ''}
         ${pubBtn}
       </div>
     </div>
@@ -6938,6 +6949,20 @@ async function openStoredWeekTest(path) {
   if (w) w.location.href = r.data.url; else window.open(r.data.url, '_blank');
 }
 
+// 이 주차(이 반)에 올라간 시험지를 모두 지운다 — 잘못 나눠 올렸을 때 다시 올리기 전에
+async function deleteAllWeekTests() {
+  const ctx = _wtCtx;
+  if (!ctx || _wtBusy) return;
+  const have = ctx.students.filter(st => ctx.fileInfo[wtPathOf(st.id, ctx)]).length;
+  if (!have) return;
+  if (!confirm(`이 주차에 올라간 시험지 ${have}명을 모두 삭제할까요?\n학부모 화면의 '시험지 보기'도 사라지고, 되돌릴 수 없어요.`)) return;
+  const r = await reportStorage({ op: 'remove', week_id: ctx.weekId }).catch(() => null);
+  if (!r?.ok) { showToast('❌ 시험지를 삭제하지 못했어요. 다시 시도해 주세요.', 4000); return; }
+  showToast(`🗑 시험지 ${r.data?.removed ?? have}개를 삭제했어요.`);
+  _wtLastResult = null;
+  loadWeekTestPanel();
+}
+
 async function deleteStoredWeekTest(path, name) {
   if (!confirm(`${name} 학생의 시험지를 삭제할까요?`)) return;
   const r = await reportStorage({ op: 'remove', paths: [path] }).catch(() => null);
@@ -6948,10 +6973,19 @@ async function deleteStoredWeekTest(path, name) {
 
 // ── 스캔 PDF 나누기 — AI가 쪽마다 손글씨 이름을 읽어 반 명단과 맞추고, 사람이 확인한 뒤에만 올린다
 // PDF를 여러 개 함께 넣을 수 있다(예: 단어·해석 묶음 + 나머지 묶음, 2026-11-22 운영 요청). 학생 한 명이 파일마다 한 번씩
-// 나오는 것은 정상이고, 올릴 때 위 '파일 순서'대로 그 학생 쪽을 이어 붙여 한 파일로 만든다. '앞 쪽에 이어서'는 같은 파일 안에서만.
+// 나오는 것은 정상이고, 올릴 때 '파일 순서'대로 그 학생 쪽을 이어 붙여 한 파일로 만든다. '앞 쪽에 이어서'는 같은 파일 안에서만.
+// 파일을 고르면 먼저 설정 단계(stage 'setup'): 파일 순서(▲▼ · 빼기)와 파일별 '학생 한 명당 쪽 수'(자동 · 1~6쪽, 반 인원으로 짐작)를 확인한 뒤
+// 'AI로 이름 읽기 시작' 또는 'AI 없이 직접 고르기'. 학생당 쪽 수를 정하면 각 학생 첫 쪽만 읽고/고르고 나머지 쪽은 같은 학생에 붙는다.
+// 다른 반 학생 시험지는 학생 칸 '다른 반 학생 찾기…'로 고른다 → 그 학생 반의 같은 주 주차(guestMatchWeek)에 w{그 주차}/{학생}.pdf로 올린다.
 const WT_NUM = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩'];
+const WT_OTHER = '__other';
 function wtFileMark(doc, file) { const i = doc.files.indexOf(file); return WT_NUM[i] || `${i + 1}번`; }
 function wtPageAt(doc, uid) { return doc.pages.findIndex(p => p.uid === uid); }
+// 학생당 쪽 수를 정한 파일에서 각 학생의 첫 쪽인가 (자동이면 모든 쪽이 첫 쪽처럼 이름을 읽는다)
+function wtIsHead(p) { const per = p.file.per || 0; return !per || (p.pno - 1) % per === 0; }
+// 쪽 수가 반 인원 × N(1~6)이면 N, 아니면 자동(0)
+function wtGuessPer(count, n) { for (let k = 1; k <= 6; k++) if (n && count === n * k) return k; return 0; }
+function wtNeedRead(doc) { return doc.pages.filter(p => !p.userSet && wtIsHead(p) && (!p.ai || p.ai.fail)); }
 
 function clearWeekTestReview() {
   if (_wtDoc) _wtDoc.cancelled = true;   // 읽는 중이던 AI 호출 결과는 버린다
@@ -6960,6 +6994,7 @@ function clearWeekTestReview() {
   const review = document.getElementById('week-test-review');
   if (review) review.innerHTML = '';
   closeWeekTestPreview();
+  closeWeekTestOther();
 }
 
 // name-reader 함수 호출 (관리자 비밀번호로 확인). 결과는 {ok, status, data}
@@ -6986,7 +7021,7 @@ async function loadWeekTestPdfs(list) {
   for (const f of pdfs) {
     const bytes = new Uint8Array(await f.arrayBuffer());
     const pdf = await pdfjsLib.getDocument({ data: bytes.slice(), cMapUrl: PDFJS_CMAP_URL, cMapPacked: true }).promise;
-    out.push({ name: f.name, bytes, pdf, count: pdf.numPages });
+    out.push({ name: f.name, bytes, pdf, count: pdf.numPages, per: 0 });
   }
   return out;
 }
@@ -7020,9 +7055,10 @@ async function onWeekTestFile(fileList) {
   try {
     const files = await loadWeekTestPdfs(list);
     if (_wtCtx !== ctx) { files.forEach(f => f.pdf.destroy()); review.innerHTML = ''; return; }   // 읽는 사이 주차를 바꿨다
-    doc = _wtDoc = { weekId: ctx.weekId, files, pages: [], confirmed: false, onlyWarn: false, reading: true };
+    files.forEach(f => { f.per = wtGuessPer(f.count, ctx.students.length); });
+    doc = _wtDoc = { weekId: ctx.weekId, files, pages: [], extra: [], extraFiles: {}, stage: 'setup', manual: false, confirmed: false, onlyWarn: false, reading: false };
     doc.pages = weekTestPagesOf(doc, files);
-    renderWeekTestReview();
+    applyWeekTestAi(doc);
   } catch (e) {
     review.innerHTML = '';
     showToast('❌ PDF를 읽지 못했어요: ' + (e.message || e), 4000);
@@ -7031,8 +7067,20 @@ async function onWeekTestFile(fileList) {
   } finally {
     _wtBusy = false;
   }
-  renderWeekTestCrops(doc);                 // 사진은 앞에서부터 계속 그리고,
-  await readWeekTestNames(doc, doc.pages);  // AI는 묶음마다 그 쪽 사진이 준비되면 보낸다
+  renderWeekTestReview();
+  renderWeekTestCrops(doc);   // 이름 칸 사진은 미리 그려 둔다 — AI 읽기는 설정을 확인한 뒤 '이름 읽기 시작'에서
+}
+
+// 설정 단계 → 검토. manual이면 AI 없이 (각 학생 첫 쪽을) 직접 고른다. 검토 중 'AI로 이름 읽기'도 이걸 부른다.
+async function startWeekTestRead(manual) {
+  const doc = _wtDoc;
+  if (!doc || doc.reading || _wtBusy) return;
+  doc.stage = 'review';
+  doc.manual = !!manual;
+  doc.confirmed = false;
+  applyWeekTestAi(doc);
+  renderWeekTestReview();
+  if (!manual) await readWeekTestNames(doc, wtNeedRead(doc));
 }
 
 // 검토 중인 목록에 PDF를 더 넣는다(따로 고른 둘째 묶음 등). 새 파일은 맨 뒤 순서로 붙는다.
@@ -7046,29 +7094,69 @@ async function addWeekTestFiles(fileList) {
   try {
     const files = await loadWeekTestPdfs(list);
     if (_wtDoc !== doc) { files.forEach(f => f.pdf.destroy()); return; }
+    files.forEach(f => { f.per = wtGuessPer(f.count, ctx.students.length); });
     doc.files.push(...files);
     added = weekTestPagesOf(doc, files);
     doc.pages.push(...added);
     sortWeekTestPages(doc);
     doc.confirmed = false;
+    applyWeekTestAi(doc);
   } catch (e) {
     showToast('❌ PDF를 읽지 못했어요: ' + (e.message || e), 4000);
     console.error('addWeekTestFiles 실패:', e);
   } finally {
     _wtBusy = false;
   }
-  if (!added.length) { renderWeekTestReview(); return; }
+  renderWeekTestReview();
+  if (!added.length) return;
   renderWeekTestCrops(doc);
-  await readWeekTestNames(doc, added);
+  if (doc.stage === 'review' && !doc.manual) await readWeekTestNames(doc, wtNeedRead(doc).filter(p => added.includes(p)));
 }
 
-// 파일 순서 바꾸기 — 학생별 파일에서 어느 묶음이 앞에 오는지만 바뀐다(배정은 그대로)
-function moveWeekTestFile(i) {
+// 파일 순서 바꾸기(dir -1 위로 · +1 아래로) — 학생별 파일에서 어느 묶음이 앞에 오는지만 바뀐다(배정은 그대로)
+function moveWeekTestFile(i, dir) {
   const doc = _wtDoc;
-  if (!doc || _wtBusy || i < 1 || i >= doc.files.length) return;
-  [doc.files[i - 1], doc.files[i]] = [doc.files[i], doc.files[i - 1]];
+  const j = i + dir;
+  if (!doc || _wtBusy || i < 0 || j < 0 || i >= doc.files.length || j >= doc.files.length) return;
+  [doc.files[i], doc.files[j]] = [doc.files[j], doc.files[i]];
   sortWeekTestPages(doc);
   renderWeekTestReview();
+}
+
+// 잘못 넣은 PDF를 목록에서 뺀다(보관함과는 상관없음)
+function removeWeekTestFile(i) {
+  const doc = _wtDoc;
+  const f = doc && doc.files[i];
+  if (!f || doc.reading || _wtBusy) return;
+  if (!confirm(`${f.name}(${f.count}쪽)을 목록에서 뺄까요?`)) return;
+  if (doc.files.length === 1) { clearWeekTestReview(); return; }
+  doc.files.splice(i, 1);
+  doc.pages = doc.pages.filter(p => p.file !== f);
+  try { f.pdf.destroy(); } catch (e) {}
+  doc.confirmed = false;
+  closeWeekTestPreview();
+  applyWeekTestAi(doc);
+  renderWeekTestReview();
+}
+
+// 파일별 학생 한 명당 쪽 수(0 = 자동). 그 파일에서 직접 고른 쪽은 처음 상태로 돌아간다.
+function setWeekTestPer(fi, value) {
+  const doc = _wtDoc;
+  const f = doc && doc.files[fi];
+  if (!f || doc.reading || _wtBusy) return;
+  const per = Math.max(0, Math.min(6, parseInt(value) || 0));
+  const mine = doc.pages.filter(p => p.file === f);
+  const picked = mine.filter(p => p.userSet).length;
+  if (picked && !confirm(`이 파일에서 직접 고른 쪽 ${picked}개가 처음 상태로 돌아가요. 바꿀까요?`)) { renderWeekTestReview(); return; }
+  f.per = per;
+  mine.forEach(p => { p.userSet = false; });
+  doc.confirmed = false;
+  applyWeekTestAi(doc);
+  renderWeekTestReview();
+  if (doc.stage === 'review' && !doc.manual) {
+    const need = wtNeedRead(doc).filter(p => p.file === f && !p.ai);
+    if (need.length) readWeekTestNames(doc, need);
+  }
 }
 
 // 쪽 윗부분(이름 칸)만 잘라 그린다 — 화면 썸네일이자 AI에 보내는 사진. 한 쪽은 한 번만 그린다.
@@ -7100,6 +7188,7 @@ function ensureWeekTestCrop(doc, p) {
 }
 
 // AI 이름 읽기: 쪽을 몇 장씩 묶어 보낸다. 바쁘면(429) 조금 기다렸다 다시. 실패한 쪽은 '직접 골라 주세요'로 남는다.
+// AI 사용 크레딧이 떨어졌으면(Gemini 402) 남은 쪽은 보내지 않고 바로 알린다.
 async function readWeekTestNames(doc, pages) {
   const ctx = _wtCtx;
   if (!ctx || _wtDoc !== doc) return;
@@ -7129,6 +7218,12 @@ async function readWeekTestNames(doc, pages) {
       const r = byPage[p.uid];
       p.ai = r ? { read: r.read || '', sid: r.student_id ?? null, conf: r.confidence || 'low' } : { fail: true };
     });
+    const noCredit = !!res && (res.status === 402 || res.data?.status === 402 || res.data?.error === 'ai_no_credit');
+    if (noCredit) {
+      todo.slice(i + WT_AI_BATCH).forEach(p => { p.ai = { fail: true }; });
+      doc.readNote = 'AI 사용 크레딧이 다 떨어져서 이름을 읽지 못했어요. Google AI Studio에서 결제(크레딧 충전)를 해야 다시 읽혀요. 그동안은 학생 칸을 직접 골라 주세요(학생당 쪽 수를 정해 두면 각 학생 첫 쪽만 고르면 돼요).';
+      break;
+    }
     if (!res?.ok) doc.readNote = res?.data?.error === 'missing_config'
       ? 'AI 이름 읽기가 서버에 설정되지 않았어요. 쪽마다 학생을 직접 골라 주세요.'
       : 'AI가 일부 쪽을 읽지 못했어요. \'못 읽은 쪽 다시 읽기\'를 누르거나 직접 골라 주세요.';
@@ -7140,24 +7235,26 @@ async function readWeekTestNames(doc, pages) {
   renderWeekTestReview();
 }
 
-// AI 결과 → 배정. 사람이 직접 고른 쪽은 건드리지 않는다.
-// 같은 학생이 바로 앞 쪽과 이어지면 '앞 쪽에 이어서', 이름이 없는 쪽도 앞 학생에 이어 붙인다(학생 한 명이 여러 쪽).
-// 파일이 바뀌면 처음부터 — 다른 파일의 마지막 학생에 이어 붙이지 않는다.
+// AI 결과 → 배정. 사람이 직접 고른 쪽은 건드리지 않는다. 파일이 바뀌면 처음부터 — 다른 파일 학생에 이어 붙이지 않는다.
+// 학생당 쪽 수를 정한 파일: 각 학생 첫 쪽만 이름으로 정하고 나머지 쪽은 '앞 쪽에 이어서'. 첫 쪽에 이름이 없으면 직접 고르게 한다.
+// 자동: 같은 학생이 바로 앞 쪽과 이어지면 '앞 쪽에 이어서', 이름이 없는 쪽도 앞 학생에 이어 붙인다.
 function applyWeekTestAi(doc) {
   let prevSid = null, prevFile = null;
   doc.pages.forEach(p => {
     if (p.file !== prevFile) { prevSid = null; prevFile = p.file; }
+    const per = p.file.per || 0;
     if (p.userSet) { prevSid = p.assign === MREP_PREV ? prevSid : (p.assign ? parseInt(p.assign) : null); return; }
+    if (per && !wtIsHead(p)) { p.assign = MREP_PREV; p.flag = ''; return; }
     const ai = p.ai;
-    if (!ai) { p.assign = MREP_SKIP; p.flag = 'pending'; prevSid = null; return; }
+    if (!ai) { p.assign = MREP_SKIP; p.flag = doc.manual ? 'manual' : 'pending'; prevSid = null; return; }
     if (ai.fail) { p.assign = MREP_SKIP; p.flag = 'fail'; prevSid = null; return; }
     if (ai.sid) {
-      if (ai.sid === prevSid) { p.assign = MREP_PREV; p.flag = ai.conf === 'low' ? 'unsure' : ''; }
+      if (!per && ai.sid === prevSid) { p.assign = MREP_PREV; p.flag = ai.conf === 'low' ? 'unsure' : ''; }
       else { p.assign = String(ai.sid); p.flag = ai.conf === 'high' ? '' : 'unsure'; prevSid = ai.sid; }
       return;
     }
     if (ai.read) { p.assign = MREP_SKIP; p.flag = 'unknown'; prevSid = null; return; }
-    if (prevSid === null) { p.assign = MREP_SKIP; p.flag = 'noname'; return; }
+    if (per || prevSid === null) { p.assign = MREP_SKIP; p.flag = 'noname'; prevSid = null; return; }
     p.assign = MREP_PREV; p.flag = '';
   });
 }
@@ -7180,7 +7277,7 @@ function weekTestSegments() {
   return [...map.entries()].map(([sid, pages]) => ({ sid, pages }));
 }
 
-// 확인이 필요한 쪽 (AI가 애매·못 찾음·이름 없음·읽기 실패·아직 읽는 중, 또는 같은 파일 안 떨어진 두 곳에 같은 학생)
+// 확인이 필요한 쪽 (AI가 애매·못 찾음·이름 없음·읽기 실패·아직 읽기 전/직접 골라야 함, 또는 같은 파일 안 떨어진 두 곳에 같은 학생)
 function weekTestIssues() {
   const doc = _wtDoc;
   const starts = {};
@@ -7195,14 +7292,22 @@ function renderWeekTestReview() {
   const review = document.getElementById('week-test-review');
   if (!doc || !ctx || doc.weekId !== ctx.weekId) { if (review) review.innerHTML = ''; return; }
   const multi = doc.files.length > 1;
+  const setup = doc.stage === 'setup';
+  const locked = doc.reading || _wtBusy;
+  const n = ctx.students.length;
   const resolved = resolveWeekTestPages();
   const segs = weekTestSegments();
   const { dup, flagged } = weekTestIssues();
-  const readCount = doc.pages.filter(p => p.ai).length;
+  const heads = doc.pages.filter(p => wtIsHead(p) && !p.userSet);
+  const readCount = heads.filter(p => p.ai).length;
+  const extraOpts = (doc.extra || []).length
+    ? `<optgroup label="다른 반">${doc.extra.map(x => `<option value="${x.id}">${escapeHtml(x.name)} (${escapeHtml(x.className)})</option>`).join('')}</optgroup>` : '';
   const opts = `<option value="${MREP_SKIP}">올리지 않음</option><option value="${MREP_PREV}">↪ 앞 쪽 학생에 이어서</option>`
-    + ctx.students.map(st => `<option value="${st.id}">${escapeHtml(st.name)}</option>`).join('');
+    + ctx.students.map(st => `<option value="${st.id}">${escapeHtml(st.name)}</option>`).join('')
+    + extraOpts + `<option value="${WT_OTHER}">＋ 다른 반 학생 찾기…</option>`;
   const FLAG_TEXT = {
-    pending: '<span class="mrep-muted">⏳ AI가 읽는 중</span>',
+    pending: setup ? '<span class="mrep-muted">AI 읽기 전</span>' : '<span class="mrep-muted">⏳ AI가 읽는 중</span>',
+    manual: '<span class="mrep-warn">학생을 골라 주세요</span>',
     unsure: '<span class="mrep-warn">⚠️ 애매함 — 사진과 비교해 주세요</span>',
     unknown: '<span class="mrep-warn">⚠️ 명단에서 못 찾음 — 학생을 골라 주세요</span>',
     noname: '<span class="mrep-warn">⚠️ 이름이 안 보임 — 학생을 골라 주세요</span>',
@@ -7211,12 +7316,14 @@ function renderWeekTestReview() {
   const rows = doc.pages.map((p, i) => {
     const sid = resolved[i];
     const st = sid ? wtStudent(sid) : null;
+    const ex = sid ? wtExtra(sid) : null;
+    const exNote = ex ? ` <span class="mrep-muted">→ ${escapeHtml(ex.className)} ${escapeHtml(ex.weekLabel)} 주차로</span>` : '';
     let state;
     if (dup.has(i)) state = `<span class="mrep-warn">⚠️ 같은 학생이 ${multi ? '한 파일 안 ' : ''}여러 곳에 배정됨</span>`;
     else if (p.flag) state = FLAG_TEXT[p.flag] || '';
     else if (p.assign === MREP_PREV) state = st ? `<span class="mrep-muted">↪ ${escapeHtml(st.name)} 시험지의 다음 쪽</span>` : '<span class="mrep-muted">올리지 않음 (앞 쪽이 비어 있음)</span>';
     else if (!p.assign) state = '<span class="mrep-muted">올리지 않음</span>';
-    else state = p.userSet ? `<span class="mrep-ok">직접 지정</span>` : `<span class="mrep-ok">✅ AI 맞춤</span>`;
+    else state = (p.userSet ? `<span class="mrep-ok">직접 지정</span>` : `<span class="mrep-ok">✅ AI 맞춤</span>`) + exNote;
     const warn = !!(p.flag && p.flag !== 'pending') || dup.has(i);
     if (doc.onlyWarn && !warn && !p.flag) return '';
     const read = p.ai ? (p.ai.fail ? '<span class="mrep-muted">—</span>' : (p.ai.read ? escapeHtml(p.ai.read) : '<span class="mrep-muted">(이름 없음)</span>')) : '<span class="mrep-muted">…</span>';
@@ -7228,35 +7335,75 @@ function renderWeekTestReview() {
       <td>${state}</td>
     </tr>`;
   }).join('');
-  const overwrite = segs.filter(sg => ctx.fileInfo[wtPathOf(sg.sid)]).length;
+  const overwrite = segs.filter(sg => wtHasFile(sg.sid)).length;
   const got = new Set(segs.map(sg => sg.sid));
   const without = ctx.students.filter(st => !got.has(st.id));
+  const extraSegs = segs.filter(sg => wtExtra(sg.sid));
   // 파일이 여럿인데 일부 파일에만 있는 학생 — 막지는 않고 알려만 준다(그 묶음을 안 냈을 수도, AI가 잘못 읽었을 수도)
-  const partial = multi && !doc.reading ? segs.filter(sg => new Set(sg.pages.map(p => p.file)).size < doc.files.length)
+  const partial = multi && !doc.reading && !setup ? segs.filter(sg => new Set(sg.pages.map(p => p.file)).size < doc.files.length)
     .map(sg => `${escapeHtml(wtStudent(sg.sid)?.name || '')}(${[...new Set(sg.pages.map(p => p.file))].map(f => wtFileMark(doc, f)).join('')}만)`) : [];
-  const canConfirm = !doc.reading && flagged === 0 && segs.length > 0;
+  const canConfirm = !setup && !doc.reading && flagged === 0 && segs.length > 0;
   if (!canConfirm) doc.confirmed = false;
   const failedCount = doc.pages.filter(p => p.flag === 'fail').length;
-  const fileLine = doc.files.map((f, i) => `<span class="wt-file">${WT_NUM[i] || `${i + 1}번`} ${escapeHtml(f.name)} <span class="mrep-muted">(${f.count}쪽)</span>`
-    + `${i > 0 && !doc.reading && !_wtBusy ? ` <button class="btn btn-light btn-sm" onclick="moveWeekTestFile(${i})" title="앞으로">◀</button>` : ''}</span>`).join('<span class="mrep-muted">→</span>');
-  review.innerHTML = `
+  // 파일 표: 순서 · 학생 한 명당 쪽 수 · 빼기
+  const fileRows = doc.files.map((f, fi) => {
+    const per = f.per || 0;
+    const guess = wtGuessPer(f.count, n);
+    const rest = per ? f.count % per : 0;
+    const perOpts = `<option value="0"${per ? '' : ' selected'}>자동 (이름 보고 판단)</option>`
+      + [1, 2, 3, 4, 5, 6].map(k => `<option value="${k}"${per === k ? ' selected' : ''}>${k}쪽</option>`).join('');
+    return `<tr>
+      <td>${WT_NUM[fi] || fi + 1}</td>
+      <td class="wt-file-name">${escapeHtml(f.name)}</td>
+      <td style="white-space:nowrap">${f.count}쪽</td>
+      <td><select data-per="${fi}" onchange="setWeekTestPer(${fi}, this.value)" ${locked ? 'disabled title="AI가 읽는 중에는 바꿀 수 없어요"' : ''}>${perOpts}</select>
+        <span class="mrep-muted">${per ? `→ 학생 ${Math.ceil(f.count / per)}명분` : guess ? `반 ${n}명이면 ${guess}쪽씩` : ''}</span>
+        ${rest ? `<br><span class="mrep-warn">${f.count}쪽이 ${per}쪽씩 딱 나누어지지 않아요 (마지막 ${rest}쪽)</span>` : ''}</td>
+      <td style="white-space:nowrap">
+        ${multi ? `<button class="btn btn-light btn-sm" onclick="moveWeekTestFile(${fi}, -1)" ${fi === 0 || _wtBusy ? 'disabled' : ''}>▲ 위로</button>
+        <button class="btn btn-light btn-sm" onclick="moveWeekTestFile(${fi}, 1)" ${fi === doc.files.length - 1 || _wtBusy ? 'disabled' : ''}>▼ 아래로</button>` : ''}
+        <button class="btn btn-light btn-sm" onclick="removeWeekTestFile(${fi})" ${locked ? 'disabled' : ''}>빼기</button></td>
+    </tr>`;
+  }).join('');
+  const fileTable = `<table class="wt-file-table"><thead><tr><th>순서</th><th>파일</th><th>쪽 수</th><th>학생 한 명당 쪽 수</th><th></th></tr></thead><tbody>${fileRows}</tbody></table>
+    <div class="mrep-note" style="margin-top:0">${multi ? '학생마다 위 순서대로 쪽을 이어 붙여 한 파일로 올려요. ' : ''}'학생 한 명당 쪽 수'를 정하면 각 학생 <strong>첫 쪽</strong>만 이름을 읽고(또는 직접 고르고) 나머지 쪽은 자동으로 같은 학생에 붙어요. '자동'은 쪽마다 이름을 보고, 이름이 없는 쪽은 앞 학생에 붙여요.</div>`;
+  if (setup) {
+    review.innerHTML = `
+      <div class="mrep-summary"><div><strong>${multi ? `PDF ${doc.files.length}개` : escapeHtml(doc.files[0].name)}</strong> · ${doc.pages.length}쪽 · 반 ${n}명<br>
+        <span class="mrep-muted">파일 순서와 학생 한 명당 쪽 수를 확인한 뒤 이름 읽기를 시작해 주세요.</span></div>
+        <div class="mrep-actions">${!_wtBusy ? `<label class="btn btn-light btn-sm" style="cursor:pointer">PDF 더 넣기<input type="file" class="wt-more" accept="application/pdf,.pdf" multiple style="display:none" onchange="addWeekTestFiles(this.files)"></label>` : ''}</div></div>
+      ${fileTable}
+      <div class="wt-confirm">
+        <button class="btn btn-primary btn-sm" onclick="startWeekTestRead(false)" ${_wtBusy ? 'disabled' : ''}>AI로 이름 읽기 시작</button>
+        <button class="btn btn-light btn-sm" onclick="startWeekTestRead(true)" ${_wtBusy ? 'disabled' : ''}>AI 없이 직접 고르기</button>
+        <span class="mrep-muted">AI는 각 학생 첫 쪽 ${heads.length}쪽만 읽어요</span>
+        <span style="flex:1"></span>
+        <button class="btn btn-light btn-sm" onclick="clearWeekTestReview()" id="week-test-cancel-btn">취소</button>
+      </div>
+      <div class="mrep-list" style="max-height:420px"><table class="data-table">
+        <thead><tr><th>이름 칸 (누르면 크게)</th><th>쪽</th><th>AI가 읽은 이름</th><th>학생</th><th>상태</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>`;
+  } else {
+    review.innerHTML = `
     <div class="mrep-summary">
       <div>
         <strong>${multi ? `PDF ${doc.files.length}개` : escapeHtml(doc.files[0].name)}</strong> · ${doc.pages.length}쪽 → 학생 <strong>${segs.length}</strong>명
-        ${doc.reading ? ` · <span class="spinner-sm"></span> AI가 이름 읽는 중 ${readCount} / ${doc.pages.length}쪽` : ''}<br>
+        ${doc.reading ? ` · <span class="spinner-sm"></span> AI가 이름 읽는 중 ${readCount} / ${heads.length}쪽` : ''}<br>
         ${flagged ? `<span class="mrep-warn">⚠️ 확인할 쪽 ${flagged}개</span> — 사진을 보고 학생을 골라 주세요 · ` : (doc.reading ? '' : '<span class="mrep-ok">확인할 쪽 없음</span> · ')}
         ${overwrite ? `이미 올라간 ${overwrite}명은 새 파일로 바뀜 · ` : ''}
         <span class="mrep-muted">시험지 없는 학생 ${without.length}명${without.length && without.length <= 10 ? ` (${without.map(st => escapeHtml(st.name)).join(', ')})` : ''}</span>
+        ${extraSegs.length ? `<br><span class="mrep-muted">다른 반 학생 ${extraSegs.length}명은 그 반 주차로 올라가요 (${extraSegs.map(sg => { const x = wtExtra(sg.sid); return `${escapeHtml(x.name)} → ${escapeHtml(x.className)} ${escapeHtml(x.weekLabel)}`; }).join(', ')})</span>` : ''}
         ${partial.length ? `<br><span class="mrep-warn">일부 파일에만 있는 학생 ${partial.length}명</span> <span class="mrep-muted">${partial.slice(0, 10).join(', ')}${partial.length > 10 ? ` 외 ${partial.length - 10}명` : ''} — 그 묶음을 안 냈는지, 이름을 잘못 읽었는지 확인해 주세요</span>` : ''}
         ${doc.readNote ? `<br><span class="mrep-warn">${escapeHtml(doc.readNote)}</span>` : ''}
       </div>
       <div class="mrep-actions">
-        ${failedCount && !doc.reading ? `<button class="btn btn-light btn-sm" onclick="retryWeekTestNames()">못 읽은 쪽 다시 읽기</button>` : ''}
-        ${!doc.reading && !_wtBusy ? `<label class="btn btn-light btn-sm" style="cursor:pointer">PDF 더 넣기<input type="file" class="wt-more" accept="application/pdf,.pdf" multiple style="display:none" onchange="addWeekTestFiles(this.files)"></label>` : ''}
+        ${doc.manual && !locked ? `<button class="btn btn-light btn-sm" onclick="startWeekTestRead(false)">AI로 이름 읽기</button>` : ''}
+        ${failedCount && !locked ? `<button class="btn btn-light btn-sm" onclick="retryWeekTestNames()">못 읽은 쪽 다시 읽기</button>` : ''}
+        ${!locked ? `<label class="btn btn-light btn-sm" style="cursor:pointer">PDF 더 넣기<input type="file" class="wt-more" accept="application/pdf,.pdf" multiple style="display:none" onchange="addWeekTestFiles(this.files)"></label>` : ''}
         <button class="btn btn-light btn-sm" onclick="toggleWeekTestOnlyWarn()">${doc.onlyWarn ? '모든 쪽 보기' : '확인할 쪽만 보기'}</button>
       </div>
     </div>
-    ${multi ? `<div class="wt-files"><span class="mrep-muted">학생별 시험지 쪽 순서</span> ${fileLine}</div>` : ''}
+    ${fileTable}
     <div class="mrep-list" style="max-height:520px"><table class="data-table">
       <thead><tr><th>이름 칸 (누르면 크게)</th><th>쪽</th><th>AI가 읽은 이름</th><th>학생</th><th>상태</th></tr></thead>
       <tbody>${rows || '<tr><td colspan="5" class="mrep-muted" style="text-align:center;padding:14px">확인할 쪽이 없어요</td></tr>'}</tbody>
@@ -7269,14 +7416,17 @@ function renderWeekTestReview() {
       <button class="btn btn-light btn-sm" onclick="clearWeekTestReview()" id="week-test-cancel-btn">취소</button>
       <button class="btn btn-primary btn-sm" onclick="uploadWeekTests()" id="week-test-upload-btn" ${doc.confirmed && segs.length ? '' : 'disabled'}>학생 ${segs.length}명 시험지 올리기</button>
     </div>
-    <div class="mrep-note">AI가 쪽마다 이름 칸의 손글씨를 읽어 이 반 명단과 맞춥니다(이름이 없는 쪽은 같은 파일의 앞 학생 다음 쪽으로 붙임). ${multi ? '여러 파일에 나뉜 한 학생의 쪽은 위 순서대로 이어 붙여 한 파일로 올립니다. ' : ''}AI는 틀릴 수 있으니 사진과 학생 이름을 꼭 비교해 주세요. 학생 칸을 바꾸면 확인을 다시 해야 해요.</div>
+    <div class="mrep-note">AI가 쪽마다 이름 칸의 손글씨를 읽어 이 반 명단과 맞춥니다. AI는 틀릴 수 있으니 사진과 학생 이름을 꼭 비교해 주세요. 학생 칸을 바꾸면 확인을 다시 해야 해요. 다른 반 학생 시험지는 학생 칸에서 '다른 반 학생 찾기…'를 고르면 그 학생 반의 같은 주 주차로 올라가요.</div>
     <div class="mrep-progress" id="week-test-progress">${doc.lastFail?.length ? `<span class="mrep-warn">지난번 실패: ${doc.lastFail.map(n => escapeHtml(n)).join(', ')}</span> — 다시 올리면 실패한 학생까지 함께 올라갑니다.` : ''}</div>`;
+  }
   review.querySelectorAll('select[data-i]').forEach(sel => { sel.value = doc.pages[parseInt(sel.dataset.i)].assign; });
 }
 
 function setWeekTestAssign(i, value) {
   if (!_wtDoc || _wtBusy) return;
+  if (value === WT_OTHER) { renderWeekTestReview(); openWeekTestOther(i); return; }
   const p = _wtDoc.pages[i];
+  if (!p) return;
   p.assign = value; p.userSet = true; p.flag = '';
   _wtDoc.confirmed = false;   // 배정을 바꾸면 다시 확인
   renderWeekTestReview();
@@ -7297,7 +7447,83 @@ function toggleWeekTestOnlyWarn() {
 function retryWeekTestNames() {
   const doc = _wtDoc;
   if (!doc || doc.reading || _wtBusy) return;
-  readWeekTestNames(doc, doc.pages.filter(p => p.flag === 'fail'));
+  readWeekTestNames(doc, doc.pages.filter(p => p.flag === 'fail' && wtIsHead(p)));
+}
+
+// ── 다른 반 학생 시험지: 이름 검색 → 그 학생 반의 같은 주 주차(guestMatchWeek) 찾기 → 그 쪽을 그 학생에게
+// 검토 표 밖 상자(#week-test-other)에 그린다 — AI가 읽는 동안 표를 다시 그려도 검색 칸 입력이 지워지지 않게.
+let _wtOther = null, _wtOtherTimer = null;   // { uid, seq, list }
+function openWeekTestOther(i) {
+  const doc = _wtDoc, p = doc?.pages[i];
+  const box = document.getElementById('week-test-other');
+  if (!p || !box) return;
+  _wtOther = { uid: p.uid, seq: 0, list: [] };
+  box.style.display = 'block';
+  box.innerHTML = `<div class="mrep-preview-head"><span><strong>${doc.files.length > 1 ? `${wtFileMark(doc, p.file)} ` : ''}${p.pno}쪽</strong>을 다른 반 학생 시험지로 — 그 학생 반의 같은 주 주차에 올라가요</span>
+    <button class="btn btn-light btn-sm" onclick="closeWeekTestOther()">닫기</button></div>
+    <input type="text" id="week-test-other-q" placeholder="학생 이름" autocomplete="off" oninput="searchWeekTestOther()">
+    <div class="wt-other-list" id="week-test-other-list"></div>
+    <div class="mrep-note" id="week-test-other-msg"></div>`;
+  document.getElementById('week-test-other-q').focus();
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closeWeekTestOther() {
+  _wtOther = null;
+  clearTimeout(_wtOtherTimer);
+  const box = document.getElementById('week-test-other');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+}
+
+function searchWeekTestOther() {
+  const q = (document.getElementById('week-test-other-q')?.value || '').trim();
+  const listEl = document.getElementById('week-test-other-list');
+  clearTimeout(_wtOtherTimer);
+  if (!_wtOther || !listEl) return;
+  if (!q) { listEl.innerHTML = ''; return; }
+  _wtOtherTimer = setTimeout(async () => {
+    const o = _wtOther;
+    if (!o) return;
+    const seq = ++o.seq;
+    const res = await apiReqRetry(`students?name=ilike.*${encodeURIComponent(q)}*&is_active=eq.true&order=name.asc&select=id,name,class_id`, 'GET');
+    if (_wtOther !== o || seq !== o.seq) return;
+    if (!res.ok || !Array.isArray(res.data)) { listEl.innerHTML = '<span class="mrep-warn">검색하지 못했어요. 다시 입력해 주세요.</span>'; return; }
+    o.list = res.data.filter(st => st.class_id !== _wtCtx?.classId);   // 이 반 학생은 학생 칸에 이미 있다
+    listEl.innerHTML = o.list.length
+      ? o.list.map(st => `<button type="button" class="btn btn-light btn-sm" onclick="pickWeekTestOther(${st.id})">${escapeHtml(st.name)} · ${escapeHtml(classes.find(c => c.id === st.class_id)?.name || '반 미지정')}</button>`).join('')
+      : '<span class="mrep-muted">다른 반에서 찾은 학생이 없어요.</span>';
+  }, 250);
+}
+
+async function pickWeekTestOther(sid) {
+  const o = _wtOther, doc = _wtDoc, ctx = _wtCtx;
+  if (!o || !doc || !ctx) return;
+  const st = o.list.find(x => x.id === sid);
+  const cls = st && classes.find(c => c.id === st.class_id);
+  const msg = document.getElementById('week-test-other-msg');
+  if (!st || !cls) { msg.innerHTML = '<span class="mrep-warn">학생의 반 정보를 찾지 못했어요.</span>'; return; }
+  let x = doc.extra.find(e => e.id === sid);
+  if (!x) {
+    msg.textContent = `${cls.name}의 같은 주 주차를 찾는 중...`;
+    if (!ctx.hostWeek) {
+      const h = await apiReqRetry(`weeks?id=eq.${ctx.weekId}&select=id,label,test_date,group_id`, 'GET');
+      ctx.hostWeek = h.ok && Array.isArray(h.data) ? (h.data[0] || null) : null;
+    }
+    const wk = await apiReqRetry(`weeks?class_id=eq.${cls.id}&select=id,class_id,label,test_date,group_id,created_at`, 'GET');
+    if (_wtOther !== o || _wtDoc !== doc) return;
+    if (!ctx.hostWeek || !wk.ok || !Array.isArray(wk.data)) { msg.innerHTML = '<span class="mrep-warn">❌ 주차 정보를 불러오지 못했어요. 다시 눌러 주세요.</span>'; return; }
+    const m = guestMatchWeek(ctx.hostWeek, wk.data);
+    if (!m) { msg.innerHTML = `<span class="mrep-warn">${escapeHtml(cls.name)}에 이 주와 같은 주차가 없어요.</span> 점수 입력 탭 '다른 반 학생 입력'으로 이 학생 점수를 먼저 넣으면 그 반 주차가 생겨요.`; return; }
+    const lr = await reportStorage({ op: 'list', week_ids: [m.week.id] }).catch(() => null);
+    if (_wtOther !== o || _wtDoc !== doc) return;
+    (lr?.ok ? (lr.data?.files?.[`w${m.week.id}`] || []) : []).forEach(f => { doc.extraFiles[`w${m.week.id}/${f.student_id}.pdf`] = f; });
+    x = { id: st.id, name: st.name, classId: cls.id, className: cls.name, weekId: m.week.id, weekLabel: m.week.label || m.week.test_date || '' };
+    doc.extra.push(x);
+  }
+  const i = wtPageAt(doc, o.uid);
+  closeWeekTestOther();
+  if (i >= 0) setWeekTestAssign(i, String(sid));
+  showToast(`${x.name}(${x.className}) 시험지는 ${x.className} ${x.weekLabel} 주차로 올라가요`, 3000);
 }
 
 async function previewWeekTestPage(uid) {
@@ -7335,10 +7561,12 @@ async function uploadWeekTests() {
   if (!doc || !ctx || doc.weekId !== ctx.weekId || _wtBusy) return;
   const segs = weekTestSegments();
   if (!segs.length) { showToast('올릴 시험지가 없어요. 쪽마다 학생을 배정해 주세요.'); return; }
-  if (!doc.confirmed || doc.reading || weekTestIssues().flagged) { showToast('먼저 이름을 모두 확인하고 \'확인했어요\'를 체크해 주세요.'); return; }
-  const overwrite = segs.filter(sg => ctx.fileInfo[wtPathOf(sg.sid, ctx)]).length;
+  if (doc.stage === 'setup' || !doc.confirmed || doc.reading || weekTestIssues().flagged) { showToast('먼저 이름을 모두 확인하고 \'확인했어요\'를 체크해 주세요.'); return; }
+  const overwrite = segs.filter(sg => wtHasFile(sg.sid, ctx)).length;
+  const extras = segs.map(sg => wtExtra(sg.sid)).filter(Boolean);
   if (!confirm(`학생 ${segs.length}명의 시험지를 올릴까요?` +
     (overwrite ? `\n이미 올라간 ${overwrite}명은 새 파일로 바뀝니다.` : '') +
+    (extras.length ? `\n다른 반 학생 ${extras.length}명(${extras.map(x => `${x.name}→${x.className}`).join(', ')})은 그 반 주차로 올라가요. 그 반에서 '학부모에게 공개'를 켜야 보여요.` : '') +
     `\n\n올리기만 해서는 학부모에게 보이지 않아요. (공개는 따로)`)) return;
   _wtBusy = true;
   document.getElementById('week-test-upload-btn')?.setAttribute('disabled', '');
@@ -7346,7 +7574,7 @@ async function uploadWeekTests() {
   document.querySelectorAll('#week-test-review select, #week-test-review input, #week-test-review button').forEach(el => { el.disabled = true; });
   const progress = document.getElementById('week-test-progress');
   const failed = [];
-  let done = 0, bytesTotal = 0;
+  let done = 0, doneExtra = 0, bytesTotal = 0;
   try {
     const srcOf = new Map();
     for (const f of doc.files) srcOf.set(f, await PDFLib.PDFDocument.load(f.bytes));
@@ -7360,6 +7588,7 @@ async function uploadWeekTests() {
         const put = await putMockReport(sign.data.url, blob);
         if (!put.ok) throw new Error('업로드 실패 ' + put.status);
         done++; bytesTotal += blob.size;
+        if (wtExtra(st.id)) doneExtra++;
       } catch (e) {
         failed.push(st.name);
         console.error('시험지 업로드 실패:', st.name, e);
@@ -7371,9 +7600,10 @@ async function uploadWeekTests() {
   } finally {
     _wtBusy = false;
   }
-  _wtLastResult = { weekId: ctx.weekId, html: failed.length
+  _wtLastResult = { weekId: ctx.weekId, html: (failed.length
     ? `<span class="mrep-warn">❌ 시험지 ${failed.length}명 실패</span> (${failed.map(n => escapeHtml(n)).join(', ')}) · ${done}명 올림`
-    : `<span class="mrep-ok">✅ 시험지 ${done}명 올림</span> (${mrepSize(bytesTotal)})` };
+    : `<span class="mrep-ok">✅ 시험지 ${done}명 올림</span> (${mrepSize(bytesTotal)})`)
+    + (doneExtra ? ` · <span class="mrep-muted">그중 다른 반 ${doneExtra}명은 그 반 주차에 올림(그 반에서 공개해야 보여요)</span>` : '') };
   if (failed.length) { doc.lastFail = failed; renderWeekTestReview(); }
   else clearWeekTestReview();
   showToast(failed.length ? `❌ ${failed.length}명 실패 — 다시 올려 주세요` : `✅ 시험지 ${done}명 올렸어요!`, 3500);
