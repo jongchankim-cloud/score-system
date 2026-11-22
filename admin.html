@@ -367,11 +367,11 @@
   .mrep-preview-head { display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--navy); }
   .mrep-preview canvas { max-width:100%; height:auto; display:block; margin:8px auto 0; box-shadow:0 1px 4px rgba(0,0,0,.12); }
   /* 주차 시험지 (스캔 PDF, 2026-11) */
-  .wt-controls { display:flex; gap:12px; align-items:center; flex-wrap:wrap; font-size:12.5px; color:var(--navy); margin:4px 0 8px; }
-  .wt-controls input[type=number] { width:56px; padding:4px 6px; border:1.5px solid var(--border); border-radius:6px; font-size:12.5px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); }
-  .wt-controls label { display:flex; align-items:center; gap:5px; cursor:pointer; }
-  .wt-crop { width:240px; border:1px solid var(--border); border-radius:3px; cursor:zoom-in; display:block; background:var(--white); }
-  .wt-crop.empty { height:52px; }
+  .wt-crop { width:320px; border:1px solid var(--border); border-radius:3px; cursor:zoom-in; display:block; background:var(--white); }
+  .wt-crop.empty { height:72px; }
+  #week-test-box .btn:disabled { opacity:.45; cursor:not-allowed; }
+  .wt-confirm { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; color:var(--navy); background:var(--cream); border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin:8px 0; }
+  .wt-confirm label { display:flex; align-items:center; gap:6px; cursor:pointer; }
   .mock-header { padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; }
   .mock-input-row { padding:8px 0; border-bottom:1px solid var(--light-gray); }
   .mock-input-row .student-name { font-size:13px; font-weight:500; color:var(--navy); }
@@ -564,7 +564,7 @@
           <label class="mrep-drop" id="week-test-drop" style="display:none">
             <input type="file" accept="application/pdf,.pdf" id="week-test-file" onchange="onWeekTestFile(this.files)">
             <strong>스캔한 시험지 PDF 선택</strong> 또는 여기로 끌어다 놓기<br>
-            반 명단 순서(이름순)대로 학생 한 명당 정한 쪽 수씩 나눠 미리 채웁니다 · 쪽마다 학생을 고칠 수 있어요
+            스캔 순서는 상관없어요 · AI가 쪽마다 손글씨 이름을 읽어 이 반 학생과 맞추고, 확인한 뒤에 올립니다
           </label>
           <div id="week-test-review"></div>
           <div class="mrep-preview" id="week-test-preview" style="display:none"></div>
@@ -6775,22 +6775,22 @@ async function deleteMockExam(id) {
 // ── 주차 시험지 (학생별 스캔 PDF) ──────────────────────────
 // 2026-11-22: 매주 시험지를 스캔한 PDF 하나를 올리면 학생별 파일로 나눠 비공개 보관함에 w{주차id}/{학생id}.pdf 로 올린다.
 // 모의고사 분석지와 같은 보관함·도구를 쓴다(reportStorage · loadPdfTools · buildMockReportPdf · putMockReport).
-// 다른 점: 스캔본이라 쪽에서 이름을 글자로 읽을 수 없다 → '학생 한 명당 쪽 수'와 반 명단 순서(이름순, 점수 표와 같은 순서)로
-// 미리 채우고, 쪽마다 윗부분(이름 적는 곳) 썸네일을 보며 고친다. 이번 주 점수가 없는 학생(미응시)은 미리 채울 때 건너뛴다.
+// 다른 점: 스캔본(손글씨 이름)이라 글자층이 없다 → 쪽마다 윗부분(이름 칸)을 잘라 name-reader 함수(Gemini)에 보내
+// 이 반 명단 중 누구인지 고르게 한다(스캔 순서 상관없음). AI 결과는 제안일 뿐 — 애매·못 찾음·이름 없음·실패 쪽은 사람이 고르고,
+// '이름 칸 사진과 배정된 학생을 모두 확인했어요'를 체크해야 올리기 버튼이 켜진다(배정을 바꾸면 다시 확인).
 // 비교 그룹과 상관없이 이 반 · 이 주차만 다룬다. 점수 자동 입력은 없다(운영 요청 — 올리고 공개만).
 // 올리기만 해서는 안 보이고 주차별 '학부모에게 공개'(weeks.report_published)를 켜야 학부모 화면에 '시험지 보기' 버튼이 생긴다.
 // 서버(supabase/week-tests.sql → admin-api v19 → parent-login) 준비 전에는 안내만 띄운다.
-const WT_PER_KEY = 'weekTestPerStudent.v1';   // 학생 한 명당 쪽 수 — 이 PC에서 마지막 값
-const WT_CROP = 0.24;                          // 썸네일로 보여줄 윗부분 비율
+const NAME_READER_URL = 'https://rcpzinsdocmpnfxkfbil.supabase.co/functions/v1/name-reader';
+const WT_CROP = 0.26;          // 쪽 윗부분(이름 칸) 비율 — 썸네일이자 AI에 보내는 사진
+const WT_CROP_WIDTH = 900;     // 그 사진의 가로 픽셀 (손글씨가 읽힐 만큼, 쪽당 약 50~100KB)
+const WT_AI_BATCH = 8;         // AI에 한 번에 보내는 쪽 수
 let _wtCtx = null;   // { weekId, classId, students:[{id,name}], fileInfo, published }
-let _wtDoc = null;   // { weekId, name, bytes, pdf, pages:[{no, assign, thumb}], per, skipAbsent }
+let _wtDoc = null;   // { weekId, name, bytes, pdf, pages:[{no, assign, thumb, ai, flag, userSet}], reading, confirmed, onlyWarn }
 let _wtSeq = 0, _wtBusy = false, _wtListOpen = false, _wtDropReady = false, _wtLastResult = null;
 
 function wtPathOf(sid, ctx = _wtCtx) { return `w${ctx.weekId}/${sid}.pdf`; }
 function wtStudent(sid, ctx = _wtCtx) { return ctx?.students.find(s => s.id === sid) || null; }
-function wtSavedPer() {
-  try { const v = parseInt(localStorage.getItem(WT_PER_KEY)); return v >= 1 && v <= 10 ? v : 1; } catch (e) { return 1; }
-}
 
 function initWeekTestDrop() {
   if (_wtDropReady) return;
@@ -6918,8 +6918,9 @@ async function deleteStoredWeekTest(path, name) {
   loadWeekTestPanel();
 }
 
-// ── 스캔 PDF 나누기
+// ── 스캔 PDF 나누기 — AI가 쪽마다 손글씨 이름을 읽어 반 명단과 맞추고, 사람이 확인한 뒤에만 올린다
 function clearWeekTestReview() {
+  if (_wtDoc) _wtDoc.cancelled = true;   // 읽는 중이던 AI 호출 결과는 버린다
   if (_wtDoc?.pdf) { try { _wtDoc.pdf.destroy(); } catch (e) {} }
   _wtDoc = null;
   const review = document.getElementById('week-test-review');
@@ -6927,30 +6928,17 @@ function clearWeekTestReview() {
   closeWeekTestPreview();
 }
 
-// 이번 주 시험을 본 학생 — 점수 칸이 하나라도 있고 결석이 아니면. 아무도 점수가 없으면(점수 입력 전) 모두 본 것으로 본다.
-function wtTookTestIds(ctx) {
-  const rows = scoreCache[ctx.weekId] || {};
-  const took = id => {
-    const r = rows[id];
-    if (!r || r.attendance === false) return false;
-    return ITEM_KEYS.some(k => r[k] !== null && r[k] !== undefined && r[k] !== '')
-      || Object.values(r.item_scores || {}).some(v => v !== null && v !== undefined && v !== '');
-  };
-  const ids = ctx.students.filter(st => took(st.id)).map(st => st.id);
-  return ids.length ? new Set(ids) : null;
-}
-
-// 명단 순서대로 학생 한 명당 per쪽씩: 첫 쪽은 그 학생, 나머지는 '앞 쪽 학생에 이어서'. 명단이 끝나면 '올리지 않음'.
-function autoAssignWeekTest() {
-  const doc = _wtDoc, ctx = _wtCtx;
-  if (!doc || !ctx) return;
-  const took = doc.skipAbsent ? wtTookTestIds(ctx) : null;
-  const order = took ? ctx.students.filter(st => took.has(st.id)) : ctx.students.slice();
-  doc.order = order.length;
-  doc.pages.forEach((p, i) => {
-    const st = order[Math.floor(i / doc.per)];
-    p.assign = !st ? MREP_SKIP : (i % doc.per === 0 ? String(st.id) : MREP_PREV);
+// name-reader 함수 호출 (관리자 비밀번호로 확인). 결과는 {ok, status, data}
+async function callNameReader(roster, images) {
+  const res = await fetch(NAME_READER_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
+    body: JSON.stringify({ password: adminPassword, roster, images })
   });
+  if (res.status === 401) { handleAuthError(); throw new Error('unauthorized'); }
+  let data = null;
+  try { data = await res.json(); } catch (e) {}
+  return { ok: res.ok, status: res.status, data };
 }
 
 async function onWeekTestFile(fileList) {
@@ -6961,28 +6949,120 @@ async function onWeekTestFile(fileList) {
   const ctx = _wtCtx;
   if (!ctx) { showToast('❌ 시험지 보관함이 아직 준비되지 않았어요.'); return; }
   if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) { showToast('❌ PDF 파일만 올릴 수 있어요.'); return; }
+  if (!ctx.students.length) { showToast('❌ 이 반 명단을 아직 못 읽었어요. 잠시 후 다시 해 주세요.'); return; }
   clearWeekTestReview();
   const review = document.getElementById('week-test-review');
   review.innerHTML = '<div class="mini-loading"><span class="spinner-sm"></span>PDF를 읽는 중...</div>';
   _wtBusy = true;
+  let doc = null;
   try {
     await loadPdfTools();
     const bytes = new Uint8Array(await file.arrayBuffer());
     const pdf = await pdfjsLib.getDocument({ data: bytes.slice(), cMapUrl: PDFJS_CMAP_URL, cMapPacked: true }).promise;
     if (_wtCtx !== ctx) { pdf.destroy(); review.innerHTML = ''; return; }   // 읽는 사이 주차를 바꿨다
     const pages = [];
-    for (let i = 1; i <= pdf.numPages; i++) pages.push({ no: i, assign: MREP_SKIP, thumb: null });
-    _wtDoc = { weekId: ctx.weekId, name: file.name, bytes, pdf, pages, per: wtSavedPer(), skipAbsent: true };
-    autoAssignWeekTest();
+    for (let i = 1; i <= pdf.numPages; i++) pages.push({ no: i, assign: MREP_SKIP, thumb: null, ai: null, flag: 'pending', userSet: false });
+    doc = _wtDoc = { weekId: ctx.weekId, name: file.name, bytes, pdf, pages, confirmed: false, onlyWarn: false, reading: true };
     renderWeekTestReview();
-    renderWeekTestThumbs();
   } catch (e) {
     review.innerHTML = '';
     showToast('❌ PDF를 읽지 못했어요: ' + (e.message || e), 4000);
     console.error('onWeekTestFile 실패:', e);
+    return;
   } finally {
     _wtBusy = false;
   }
+  renderWeekTestCrops(doc);                 // 사진은 앞에서부터 계속 그리고,
+  await readWeekTestNames(doc, doc.pages);  // AI는 묶음마다 그 쪽 사진이 준비되면 보낸다
+}
+
+// 쪽 윗부분(이름 칸)만 잘라 그린다 — 화면 썸네일이자 AI에 보내는 사진. 한 쪽은 한 번만 그린다.
+async function renderWeekTestCrops(doc) {
+  for (const p of doc.pages) {
+    if (_wtDoc !== doc || doc.cancelled) return;
+    await ensureWeekTestCrop(doc, p);
+  }
+}
+
+function ensureWeekTestCrop(doc, p) {
+  if (!p.cropPromise) p.cropPromise = (async () => {
+    if (_wtDoc !== doc || doc.cancelled) return;
+    try {
+      const page = await doc.pdf.getPage(p.no);
+      const vp1 = page.getViewport({ scale: 1 });
+      const vp = page.getViewport({ scale: WT_CROP_WIDTH / vp1.width });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(vp.width); canvas.height = Math.max(1, Math.round(vp.height * WT_CROP));
+      const c2d = canvas.getContext('2d');
+      c2d.fillStyle = '#ffffff'; c2d.fillRect(0, 0, canvas.width, canvas.height);
+      await page.render({ canvasContext: c2d, viewport: vp }).promise;
+      p.thumb = canvas.toDataURL('image/jpeg', 0.8);
+      const cell = document.querySelector(`#week-test-review tr[data-no="${p.no}"] td.wt-crop-cell`);
+      if (cell && _wtDoc === doc) cell.innerHTML = `<img class="wt-crop" src="${p.thumb}" alt="${p.no}쪽 이름 칸" onclick="previewWeekTestPage(${p.no})">`;
+    } catch (e) { /* 그리기 실패 쪽은 AI가 못 읽음 → '읽기 실패'로 남아 직접 고르게 된다 */ }
+  })();
+  return p.cropPromise;
+}
+
+// AI 이름 읽기: 쪽을 몇 장씩 묶어 보낸다. 바쁘면(429) 조금 기다렸다 다시. 실패한 쪽은 '직접 골라 주세요'로 남는다.
+async function readWeekTestNames(doc, pages) {
+  const ctx = _wtCtx;
+  if (!ctx || _wtDoc !== doc) return;
+  doc.reading = true;
+  doc.readNote = '';
+  const roster = ctx.students.map(st => ({ id: st.id, name: st.name }));
+  const todo = pages.filter(p => !p.userSet);
+  todo.forEach(p => { p.ai = null; p.flag = 'pending'; });
+  renderWeekTestReview();
+  for (let i = 0; i < todo.length; i += WT_AI_BATCH) {
+    if (_wtDoc !== doc || doc.cancelled) return;
+    const batch = todo.slice(i, i + WT_AI_BATCH);
+    await Promise.all(batch.map(p => ensureWeekTestCrop(doc, p)));
+    if (_wtDoc !== doc || doc.cancelled) return;
+    const images = batch.filter(p => p.thumb).map(p => ({ page: p.no, data: p.thumb.split(',')[1] }));
+    let res = null;
+    for (const wait of [0, 4000, 9000]) {
+      if (wait) await new Promise(r => setTimeout(r, wait));
+      if (_wtDoc !== doc || doc.cancelled) return;
+      try { res = images.length ? await callNameReader(roster, images) : { ok: true, data: { results: [] } }; }
+      catch (e) { if (e.message === 'unauthorized') return; res = null; }
+      if (!res || res.status !== 429) break;
+    }
+    const byPage = {};
+    if (res?.ok && Array.isArray(res.data?.results)) res.data.results.forEach(r => { byPage[r.page] = r; });
+    batch.forEach(p => {
+      const r = byPage[p.no];
+      p.ai = r ? { read: r.read || '', sid: r.student_id ?? null, conf: r.confidence || 'low' } : { fail: true };
+    });
+    if (!res?.ok) doc.readNote = res?.data?.error === 'missing_config'
+      ? 'AI 이름 읽기가 서버에 설정되지 않았어요. 쪽마다 학생을 직접 골라 주세요.'
+      : 'AI가 일부 쪽을 읽지 못했어요. \'못 읽은 쪽 다시 읽기\'를 누르거나 직접 골라 주세요.';
+    applyWeekTestAi(doc);
+    renderWeekTestReview();
+  }
+  doc.reading = false;
+  applyWeekTestAi(doc);
+  renderWeekTestReview();
+}
+
+// AI 결과 → 배정. 사람이 직접 고른 쪽은 건드리지 않는다.
+// 같은 학생이 바로 앞 쪽과 이어지면 '앞 쪽에 이어서', 이름이 없는 쪽도 앞 학생에 이어 붙인다(학생 한 명이 여러 쪽).
+function applyWeekTestAi(doc) {
+  let prevSid = null;
+  doc.pages.forEach((p, i) => {
+    if (p.userSet) { prevSid = p.assign === MREP_PREV ? prevSid : (p.assign ? parseInt(p.assign) : null); return; }
+    const ai = p.ai;
+    if (!ai) { p.assign = MREP_SKIP; p.flag = 'pending'; prevSid = null; return; }
+    if (ai.fail) { p.assign = MREP_SKIP; p.flag = 'fail'; prevSid = null; return; }
+    if (ai.sid) {
+      if (ai.sid === prevSid) { p.assign = MREP_PREV; p.flag = ai.conf === 'low' ? 'unsure' : ''; }
+      else { p.assign = String(ai.sid); p.flag = ai.conf === 'high' ? '' : 'unsure'; prevSid = ai.sid; }
+      return;
+    }
+    if (ai.read) { p.assign = MREP_SKIP; p.flag = 'unknown'; prevSid = null; return; }
+    if (i === 0 || prevSid === null) { p.assign = MREP_SKIP; p.flag = 'noname'; return; }
+    p.assign = MREP_PREV; p.flag = '';
+  });
 }
 
 function resolveWeekTestPages() {
@@ -7001,115 +7081,115 @@ function weekTestSegments() {
   return [...map.entries()].map(([sid, pages]) => ({ sid, pages }));
 }
 
+// 확인이 필요한 쪽 (AI가 애매·못 찾음·이름 없음·읽기 실패·아직 읽는 중, 또는 같은 학생이 떨어진 두 곳)
+function weekTestIssues() {
+  const doc = _wtDoc;
+  const starts = {};
+  doc.pages.forEach((p, i) => { if (p.assign && p.assign !== MREP_PREV) (starts[p.assign] ||= []).push(i); });
+  // 사람이 직접 고른 쪽끼리만 겹치면 일부러 한 학생에 합친 것으로 본다(떨어져 스캔된 쪽 — 파일 하나로 합쳐진다)
+  const dup = new Set(Object.values(starts).filter(a => a.length > 1 && !a.every(i => doc.pages[i].userSet)).flat());
+  return { dup, flagged: doc.pages.filter((p, i) => p.flag || dup.has(i)).length };
+}
+
 function renderWeekTestReview() {
   const doc = _wtDoc, ctx = _wtCtx;
   const review = document.getElementById('week-test-review');
   if (!doc || !ctx || doc.weekId !== ctx.weekId) { if (review) review.innerHTML = ''; return; }
   const resolved = resolveWeekTestPages();
   const segs = weekTestSegments();
-  const starts = {};
-  doc.pages.forEach((p, i) => { if (p.assign && p.assign !== MREP_PREV) (starts[p.assign] ||= []).push(i); });
-  const dupStart = new Set(Object.values(starts).filter(a => a.length > 1).flat());
+  const { dup, flagged } = weekTestIssues();
+  const readCount = doc.pages.filter(p => p.ai).length;
   const opts = `<option value="${MREP_SKIP}">올리지 않음</option><option value="${MREP_PREV}">↪ 앞 쪽 학생에 이어서</option>`
     + ctx.students.map(st => `<option value="${st.id}">${escapeHtml(st.name)}</option>`).join('');
-  let warnCount = 0;
+  const FLAG_TEXT = {
+    pending: '<span class="mrep-muted">⏳ AI가 읽는 중</span>',
+    unsure: '<span class="mrep-warn">⚠️ 애매함 — 사진과 비교해 주세요</span>',
+    unknown: '<span class="mrep-warn">⚠️ 명단에서 못 찾음 — 학생을 골라 주세요</span>',
+    noname: '<span class="mrep-warn">⚠️ 이름이 안 보임 — 학생을 골라 주세요</span>',
+    fail: '<span class="mrep-warn">⚠️ 읽기 실패 — 학생을 골라 주세요</span>'
+  };
   const rows = doc.pages.map((p, i) => {
     const sid = resolved[i];
     const st = sid ? wtStudent(sid) : null;
     let state;
-    if (dupStart.has(i)) { state = '<span class="mrep-warn">⚠️ 같은 학생이 여러 곳에 배정됨</span>'; warnCount++; }
+    if (dup.has(i)) state = '<span class="mrep-warn">⚠️ 같은 학생이 여러 곳에 배정됨</span>';
+    else if (p.flag) state = FLAG_TEXT[p.flag] || '';
     else if (p.assign === MREP_PREV) state = st ? `<span class="mrep-muted">↪ ${escapeHtml(st.name)} 시험지의 다음 쪽</span>` : '<span class="mrep-muted">올리지 않음 (앞 쪽이 비어 있음)</span>';
     else if (!p.assign) state = '<span class="mrep-muted">올리지 않음</span>';
-    else state = `<span class="mrep-ok">${escapeHtml(st ? st.name : '')}</span>`;
-    return `<tr class="${dupStart.has(i) ? 'mrep-row-warn' : ''}">
-      <td>${p.thumb ? `<img class="wt-crop" src="${p.thumb}" alt="${p.no}쪽 윗부분" onclick="previewWeekTestPage(${p.no})">` : `<div class="wt-crop empty" onclick="previewWeekTestPage(${p.no})"></div>`}</td>
+    else state = p.userSet ? `<span class="mrep-ok">직접 지정</span>` : `<span class="mrep-ok">✅ AI 맞춤</span>`;
+    const warn = !!(p.flag && p.flag !== 'pending') || dup.has(i);
+    if (doc.onlyWarn && !warn && !p.flag) return '';
+    const read = p.ai ? (p.ai.fail ? '<span class="mrep-muted">—</span>' : (p.ai.read ? escapeHtml(p.ai.read) : '<span class="mrep-muted">(이름 없음)</span>')) : '<span class="mrep-muted">…</span>';
+    return `<tr data-no="${p.no}" class="${warn ? 'mrep-row-warn' : ''}">
+      <td class="wt-crop-cell">${p.thumb ? `<img class="wt-crop" src="${p.thumb}" alt="${p.no}쪽 이름 칸" onclick="previewWeekTestPage(${p.no})">` : `<div class="wt-crop empty" onclick="previewWeekTestPage(${p.no})"></div>`}</td>
       <td style="white-space:nowrap">${p.no}쪽</td>
+      <td>${read}</td>
       <td><select data-i="${i}" onchange="setWeekTestAssign(${i}, this.value)">${opts}</select></td>
       <td>${state}</td>
     </tr>`;
   }).join('');
   const overwrite = segs.filter(sg => ctx.fileInfo[wtPathOf(sg.sid)]).length;
-  const expected = (doc.order || 0) * doc.per;
-  const countNote = expected && expected !== doc.pages.length
-    ? `<span class="mrep-warn">⚠️ 명단 ${doc.order}명 × ${doc.per}쪽 = ${expected}쪽인데 PDF는 ${doc.pages.length}쪽 — 빠지거나 더 있는 학생이 없는지 확인해 주세요</span> · `
-    : '';
+  const got = new Set(segs.map(sg => sg.sid));
+  const without = ctx.students.filter(st => !got.has(st.id));
+  const canConfirm = !doc.reading && flagged === 0 && segs.length > 0;
+  if (!canConfirm) doc.confirmed = false;
+  const failedCount = doc.pages.filter(p => p.flag === 'fail').length;
   review.innerHTML = `
-    <div class="wt-controls">
-      <span>학생 한 명당 <input type="number" min="1" max="10" value="${doc.per}" onchange="setWeekTestPer(this.value)"> 쪽</span>
-      <label><input type="checkbox" ${doc.skipAbsent ? 'checked' : ''} onchange="setWeekTestSkipAbsent(this.checked)"> 이번 주 점수가 없는 학생(미응시)은 건너뛰고 채우기</label>
-      <button class="btn btn-light btn-sm" onclick="refillWeekTest()">순서대로 다시 채우기</button>
-    </div>
     <div class="mrep-summary">
       <div>
-        <strong>${escapeHtml(doc.name)}</strong> · ${doc.pages.length}쪽 → 학생 <strong>${segs.length}</strong>명<br>
-        ${countNote}${warnCount ? `<span class="mrep-warn">⚠️ 확인할 쪽 ${warnCount}개</span> · ` : ''}
+        <strong>${escapeHtml(doc.name)}</strong> · ${doc.pages.length}쪽 → 학생 <strong>${segs.length}</strong>명
+        ${doc.reading ? ` · <span class="spinner-sm"></span> AI가 이름 읽는 중 ${readCount} / ${doc.pages.length}쪽` : ''}<br>
+        ${flagged ? `<span class="mrep-warn">⚠️ 확인할 쪽 ${flagged}개</span> — 사진을 보고 학생을 골라 주세요 · ` : (doc.reading ? '' : '<span class="mrep-ok">확인할 쪽 없음</span> · ')}
         ${overwrite ? `이미 올라간 ${overwrite}명은 새 파일로 바뀜 · ` : ''}
-        <span class="mrep-muted">썸네일(쪽 윗부분)의 이름이 배정한 학생과 같은지 확인해 주세요</span>
+        <span class="mrep-muted">시험지 없는 학생 ${without.length}명${without.length && without.length <= 10 ? ` (${without.map(st => escapeHtml(st.name)).join(', ')})` : ''}</span>
+        ${doc.readNote ? `<br><span class="mrep-warn">${escapeHtml(doc.readNote)}</span>` : ''}
       </div>
       <div class="mrep-actions">
-        <button class="btn btn-light btn-sm" onclick="clearWeekTestReview()" id="week-test-cancel-btn">취소</button>
-        <button class="btn btn-primary btn-sm" onclick="uploadWeekTests()" id="week-test-upload-btn" ${segs.length ? '' : 'disabled'}>학생 ${segs.length}명 시험지 올리기</button>
+        ${failedCount && !doc.reading ? `<button class="btn btn-light btn-sm" onclick="retryWeekTestNames()">못 읽은 쪽 다시 읽기</button>` : ''}
+        <button class="btn btn-light btn-sm" onclick="toggleWeekTestOnlyWarn()">${doc.onlyWarn ? '모든 쪽 보기' : '확인할 쪽만 보기'}</button>
       </div>
     </div>
-    <div class="mrep-list" style="max-height:480px"><table class="data-table">
-      <thead><tr><th>쪽 윗부분 (누르면 크게)</th><th>쪽</th><th>학생</th><th>상태</th></tr></thead>
-      <tbody>${rows}</tbody>
+    <div class="mrep-list" style="max-height:520px"><table class="data-table">
+      <thead><tr><th>이름 칸 (누르면 크게)</th><th>쪽</th><th>AI가 읽은 이름</th><th>학생</th><th>상태</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="5" class="mrep-muted" style="text-align:center;padding:14px">확인할 쪽이 없어요</td></tr>'}</tbody>
     </table></div>
-    <div class="mrep-note">쪽 수나 건너뛰기를 바꾸거나 '순서대로 다시 채우기'를 누르면 처음부터 다시 채웁니다(직접 고친 배정은 사라져요). 한 학생만 고칠 때는 그 쪽의 학생 칸만 바꾸세요.</div>
+    <div class="wt-confirm">
+      <label><input type="checkbox" id="week-test-confirm" ${doc.confirmed ? 'checked' : ''} ${canConfirm ? '' : 'disabled'} onchange="setWeekTestConfirmed(this.checked)">
+        <strong>이름 칸 사진과 배정된 학생을 모두 확인했어요</strong></label>
+      <span class="mrep-muted">${doc.reading ? 'AI가 다 읽은 뒤 확인할 수 있어요' : flagged ? `확인할 쪽 ${flagged}개를 먼저 정리해 주세요` : '확인해야 올리기 버튼이 켜져요'}</span>
+      <span style="flex:1"></span>
+      <button class="btn btn-light btn-sm" onclick="clearWeekTestReview()" id="week-test-cancel-btn">취소</button>
+      <button class="btn btn-primary btn-sm" onclick="uploadWeekTests()" id="week-test-upload-btn" ${doc.confirmed && segs.length ? '' : 'disabled'}>학생 ${segs.length}명 시험지 올리기</button>
+    </div>
+    <div class="mrep-note">AI가 쪽마다 이름 칸의 손글씨를 읽어 이 반 명단과 맞춥니다(이름이 없는 쪽은 앞 학생의 다음 쪽으로 붙임). AI는 틀릴 수 있으니 사진과 학생 이름을 꼭 비교해 주세요. 학생 칸을 바꾸면 확인을 다시 해야 해요.</div>
     <div class="mrep-progress" id="week-test-progress">${doc.lastFail?.length ? `<span class="mrep-warn">지난번 실패: ${doc.lastFail.map(n => escapeHtml(n)).join(', ')}</span> — 다시 올리면 실패한 학생까지 함께 올라갑니다.` : ''}</div>`;
   review.querySelectorAll('select[data-i]').forEach(sel => { sel.value = doc.pages[parseInt(sel.dataset.i)].assign; });
 }
 
 function setWeekTestAssign(i, value) {
   if (!_wtDoc || _wtBusy) return;
-  _wtDoc.pages[i].assign = value;
+  const p = _wtDoc.pages[i];
+  p.assign = value; p.userSet = true; p.flag = '';
+  _wtDoc.confirmed = false;   // 배정을 바꾸면 다시 확인
   renderWeekTestReview();
 }
 
-function setWeekTestPer(v) {
-  if (!_wtDoc || _wtBusy) return;
-  const n = Math.max(1, Math.min(10, parseInt(v) || 1));
-  _wtDoc.per = n;
-  try { localStorage.setItem(WT_PER_KEY, String(n)); } catch (e) {}
-  autoAssignWeekTest();
+function setWeekTestConfirmed(on) {
+  if (!_wtDoc) return;
+  _wtDoc.confirmed = !!on;
   renderWeekTestReview();
 }
 
-function setWeekTestSkipAbsent(on) {
-  if (!_wtDoc || _wtBusy) return;
-  _wtDoc.skipAbsent = !!on;
-  autoAssignWeekTest();
+function toggleWeekTestOnlyWarn() {
+  if (!_wtDoc) return;
+  _wtDoc.onlyWarn = !_wtDoc.onlyWarn;
   renderWeekTestReview();
 }
 
-function refillWeekTest() {
-  if (!_wtDoc || _wtBusy) return;
-  autoAssignWeekTest();
-  renderWeekTestReview();
-}
-
-// 쪽 윗부분(이름 적는 곳)만 잘라 보여준다. 한 번 그린 것은 보관해서 다시 그리지 않는다.
-async function renderWeekTestThumbs() {
+function retryWeekTestNames() {
   const doc = _wtDoc;
-  if (!doc) return;
-  for (const p of doc.pages) {
-    if (_wtDoc !== doc) return;
-    if (p.thumb) continue;
-    try {
-      const page = await doc.pdf.getPage(p.no);
-      const vp1 = page.getViewport({ scale: 1 });
-      const vp = page.getViewport({ scale: 480 / vp1.width });
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(vp.width); canvas.height = Math.max(1, Math.round(vp.height * WT_CROP));
-      const c2d = canvas.getContext('2d');
-      c2d.fillStyle = '#ffffff'; c2d.fillRect(0, 0, canvas.width, canvas.height);
-      await page.render({ canvasContext: c2d, viewport: vp }).promise;
-      p.thumb = canvas.toDataURL('image/jpeg', 0.75);
-      if (_wtDoc !== doc) return;
-      const cell = document.querySelector(`#week-test-review select[data-i="${p.no - 1}"]`)?.closest('tr')?.firstElementChild;
-      if (cell) cell.innerHTML = `<img class="wt-crop" src="${p.thumb}" alt="${p.no}쪽 윗부분" onclick="previewWeekTestPage(${p.no})">`;
-    } catch (e) { /* 썸네일은 확인용이라 실패해도 진행 */ }
-  }
+  if (!doc || doc.reading || _wtBusy) return;
+  readWeekTestNames(doc, doc.pages.filter(p => p.flag === 'fail'));
 }
 
 async function previewWeekTestPage(no) {
@@ -7144,16 +7224,15 @@ async function uploadWeekTests() {
   if (!doc || !ctx || doc.weekId !== ctx.weekId || _wtBusy) return;
   const segs = weekTestSegments();
   if (!segs.length) { showToast('올릴 시험지가 없어요. 쪽마다 학생을 배정해 주세요.'); return; }
+  if (!doc.confirmed || doc.reading || weekTestIssues().flagged) { showToast('먼저 이름을 모두 확인하고 \'확인했어요\'를 체크해 주세요.'); return; }
   const overwrite = segs.filter(sg => ctx.fileInfo[wtPathOf(sg.sid, ctx)]).length;
-  const warnLeft = document.querySelectorAll('#week-test-review tr.mrep-row-warn').length;
   if (!confirm(`학생 ${segs.length}명의 시험지를 올릴까요?` +
     (overwrite ? `\n이미 올라간 ${overwrite}명은 새 파일로 바뀝니다.` : '') +
-    (warnLeft ? `\n⚠️ 같은 학생이 여러 곳에 배정된 쪽이 ${warnLeft}개 있어요.` : '') +
     `\n\n올리기만 해서는 학부모에게 보이지 않아요. (공개는 따로)`)) return;
   _wtBusy = true;
   document.getElementById('week-test-upload-btn')?.setAttribute('disabled', '');
   document.getElementById('week-test-cancel-btn')?.setAttribute('disabled', '');
-  document.querySelectorAll('#week-test-review select, #week-test-review input, #week-test-review .wt-controls button').forEach(el => { el.disabled = true; });
+  document.querySelectorAll('#week-test-review select, #week-test-review input, #week-test-review button').forEach(el => { el.disabled = true; });
   const progress = document.getElementById('week-test-progress');
   const failed = [];
   let done = 0, bytesTotal = 0;
