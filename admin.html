@@ -381,6 +381,9 @@
   .wt-file-table .wt-file-name { word-break:break-all; }
   .wt-file-table select { padding:4px 6px; border:1.5px solid var(--border); border-radius:6px; font-size:12.5px; font-family:inherit; color:var(--navy); }
   .wt-file-table .btn { padding:2px 8px; font-size:11.5px; }
+  .wt-qp { border:1px dashed var(--border); border-radius:8px; padding:10px 12px; margin:8px 0; font-size:12.5px; color:var(--navy); }
+  .wt-qp input[type=text] { width:200px; padding:4px 6px; border:1.5px solid var(--border); border-radius:6px; font-size:12.5px; font-family:inherit; }
+  .wt-qp-thumb { width:90px; border:1px solid var(--border); display:block; background:var(--white); min-height:40px; }
   .wt-other { border:1.5px solid var(--gold); border-radius:8px; padding:10px 12px; margin:8px 0; background:var(--white); font-size:13px; color:var(--navy); }
   .wt-other input[type=text] { width:220px; max-width:100%; padding:6px 8px; border:1.5px solid var(--border); border-radius:6px; font-size:13px; font-family:inherit; margin-top:6px; }
   .wt-other-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
@@ -6985,11 +6988,12 @@ function wtPageAt(doc, uid) { return doc.pages.findIndex(p => p.uid === uid); }
 function wtIsHead(p) { const per = p.file.per || 0; return !per || (p.pno - 1) % per === 0; }
 // 쪽 수가 반 인원 × N(1~6)이면 N, 아니면 자동(0)
 function wtGuessPer(count, n) { for (let k = 1; k <= 6; k++) if (n && count === n * k) return k; return 0; }
-function wtNeedRead(doc) { return doc.pages.filter(p => !p.userSet && wtIsHead(p) && (!p.ai || p.ai.fail)); }
+function wtNeedRead(doc) { return doc.pages.filter(p => !p.userSet && wtIsHead(p) && !p.ai?.text && (!p.ai || p.ai.fail)); }
 
 function clearWeekTestReview() {
   if (_wtDoc) _wtDoc.cancelled = true;   // 읽는 중이던 AI 호출 결과는 버린다
   (_wtDoc?.files || []).forEach(f => { try { f.pdf.destroy(); } catch (e) {} });
+  if (_wtDoc?.qp) { try { _wtDoc.qp.pdf.destroy(); } catch (e) {} }
   _wtDoc = null;
   const review = document.getElementById('week-test-review');
   if (review) review.innerHTML = '';
@@ -7021,7 +7025,9 @@ async function loadWeekTestPdfs(list) {
   for (const f of pdfs) {
     const bytes = new Uint8Array(await f.arrayBuffer());
     const pdf = await pdfjsLib.getDocument({ data: bytes.slice(), cMapUrl: PDFJS_CMAP_URL, cMapPacked: true }).promise;
-    out.push({ name: f.name, bytes, pdf, count: pdf.numPages, per: 0 });
+    const file = { name: f.name, bytes, pdf, count: pdf.numPages, per: 0 };
+    await wtReadTextLayer(file);
+    out.push(file);
   }
   return out;
 }
@@ -7055,9 +7061,10 @@ async function onWeekTestFile(fileList) {
   try {
     const files = await loadWeekTestPdfs(list);
     if (_wtCtx !== ctx) { files.forEach(f => f.pdf.destroy()); review.innerHTML = ''; return; }   // 읽는 사이 주차를 바꿨다
-    files.forEach(f => { f.per = wtGuessPer(f.count, ctx.students.length); });
-    doc = _wtDoc = { weekId: ctx.weekId, files, pages: [], extra: [], extraFiles: {}, stage: 'setup', manual: false, confirmed: false, onlyWarn: false, reading: false };
+    doc = _wtDoc = { weekId: ctx.weekId, files, pages: [], extra: [], extraFiles: {}, qp: null, stage: 'setup', manual: false, confirmed: false, onlyWarn: false, reading: false };
     doc.pages = weekTestPagesOf(doc, files);
+    wtApplyTextNames(doc, doc.pages, ctx.students);
+    files.forEach(f => { f.per = f.hasText ? 0 : wtGuessPer(f.count, ctx.students.length); });
     applyWeekTestAi(doc);
   } catch (e) {
     review.innerHTML = '';
@@ -7094,9 +7101,10 @@ async function addWeekTestFiles(fileList) {
   try {
     const files = await loadWeekTestPdfs(list);
     if (_wtDoc !== doc) { files.forEach(f => f.pdf.destroy()); return; }
-    files.forEach(f => { f.per = wtGuessPer(f.count, ctx.students.length); });
     doc.files.push(...files);
     added = weekTestPagesOf(doc, files);
+    wtApplyTextNames(doc, added, ctx.students);
+    files.forEach(f => { f.per = f.hasText ? 0 : wtGuessPer(f.count, ctx.students.length); });
     doc.pages.push(...added);
     sortWeekTestPages(doc);
     doc.confirmed = false;
@@ -7195,7 +7203,7 @@ async function readWeekTestNames(doc, pages) {
   doc.reading = true;
   doc.readNote = '';
   const roster = ctx.students.map(st => ({ id: st.id, name: st.name }));
-  const todo = pages.filter(p => !p.userSet);
+  const todo = pages.filter(p => !p.userSet && !p.ai?.text);   // 글자로 읽은 쪽은 AI에 보내지 않는다
   todo.forEach(p => { p.ai = null; p.flag = 'pending'; });
   renderWeekTestReview();
   for (let i = 0; i < todo.length; i += WT_AI_BATCH) {
@@ -7239,12 +7247,16 @@ async function readWeekTestNames(doc, pages) {
 // 학생당 쪽 수를 정한 파일: 각 학생 첫 쪽만 이름으로 정하고 나머지 쪽은 '앞 쪽에 이어서'. 첫 쪽에 이름이 없으면 직접 고르게 한다.
 // 자동: 같은 학생이 바로 앞 쪽과 이어지면 '앞 쪽에 이어서', 이름이 없는 쪽도 앞 학생에 이어 붙인다.
 function applyWeekTestAi(doc) {
-  let prevSid = null, prevFile = null;
+  let prevSid = null, prevFile = null, matched = false;
   doc.pages.forEach(p => {
-    if (p.file !== prevFile) { prevSid = null; prevFile = p.file; }
+    if (p.file !== prevFile) { prevSid = null; prevFile = p.file; matched = false; }
+    p.summary = false;
     const per = p.file.per || 0;
+    if (p.ai?.text && p.ai.sid) matched = true;
     if (p.userSet) { prevSid = p.assign === MREP_PREV ? prevSid : (p.assign ? parseInt(p.assign) : null); return; }
     if (per && !wtIsHead(p)) { p.assign = MREP_PREV; p.flag = ''; return; }
+    // 글자 파일에서 학생 이름이 하나도 나오기 전의 앞쪽 = 반 전체 요약 등 → 올리지 않음(다른 학생 점수가 보인다)
+    if (p.ai?.text && !p.ai.sid && !matched) { p.assign = MREP_SKIP; p.flag = ''; p.summary = true; prevSid = null; return; }
     const ai = p.ai;
     if (!ai) { p.assign = MREP_SKIP; p.flag = doc.manual ? 'manual' : 'pending'; prevSid = null; return; }
     if (ai.fail) { p.assign = MREP_SKIP; p.flag = 'fail'; prevSid = null; return; }
@@ -7298,7 +7310,7 @@ function renderWeekTestReview() {
   const resolved = resolveWeekTestPages();
   const segs = weekTestSegments();
   const { dup, flagged } = weekTestIssues();
-  const heads = doc.pages.filter(p => wtIsHead(p) && !p.userSet);
+  const heads = doc.pages.filter(p => wtIsHead(p) && !p.userSet && !p.ai?.text);
   const readCount = heads.filter(p => p.ai).length;
   const extraOpts = (doc.extra || []).length
     ? `<optgroup label="다른 반">${doc.extra.map(x => `<option value="${x.id}">${escapeHtml(x.name)} (${escapeHtml(x.className)})</option>`).join('')}</optgroup>` : '';
@@ -7322,8 +7334,8 @@ function renderWeekTestReview() {
     if (dup.has(i)) state = `<span class="mrep-warn">⚠️ 같은 학생이 ${multi ? '한 파일 안 ' : ''}여러 곳에 배정됨</span>`;
     else if (p.flag) state = FLAG_TEXT[p.flag] || '';
     else if (p.assign === MREP_PREV) state = st ? `<span class="mrep-muted">↪ ${escapeHtml(st.name)} 시험지의 다음 쪽</span>` : '<span class="mrep-muted">올리지 않음 (앞 쪽이 비어 있음)</span>';
-    else if (!p.assign) state = '<span class="mrep-muted">올리지 않음</span>';
-    else state = (p.userSet ? `<span class="mrep-ok">직접 지정</span>` : `<span class="mrep-ok">✅ AI 맞춤</span>`) + exNote;
+    else if (!p.assign) state = p.summary ? '<span class="mrep-muted">올리지 않음 — 학생 이름이 없는 앞쪽(반 전체 요약 등)</span>' : '<span class="mrep-muted">올리지 않음</span>';
+    else state = (p.userSet ? `<span class="mrep-ok">직접 지정</span>` : p.ai?.text ? `<span class="mrep-ok">✅ 제목 글자로 맞춤</span>` : `<span class="mrep-ok">✅ AI 맞춤</span>`) + exNote;
     const warn = !!(p.flag && p.flag !== 'pending') || dup.has(i);
     if (doc.onlyWarn && !warn && !p.flag) return '';
     const read = p.ai ? (p.ai.fail ? '<span class="mrep-muted">—</span>' : (p.ai.read ? escapeHtml(p.ai.read) : '<span class="mrep-muted">(이름 없음)</span>')) : '<span class="mrep-muted">…</span>';
@@ -7354,7 +7366,7 @@ function renderWeekTestReview() {
       + [1, 2, 3, 4, 5, 6].map(k => `<option value="${k}"${per === k ? ' selected' : ''}>${k}쪽</option>`).join('');
     return `<tr>
       <td>${WT_NUM[fi] || fi + 1}</td>
-      <td class="wt-file-name">${escapeHtml(f.name)}</td>
+      <td class="wt-file-name">${escapeHtml(f.name)}${f.hasText ? ' <span class="badge badge-active" title="쪽 제목의 학생 이름을 글자로 읽어요 — AI를 쓰지 않아요">글자 PDF</span>' : ''}</td>
       <td style="white-space:nowrap">${f.count}쪽</td>
       <td><select data-per="${fi}" onchange="setWeekTestPer(${fi}, this.value)" ${locked ? 'disabled title="AI가 읽는 중에는 바꿀 수 없어요"' : ''}>${perOpts}</select>
         <span class="mrep-muted">${per ? `→ 학생 ${Math.ceil(f.count / per)}명분` : guess ? `반 ${n}명이면 ${guess}쪽씩` : ''}</span>
@@ -7366,7 +7378,8 @@ function renderWeekTestReview() {
     </tr>`;
   }).join('');
   const fileTable = `<table class="wt-file-table"><thead><tr><th>순서</th><th>파일</th><th>쪽 수</th><th>학생 한 명당 쪽 수</th><th></th></tr></thead><tbody>${fileRows}</tbody></table>
-    <div class="mrep-note" style="margin-top:0">${multi ? '학생마다 위 순서대로 쪽을 이어 붙여 한 파일로 올려요. ' : ''}'학생 한 명당 쪽 수'를 정하면 각 학생 <strong>첫 쪽</strong>만 이름을 읽고(또는 직접 고르고) 나머지 쪽은 자동으로 같은 학생에 붙어요. '자동'은 쪽마다 이름을 보고, 이름이 없는 쪽은 앞 학생에 붙여요.</div>`;
+    <div class="mrep-note" style="margin-top:0">${multi ? '학생마다 위 순서대로 쪽을 이어 붙여 한 파일로 올려요. ' : ''}'학생 한 명당 쪽 수'를 정하면 각 학생 <strong>첫 쪽</strong>만 이름을 읽고(또는 직접 고르고) 나머지 쪽은 자동으로 같은 학생에 붙어요. '자동'은 쪽마다 이름을 보고, 이름이 없는 쪽은 앞 학생에 붙여요.</div>
+    ${wtQuestionPaperHtml(doc)}`;
   if (setup) {
     review.innerHTML = `
       <div class="mrep-summary"><div><strong>${multi ? `PDF ${doc.files.length}개` : escapeHtml(doc.files[0].name)}</strong> · ${doc.pages.length}쪽 · 반 ${n}명<br>
@@ -7376,7 +7389,7 @@ function renderWeekTestReview() {
       <div class="wt-confirm">
         <button class="btn btn-primary btn-sm" onclick="startWeekTestRead(false)" ${_wtBusy ? 'disabled' : ''}>AI로 이름 읽기 시작</button>
         <button class="btn btn-light btn-sm" onclick="startWeekTestRead(true)" ${_wtBusy ? 'disabled' : ''}>AI 없이 직접 고르기</button>
-        <span class="mrep-muted">AI는 각 학생 첫 쪽 ${heads.length}쪽만 읽어요</span>
+        <span class="mrep-muted">${heads.length ? `AI는 ${heads.length}쪽만 읽어요` : 'AI 없이 쪽 제목 글자로 이름을 맞췄어요'}${doc.pages.some(p => p.ai?.text) && heads.length ? ' (글자 PDF는 AI 없이)' : ''}</span>
         <span style="flex:1"></span>
         <button class="btn btn-light btn-sm" onclick="clearWeekTestReview()" id="week-test-cancel-btn">취소</button>
       </div>
@@ -7526,6 +7539,277 @@ async function pickWeekTestOther(sid) {
   showToast(`${x.name}(${x.className}) 시험지는 ${x.className} ${x.weekLabel} 주차로 올라가요`, 3000);
 }
 
+// ── 글자가 들어 있는 PDF(분석지 · GPT 채점본 등, 2026-11-22) ─────────────
+// 쪽 위쪽의 가장 큰 글씨(제목)에서 반 명단 이름을 찾는다 — AI를 부르지 않는다. 쪽 안의 원래 링크(다른 쪽으로 가는 것)도 읽어 둔다.
+// 학생 이름이 하나도 나오기 전의 앞쪽(반 전체 요약 · 객관식 전체 표 등)은 다른 학생 점수가 보이므로 올리지 않는다.
+async function wtReadTextLayer(file) {
+  const pdf = file.pdf;
+  let textPages = 0;
+  file.pageInfo = [];
+  for (let n = 1; n <= file.count; n++) {
+    const page = await pdf.getPage(n);
+    const vp = page.getViewport({ scale: 1 });
+    const tc = await page.getTextContent();
+    const items = tc.items.filter(i => i.str && i.str.trim()).map(i => ({
+      s: i.str.trim(), x: i.transform[4], y: i.transform[5], w: i.width || 0, size: Math.hypot(i.transform[0], i.transform[1]) || i.height || 0 }));
+    if (items.length >= 5) textPages++;
+    const top = items.filter(i => i.y > vp.height * 0.7);
+    const max = top.reduce((m, i) => Math.max(m, i.size), 0);
+    const title = top.filter(i => max && i.size >= max * 0.9).sort((a, b) => (b.y - a.y) || (a.x - b.x)).map(i => i.s).join(' ');
+    const links = [];
+    for (const a of (await page.getAnnotations().catch(() => []))) {
+      if (a.subtype !== 'Link' || !Array.isArray(a.rect)) continue;
+      let dest = a.dest;
+      try { if (typeof dest === 'string') dest = await pdf.getDestination(dest); } catch (e) { dest = null; }
+      if (!Array.isArray(dest) || dest[0] === undefined || dest[0] === null) continue;
+      let idx = null;
+      try { idx = typeof dest[0] === 'object' ? await pdf.getPageIndex(dest[0]) : (Number.isInteger(dest[0]) ? dest[0] : null); } catch (e) { idx = null; }
+      if (idx !== null) links.push({ rect: a.rect.slice(0, 4), to: idx + 1 });
+    }
+    file.pageInfo[n] = { title, items, links };
+  }
+  file.hasText = file.count > 0 && textPages >= Math.ceil(file.count * 0.6);
+}
+
+// 제목 글자 → 반 명단 학생. 가장 긴 이름이 우선('안현진' 제목에 '안현'이 끼지 않게).
+// 명단 이름 끝의 숫자(동명이인 구분 '김유현1')는 빼고도 찾아 보고, 그렇게 찾은 건 '애매함'으로 확인받는다.
+function wtMatchTitle(title, students) {
+  const t = String(title || '').replace(/\s+/g, '');
+  if (!t) return null;
+  const exact = students.filter(st => st.name && t.includes(st.name.replace(/\s+/g, '')));
+  if (exact.length) return { sid: exact.sort((a, b) => b.name.length - a.name.length)[0].id, conf: 'high' };
+  const loose = students.filter(st => { const base = st.name.replace(/\s+/g, '').replace(/[0-9()]+$/, ''); return base.length >= 2 && t.includes(base); });
+  return loose.length === 1 ? { sid: loose[0].id, conf: 'medium' } : null;
+}
+
+// 글자 쪽의 이름 결과를 p.ai에 넣는다(AI 결과와 같은 모양, text: true).
+// 글자는 있는데 제목에서 명단 이름을 거의 못 찾는 파일(스캐너가 글자 인식 층을 붙인 스캔본 등)은 스캔본으로 보고 AI에 맡긴다 —
+// 그대로 두면 모든 쪽이 '이름 없는 앞쪽'으로 빠져 버린다.
+function wtApplyTextNames(doc, pages, students) {
+  const byFile = new Map();
+  pages.forEach(p => { if (p.file.hasText) { if (!byFile.has(p.file)) byFile.set(p.file, []); byFile.get(p.file).push(p); } });
+  byFile.forEach((list, file) => {
+    const res = list.map(p => { const info = file.pageInfo?.[p.pno]; return { p, info, m: wtMatchTitle(info?.title, students) }; });
+    if (res.filter(x => x.m).length < Math.max(1, Math.ceil(list.length * 0.3))) { file.hasText = false; file.textIgnored = true; return; }
+    res.forEach(({ p, info, m }) => {
+      p.ai = { read: String(info?.title || '').split('|')[0].trim().slice(0, 30), sid: m ? m.sid : null, conf: m ? m.conf : 'high', text: true };
+    });
+  });
+}
+
+// 분석지 쪽에서 문제 번호 글자 위치: '4번' · '13A번', 그리고 숫자만 3개 이상 한 줄에 있는 표 머리(객관식 2 · 3 · 7 …)
+function wtQuestionRects(info) {
+  const out = [];
+  if (!info) return out;
+  const add = (it, q) => out.push({ q, rect: [it.x - 4, it.y - 4, it.x + Math.max(it.w, 10) + 4, it.y + Math.max(it.size, 8) + 4] });
+  info.items.forEach(it => { const m = /^(\d{1,2})[A-Za-z]?번$/.exec(it.s); if (m) add(it, +m[1]); });
+  const rows = {};
+  info.items.forEach(it => { if (/^\d{1,2}$/.test(it.s)) (rows[Math.round(it.y)] ||= []).push(it); });
+  Object.values(rows).forEach(r => { if (r.length >= 3) r.forEach(it => add(it, +it.s)); });
+  return out;
+}
+
+// 업로드에 쓰일 분석지 쪽(글자 파일)에서 찾은 문제 번호 모음
+function wtExpectedQuestions(doc) {
+  const set = new Set();
+  const resolved = resolveWeekTestPages();
+  doc.pages.forEach((p, i) => { if (resolved[i] && p.file.hasText) wtQuestionRects(p.file.pageInfo?.[p.pno]).forEach(r => set.add(r.q)); });
+  return set;
+}
+
+// ── 문제지 (선택): 분석지의 문제 번호를 누르면 이동할 쪽. 학생별 파일 맨 뒤에 붙는다.
+function wtParseQs(text) {
+  const out = [];
+  String(text || '').split(/[,\s]+/).forEach(part => {
+    const m = /^(\d{1,2})(?:[-~](\d{1,2}))?$/.exec(part.trim());
+    if (!m) return;
+    const a = +m[1], b = m[2] ? +m[2] : a;
+    for (let q = Math.min(a, b); q <= Math.max(a, b) && q <= 99; q++) out.push(q);
+  });
+  return [...new Set(out)].sort((x, y) => x - y);
+}
+function wtFormatQs(list) {
+  const out = [];
+  for (let i = 0; i < list.length;) { let j = i; while (j + 1 < list.length && list[j + 1] === list[j] + 1) j++; out.push(j > i ? `${list[i]}-${list[j]}` : `${list[i]}`); i = j + 1; }
+  return out.join(', ');
+}
+function wtRebuildQMap(qp) {
+  qp.map = {};
+  qp.qs.forEach((list, k) => list.forEach(q => { if (!qp.map[q]) qp.map[q] = k + 1; }));
+}
+// 글자 있는 문제지: 쪽 왼쪽 여백(또는 2단 가운데) 근처의 '숫자.' · '숫자' 줄 머리를 문항 번호로 본다. 앞 쪽에 나온 번호는 뒤에서 뺀다.
+async function wtDetectQuestionPages(qp, expected) {
+  const per = [];
+  for (let n = 1; n <= qp.count; n++) {
+    const page = await qp.pdf.getPage(n);
+    const vp = page.getViewport({ scale: 1 });
+    const tc = await page.getTextContent().catch(() => ({ items: [] }));
+    const nums = new Set();
+    tc.items.forEach(i => {
+      const m = /^(\d{1,2})\s*[.)]?(\s|$)/.exec(((i.str || '').trim()) + ' ');
+      if (!m) return;
+      const q = +m[1], x = i.transform[4];
+      const nearLeft = x < vp.width * 0.16 || (x > vp.width * 0.46 && x < vp.width * 0.6);
+      if (nearLeft && q >= 1 && (!expected.size || expected.has(q))) nums.add(q);
+    });
+    per.push([...nums].sort((a, b) => a - b));
+  }
+  const seen = new Set();
+  return per.map(list => list.filter(q => { if (seen.has(q)) return false; seen.add(q); return true; }));
+}
+
+async function addWeekTestQuestionPaper(fileList) {
+  const doc = _wtDoc;
+  document.querySelectorAll('#week-test-review input.wt-qp-file').forEach(el => { el.value = ''; });
+  const f = Array.from(fileList || []).find(x => x.type === 'application/pdf' || /\.pdf$/i.test(x.name));
+  if (!doc || !f || doc.reading || _wtBusy) return;
+  _wtBusy = true;
+  renderWeekTestReview();
+  try {
+    const [qp] = await loadWeekTestPdfs([f]);
+    if (_wtDoc !== doc) { qp.pdf.destroy(); return; }
+    if (doc.qp) { try { doc.qp.pdf.destroy(); } catch (e) {} }
+    const found = await wtDetectQuestionPages(qp, wtExpectedQuestions(doc));
+    qp.qs = found;
+    qp.auto = found.some(l => l.length);
+    wtRebuildQMap(qp);
+    doc.qp = qp;
+    doc.confirmed = false;
+  } catch (e) {
+    showToast('❌ 문제지를 읽지 못했어요: ' + (e.message || e), 4000);
+  } finally {
+    _wtBusy = false;
+  }
+  renderWeekTestReview();
+  wtRenderQpThumbs(doc);
+}
+
+async function wtRenderQpThumbs(doc) {
+  const qp = doc.qp;
+  if (!qp) return;
+  qp.thumbs = qp.thumbs || [];
+  for (let n = 1; n <= qp.count; n++) {
+    if (_wtDoc !== doc || doc.qp !== qp) return;
+    if (!qp.thumbs[n]) {
+      try {
+        const page = await qp.pdf.getPage(n);
+        const vp1 = page.getViewport({ scale: 1 });
+        const vp = page.getViewport({ scale: 240 / vp1.width });
+        const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+        const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+        await page.render({ canvasContext: g, viewport: vp }).promise;
+        qp.thumbs[n] = c.toDataURL('image/jpeg', 0.75);
+      } catch (e) { continue; }
+    }
+    const img = document.querySelector(`#week-test-review img[data-qp="${n}"]`);
+    if (img) img.src = qp.thumbs[n];
+  }
+}
+
+function setWeekTestQs(n, text) {
+  const qp = _wtDoc?.qp;
+  if (!qp) return;
+  qp.qs[n - 1] = wtParseQs(text);
+  wtRebuildQMap(qp);
+  _wtDoc.confirmed = false;
+  renderWeekTestReview();
+}
+
+function removeWeekTestQuestionPaper() {
+  const doc = _wtDoc;
+  if (!doc?.qp || _wtBusy) return;
+  try { doc.qp.pdf.destroy(); } catch (e) {}
+  doc.qp = null;
+  renderWeekTestReview();
+}
+
+function wtQuestionPaperHtml(doc) {
+  const qp = doc.qp;
+  const busy = _wtBusy || doc.reading;
+  if (!qp) return `<div class="wt-qp"><strong>문제지 (선택)</strong> <span class="mrep-muted">분석지의 문제 번호를 누르면 그 문제가 있는 쪽으로 이동하게 해요. 문제지는 학생별 파일 맨 뒤에 붙어요.</span>
+    ${busy ? '' : `<label class="btn btn-light btn-sm" style="cursor:pointer;margin-left:6px">문제지 PDF 넣기<input type="file" class="wt-qp-file" accept="application/pdf,.pdf" style="display:none" onchange="addWeekTestQuestionPaper(this.files)"></label>`}</div>`;
+  const expected = [...wtExpectedQuestions(doc)].sort((a, b) => a - b);
+  const missing = expected.filter(q => !qp.map[q]);
+  const rows = Array.from({ length: qp.count }, (_, k) => k + 1).map(n => `<tr>
+      <td><img class="wt-qp-thumb" data-qp="${n}" src="${qp.thumbs?.[n] || ''}" alt="${n}쪽"></td>
+      <td style="white-space:nowrap">${n}쪽</td>
+      <td><input type="text" value="${escapeAttr(wtFormatQs(qp.qs[n - 1] || []))}" placeholder="예: 1-3, 5" onchange="setWeekTestQs(${n}, this.value)" ${busy ? 'disabled' : ''}></td>
+    </tr>`).join('');
+  return `<div class="wt-qp"><div class="mrep-summary" style="margin:0 0 6px"><div><strong>문제지</strong> ${escapeHtml(qp.name)} · ${qp.count}쪽 — 학생별 파일 맨 뒤에 붙고, 분석지의 문제 번호를 누르면 아래 쪽으로 이동해요.<br>
+      <span class="mrep-muted">${qp.auto ? '쪽마다 문항 번호를 자동으로 찾았어요. 맞는지 확인하고, 틀리면 고쳐 주세요.' : '문제지에서 문항 번호를 글자로 찾지 못했어요(스캔본). 쪽마다 들어 있는 문항 번호를 적어 주세요.'}</span>
+      ${expected.length ? `<br><span class="${missing.length ? 'mrep-warn' : 'mrep-ok'}">분석지 문제 번호 ${expected.length}개 중 ${expected.length - missing.length}개 연결${missing.length ? ` · 연결 안 됨: ${missing.join(', ')} — 그 번호가 있는 쪽 칸에 적어 주세요` : ''}</span>` : ''}</div>
+      <div class="mrep-actions">${busy ? '' : `<button class="btn btn-light btn-sm" onclick="removeWeekTestQuestionPaper()">문제지 빼기</button>`}</div></div>
+    <table class="wt-file-table"><thead><tr><th>미리보기</th><th>쪽</th><th>이 쪽에 있는 문항 번호</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+// ── 학생 한 명 파일 만들기 ──
+// 고른 쪽(파일 순서) + 문제지(있으면). 글자 파일·가벼운 파일은 원본 그대로 복사(글자·화질 유지), 무거운 스캔은 다시 그려 줄인다.
+// 원래 링크는 원본에서 떼어 두고(다른 학생 쪽을 가리키면 깨지므로), 같은 학생 파일 안으로 가는 것만 새로 단다.
+// 분석지의 문제 번호에는 문제지 쪽으로 가는 링크를 단다.
+function wtStripLinks(srcDoc) {
+  const { PDFName } = PDFLib;
+  const LINK = PDFName.of('Link'), SUBTYPE = PDFName.of('Subtype'), ANNOTS = PDFName.of('Annots');
+  srcDoc.getPages().forEach(pg => {
+    const annots = pg.node.Annots();
+    if (!annots) return;
+    const keep = annots.asArray().filter(ref => { const d = srcDoc.context.lookup(ref); return !(d && d.get && d.get(SUBTYPE) === LINK); });
+    if (keep.length) pg.node.set(ANNOTS, srcDoc.context.obj(keep)); else pg.node.delete(ANNOTS);
+  });
+}
+function wtShouldRaster(file) { return !file.hasText && file.bytes.length / Math.max(1, file.count) > 400 * 1024; }
+async function wtRasterPage(out, pdf, n) {
+  const page = await pdf.getPage(n);
+  const vp1 = page.getViewport({ scale: 1 });
+  const vp = page.getViewport({ scale: MREP_RENDER_WIDTH / vp1.width });
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
+  const c2d = canvas.getContext('2d');
+  c2d.fillStyle = '#ffffff'; c2d.fillRect(0, 0, canvas.width, canvas.height);
+  await page.render({ canvasContext: c2d, viewport: vp }).promise;
+  const jpg = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.82));
+  const img = await out.embedJpg(new Uint8Array(await jpg.arrayBuffer()));
+  const pg = out.addPage([vp1.width, vp1.height]);
+  pg.drawImage(img, { x: 0, y: 0, width: vp1.width, height: vp1.height });
+  return pg;
+}
+function wtAddLinks(out, page, links) {
+  const { PDFName } = PDFLib;
+  const ctx = out.context;
+  const refs = links.map(l => ctx.register(ctx.obj({ Type: 'Annot', Subtype: 'Link', Rect: l.rect.map(v => Math.round(v * 100) / 100), Border: [0, 0, 0], Dest: [l.page.ref, 'XYZ', null, null, null] })));
+  const existing = page.node.Annots();
+  if (existing) refs.forEach(r => existing.push(r)); else page.node.set(PDFName.of('Annots'), ctx.obj(refs));
+}
+async function buildWeekTestStudentPdf(pages, srcOf, qp) {
+  const out = await PDFLib.PDFDocument.create();
+  const placed = [];   // [{ file, pno, page }]
+  const addRun = async (file, pnos) => {
+    if (wtShouldRaster(file)) {
+      for (const n of pnos) placed.push({ file, pno: n, page: await wtRasterPage(out, file.pdf, n) });
+      return;
+    }
+    const copied = await out.copyPages(srcOf.get(file), pnos.map(n => n - 1));
+    copied.forEach((pg, k) => { out.addPage(pg); placed.push({ file, pno: pnos[k], page: pg }); });
+  };
+  for (let i = 0; i < pages.length;) {
+    let j = i;
+    while (j < pages.length && pages[j].file === pages[i].file) j++;
+    await addRun(pages[i].file, pages.slice(i, j).map(p => p.pno));
+    i = j;
+  }
+  if (qp) await addRun(qp, Array.from({ length: qp.count }, (_, k) => k + 1));
+  const qTarget = q => { const n = qp?.map?.[q]; return n ? placed.find(x => x.file === qp && x.pno === n)?.page : null; };
+  for (const x of placed) {
+    if (x.file === qp) continue;
+    const info = x.file.hasText ? x.file.pageInfo?.[x.pno] : null;
+    if (!info) continue;
+    const links = [];
+    info.links.forEach(l => { const t = placed.find(y => y.file === x.file && y.pno === l.to); if (t) links.push({ rect: l.rect, page: t.page }); });
+    if (qp) wtQuestionRects(info).forEach(r => { const t = qTarget(r.q); if (t) links.push({ rect: r.rect, page: t }); });
+    if (links.length) wtAddLinks(out, x.page, links);
+  }
+  return new Blob([await out.save()], { type: 'application/pdf' });
+}
+
 async function previewWeekTestPage(uid) {
   const doc = _wtDoc;
   const box = document.getElementById('week-test-preview');
@@ -7567,6 +7851,7 @@ async function uploadWeekTests() {
   if (!confirm(`학생 ${segs.length}명의 시험지를 올릴까요?` +
     (overwrite ? `\n이미 올라간 ${overwrite}명은 새 파일로 바뀝니다.` : '') +
     (extras.length ? `\n다른 반 학생 ${extras.length}명(${extras.map(x => `${x.name}→${x.className}`).join(', ')})은 그 반 주차로 올라가요. 그 반에서 '학부모에게 공개'를 켜야 보여요.` : '') +
+    (doc.qp ? `\n문제지 ${doc.qp.count}쪽이 학생마다 맨 뒤에 붙어요.` : '') +
     `\n\n올리기만 해서는 학부모에게 보이지 않아요. (공개는 따로)`)) return;
   _wtBusy = true;
   document.getElementById('week-test-upload-btn')?.setAttribute('disabled', '');
@@ -7577,12 +7862,17 @@ async function uploadWeekTests() {
   let done = 0, doneExtra = 0, bytesTotal = 0;
   try {
     const srcOf = new Map();
-    for (const f of doc.files) srcOf.set(f, await PDFLib.PDFDocument.load(f.bytes));
+    for (const f of doc.qp ? [...doc.files, doc.qp] : doc.files) {
+      const src = await PDFLib.PDFDocument.load(f.bytes);
+      wtStripLinks(src);   // 원래 링크는 떼고 학생 파일 안에서 다시 단다
+      srcOf.set(f, src);
+    }
     for (const sg of segs) {
       const st = wtStudent(sg.sid, ctx);
       if (progress) progress.innerHTML = `<span class="spinner-sm"></span>올리는 중... ${done + failed.length + 1} / ${segs.length} (${escapeHtml(st.name)})`;
       try {
-        const blob = await buildPdfFromPages(sg.pages.map(p => ({ src: srcOf.get(p.file), pdf: p.file.pdf, n: p.pno })));
+        const blob = await buildWeekTestStudentPdf(sg.pages, srcOf, doc.qp);
+        if (blob.size > 10 * 1024 * 1024) throw new Error(`파일이 10MB를 넘어요 (${mrepSize(blob.size)})`);
         const sign = await reportStorage({ op: 'sign_upload', path: wtPathOf(st.id, ctx) });
         if (!sign.ok || !sign.data?.url) throw new Error('서명 주소 실패 ' + sign.status);
         const put = await putMockReport(sign.data.url, blob);
