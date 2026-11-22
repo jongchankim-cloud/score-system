@@ -252,6 +252,17 @@
   .cb-chip button { border:none; background:none; color:var(--gray); cursor:pointer; font-size:14px; line-height:1; padding:0 3px; }
   .cb-chip button:hover { color:var(--red); }
   .cb-add { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:4px; }
+  .cb-tpl { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:6px 12px; padding:10px 0; border-top:1px dashed var(--border); }
+  .cb-tpl:first-of-type { border-top:none; padding-top:2px; }
+  .cb-tpl-head { grid-column:1 / -1; display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12.5px; color:var(--navy); }
+  .cb-tpl-head span { color:var(--gray); font-size:12px; }
+  .cb-tpl-head button { margin-left:auto; border:none; background:none; color:var(--gray); font-size:11.5px; cursor:pointer; text-decoration:underline; }
+  .cb-tpl textarea { width:100%; box-sizing:border-box; min-height:92px; padding:8px 10px; border:1.5px solid var(--border); border-radius:8px; font-size:12.5px; line-height:1.6; font-family:'Noto Sans KR',sans-serif; color:var(--navy); resize:vertical; outline:none; }
+  .cb-tpl-prev { background:var(--cream); border-radius:8px; padding:8px 10px; font-size:12.5px; line-height:1.6; white-space:pre-wrap; color:var(--navy); }
+  .cb-tpl-prev small { display:block; margin-top:4px; font-size:11px; color:var(--gray); white-space:normal; }
+  .cb-tpl-vars { grid-column:1 / -1; font-size:11.5px; color:var(--gray); }
+  .cb-tpl-vars button { border:1px solid var(--border); background:var(--white); border-radius:10px; padding:1px 8px; margin:0 2px; font-size:11.5px; color:var(--navy); cursor:pointer; }
+  @media (max-width:720px) { .cb-tpl { grid-template-columns:1fr; } }
   .cb-add select, .cb-add input { padding:6px 8px; border:1.5px solid var(--border); border-radius:6px; font-size:12.5px; font-family:'Noto Sans KR',sans-serif; color:var(--navy); background:var(--white); outline:none; }
   .score-headcount { display:inline-block; margin-left:8px; padding:2px 10px; border-radius:12px; background:var(--light-gray); color:var(--navy); font-size:12px; font-weight:600; vertical-align:middle; }
   /* 다른 반 학생 점수 입력 창 */
@@ -966,7 +977,7 @@
         </button>
       </div>
       <div class="section-body" id="cb-settings-body" style="display:none">
-        <p style="font-size:12px;color:var(--gray);margin:0 0 12px;line-height:1.7">학생이 성적 확인 화면에서 아래 시간 중 하나를 골라 클리닉을 신청합니다. 신청 · 시간 변경 · 취소 때마다 <strong>학부모님과 아래 번호로 문자</strong>가 가고, 클리닉 <strong>전날 오후 6시</strong>에 학생·학부모께 안내 문자가 한 번 더 갑니다. 신청한 시간은 배정표에 <span class="clinic-booked">신청</span> 표시와 함께 들어가며, 메모에 적힌 요일·시간보다 우선합니다.</p>
+        <p style="font-size:12px;color:var(--gray);margin:0 0 12px;line-height:1.7">학생이 성적 확인 화면에서 아래 시간 중 하나를 골라 클리닉을 신청합니다. 신청하면 <strong>학부모님께</strong>, 시간 변경 · 취소 때는 <strong>학부모님과 아래 번호로</strong> 문자가 가고, 클리닉 <strong>전날 오후 6시</strong>에 학생·학부모께 안내 문자가 한 번 더 갑니다. 문구는 맨 아래 '문자 문구'에서 고칠 수 있어요. 신청한 시간은 배정표에 <span class="clinic-booked">신청</span> 표시와 함께 들어가며, 메모에 적힌 요일·시간보다 우선합니다.</p>
         <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:var(--navy);margin-bottom:12px;cursor:pointer">
           <input type="checkbox" id="cb-enabled" style="width:17px;height:17px"> 학생 클리닉 신청 받기
         </label>
@@ -974,6 +985,7 @@
           <div class="form-group" style="max-width:260px"><label>알림 받을 선생님 번호</label><input type="text" id="cb-teacher" placeholder="01012345678" inputmode="numeric"></div>
         </div>
         <div id="cb-slot-groups"></div>
+        <div class="cb-group" id="cb-templates"></div>
         <div style="display:flex;align-items:center;gap:10px;margin-top:12px">
           <button class="btn btn-primary btn-sm" onclick="saveClinicBookingSettings()">설정 저장</button>
           <span id="cb-save-status" style="font-size:12px;font-weight:600;color:var(--gray)"></span>
@@ -3477,12 +3489,27 @@ function attrEsc(str) {
 }
 
 // ── 학생 클리닉 신청 설정 (2026-11) ─────────────────────────
-// app_settings 'clinicBooking.v1' = { enabled, teacherPhone, slots: { '<탭>': [{ day, time:'HH:MM' }] } }.
+// app_settings 'clinicBooking.v1' = { enabled, teacherPhone, slots: { '<탭>': [{ day, time:'HH:MM' }] }, templates: { book, change, cancel, remind } }.
 // 탭은 배정표와 같은 clinicTabOf(반 이름 '보성' → 보성여고, 나머지는 학년). 학생 화면은 clinic-book 함수가 이 값을 읽는다
 // (★ supabase/functions/clinic-book/index.ts tabOf와 같은 규칙).
 const CLINIC_BOOKING_KEY = 'clinicBooking.v1';
 const CB_DAYS = ['월', '화', '수', '목', '금', '토', '일'];
 let _cbSettings = null;   // 불러온 설정(화면에서 고친 값 포함) · null=아직 못 읽음
+// 문자 문구(settings.templates). 서버가 칸을 채워 보낸다 — 비어 있으면 서버도 이 기본 문구를 쓴다.
+// ★ supabase/functions/clinic-book DEFAULT_TEMPLATES · clinic-remind DEFAULT_REMIND와 같은 문구여야 한다.
+const CB_DEFAULT_TEMPLATES = {
+  book: '[용산대성N학원 영어과]\n{이름} 학생 클리닉 신청\n{클리닉}',
+  change: '[용산대성N학원 영어과]\n{이름} 학생({반}) 클리닉 시간 변경\n{이전 클리닉} → {클리닉}',
+  cancel: '[용산대성N학원 영어과]\n{이름} 학생({반}) 클리닉 신청 취소\n({클리닉})',
+  remind: '[용산대성N학원 영어과]\n내일 {클리닉} {이름} 학생 영어 클리닉이 있습니다.\n늦지 않게 와 주세요.'
+};
+// 미리보기 예시 시간 — {클리닉}은 신청·바꾼 시간, 취소면 취소한 시간
+const CB_TEMPLATE_INFO = [
+  { key: 'book', title: '신청했을 때', to: '학부모님', vars: ['이름', '반', '클리닉'], sample: { '클리닉': '11/29(토) 오후 1:00' } },
+  { key: 'change', title: '시간을 바꿨을 때', to: '학부모님 · 선생님', vars: ['이름', '반', '이전 클리닉', '클리닉'], sample: { '이전 클리닉': '11/29(토) 오후 1:00', '클리닉': '11/30(일) 오전 11:00' } },
+  { key: 'cancel', title: '신청을 취소했을 때', to: '학부모님 · 선생님', vars: ['이름', '반', '클리닉'], note: '{클리닉}은 취소한 시간', sample: { '클리닉': '11/29(토) 오후 1:00' } },
+  { key: 'remind', title: '클리닉 전날 오후 6시', to: '학생 · 학부모님', vars: ['이름', '반', '클리닉'], sample: { '클리닉': '11/29(토) 오후 1:00' } }
+];
 const _cbPick = {};       // 탭 → 마지막으로 고른 { day, time } — 같은 요일 시간을 연달아 넣기 쉽게 다시 그려도 유지
 
 function cbTabs() {
@@ -3505,12 +3532,75 @@ async function loadClinicBookingSettings() {
   const r = await apiReq(`app_settings?key=eq.${encodeURIComponent(CLINIC_BOOKING_KEY)}&select=value`);
   if (!r.ok || !Array.isArray(r.data)) { st.textContent = '설정을 불러오지 못했어요'; return; }
   const v = (r.data[0] && r.data[0].value) || {};
-  _cbSettings = { enabled: v.enabled === true, teacherPhone: v.teacherPhone || '', slots: JSON.parse(JSON.stringify(v.slots || {})) };
+  const templates = {};
+  Object.keys(CB_DEFAULT_TEMPLATES).forEach(k => {
+    const t = v.templates && v.templates[k];
+    templates[k] = typeof t === 'string' && t.trim() ? t : CB_DEFAULT_TEMPLATES[k];
+  });
+  _cbSettings = { enabled: v.enabled === true, teacherPhone: v.teacherPhone || '', slots: JSON.parse(JSON.stringify(v.slots || {})), templates };
   st.textContent = _cbSettings.enabled ? '· 신청 받는 중' : '· 꺼져 있음';
   st.style.color = _cbSettings.enabled ? 'var(--green)' : 'var(--gray)';
   document.getElementById('cb-enabled').checked = _cbSettings.enabled;
   document.getElementById('cb-teacher').value = _cbSettings.teacherPhone;
   renderClinicBookingSlots();
+  renderClinicBookingTemplates();
+}
+
+function renderClinicBookingTemplates() {
+  const box = document.getElementById('cb-templates');
+  if (!_cbSettings) { box.innerHTML = ''; return; }
+  box.innerHTML = `<h5>문자 문구 <span style="font-weight:400;color:var(--gray);font-size:11.5px">— 오른쪽은 예시 학생으로 본 미리보기. 칸 버튼을 누르면 커서 자리에 들어가요</span></h5>`
+    + CB_TEMPLATE_INFO.map(t => `<div class="cb-tpl">`
+      + `<div class="cb-tpl-head"><strong>${t.title}</strong><span>→ ${t.to}</span><button type="button" onclick="resetClinicBookingTemplate('${t.key}')">기본 문구로</button></div>`
+      + `<textarea id="cb-tpl-${t.key}" oninput="onClinicBookingTemplateInput('${t.key}')">${escapeHtml(_cbSettings.templates[t.key])}</textarea>`
+      + `<div class="cb-tpl-prev" id="cb-tpl-prev-${t.key}"></div>`
+      + `<div class="cb-tpl-vars">칸: ${t.vars.map(v => `<button type="button" onclick="insertClinicBookingVar('${t.key}', '${v}')">{${v}}</button>`).join('')}${t.note ? ` · ${t.note}` : ''}</div>`
+      + `</div>`).join('');
+  CB_TEMPLATE_INFO.forEach(t => previewClinicBookingTemplate(t.key));
+}
+
+// 서버(clinic-book·clinic-remind)와 같은 방식으로 칸을 채운다: 적힌 {칸}을 그대로 바꿔 넣기
+function fillClinicBookingTemplate(tpl, vals) {
+  return Object.keys(vals).reduce((s, k) => s.split(`{${k}}`).join(vals[k]), tpl || '');
+}
+
+function previewClinicBookingTemplate(key) {
+  const info = CB_TEMPLATE_INFO.find(t => t.key === key);
+  const el = document.getElementById(`cb-tpl-prev-${key}`);
+  if (!info || !el || !_cbSettings) return;
+  const cls = (classes[0] && classes[0].name) || '고1 토요일';
+  const vals = { '이름': '김민수', '반': cls, '클리닉': '', '이전 클리닉': '', ...info.sample };
+  const raw = _cbSettings.templates[key] || '';
+  const text = fillClinicBookingTemplate(raw, vals);
+  const bytes = smsByteLength(text);
+  const unknown = [...new Set((text.match(/\{[^{}\n]{1,12}\}/g) || []))];
+  el.innerHTML = raw.trim()
+    ? `${escapeHtml(text)}<small>${bytes}바이트 · ${bytes > 90 ? '장문(LMS)' : '단문(SMS)'}${unknown.length ? ` · <span style="color:var(--red)">모르는 칸 ${escapeHtml(unknown.join(' '))} — 글자 그대로 나가요</span>` : ''}</small>`
+    : '<span style="color:var(--red)">문구가 비어 있어요</span>';
+}
+
+function onClinicBookingTemplateInput(key) {
+  if (!_cbSettings) return;
+  _cbSettings.templates[key] = document.getElementById(`cb-tpl-${key}`).value;
+  previewClinicBookingTemplate(key);
+  document.getElementById('cb-save-status').textContent = '저장하지 않은 변경이 있어요';
+}
+
+function insertClinicBookingVar(key, v) {
+  const ta = document.getElementById(`cb-tpl-${key}`);
+  if (!ta) return;
+  const at = ta.selectionStart ?? ta.value.length, end = ta.selectionEnd ?? at;
+  ta.value = ta.value.slice(0, at) + `{${v}}` + ta.value.slice(end);
+  ta.focus();
+  ta.selectionStart = ta.selectionEnd = at + v.length + 2;
+  onClinicBookingTemplateInput(key);
+}
+
+function resetClinicBookingTemplate(key) {
+  const ta = document.getElementById(`cb-tpl-${key}`);
+  if (!ta) return;
+  ta.value = CB_DEFAULT_TEMPLATES[key];
+  onClinicBookingTemplateInput(key);
 }
 
 function renderClinicBookingSlots() {
@@ -3556,12 +3646,18 @@ async function saveClinicBookingSettings() {
   if (teacherPhone && !/^01\d{8,9}$/.test(teacherPhone)) { status.style.color = 'var(--red)'; status.textContent = '선생님 번호를 확인해주세요 (예: 01012345678).'; return; }
   const slots = {};
   Object.keys(_cbSettings.slots).forEach(t => { if (_cbSettings.slots[t].length) slots[t] = _cbSettings.slots[t]; });
+  const templates = {};
+  for (const t of CB_TEMPLATE_INFO) {
+    const v = (_cbSettings.templates[t.key] || '').replace(/\r/g, '');
+    if (!v.trim()) { status.style.color = 'var(--red)'; status.textContent = `'${t.title}' 문구가 비어 있어요. 비우려면 '기본 문구로'를 눌러주세요.`; return; }
+    templates[t.key] = v;
+  }
   if (enabled && !Object.keys(slots).length && !confirm('신청 가능한 시간이 하나도 없어요. 이대로 켜면 학생 화면에 신청 칸이 보이지 않아요.\n그래도 저장할까요?')) return;
-  const value = { enabled, teacherPhone, slots };
+  const value = { enabled, teacherPhone, slots, templates };
   status.style.color = 'var(--gray)'; status.textContent = '저장 중…';
   const r = await apiReq('app_settings?on_conflict=key', 'POST', { key: CLINIC_BOOKING_KEY, value, updated_at: new Date().toISOString() }, 'resolution=merge-duplicates,return=minimal');
   if (!r.ok) { status.style.color = 'var(--red)'; status.textContent = `❌ 저장하지 못했어요 (${r.status || '연결 실패'})`; return; }
-  _cbSettings = { enabled, teacherPhone, slots: JSON.parse(JSON.stringify(slots)) };
+  _cbSettings = { enabled, teacherPhone, slots: JSON.parse(JSON.stringify(slots)), templates: { ...templates } };
   document.getElementById('cb-teacher').value = teacherPhone;
   const st = document.getElementById('cb-settings-state');
   st.textContent = enabled ? '· 신청 받는 중' : '· 꺼져 있음';

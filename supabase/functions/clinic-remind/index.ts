@@ -6,6 +6,7 @@
 // 같은 안내가 두 번 가지 않게: 보내기 전에 reminded_at을 '아직 비어 있는 행만' 채워 그 행만 맡는다(원자적 선점).
 // 학생이 시간을 바꾸면 clinic-book이 reminded_at을 비우므로, 바뀐 시간이 내일이면 다시 안내된다.
 // 아무나 불러도 해가 없게: KST 17시 전에는 아무것도 하지 않는다(내일 안내를 너무 일찍 보내지 않게).
+// 문구: 관리자 화면 '학생 클리닉 신청 설정'에서 고친 문구(app_settings 'clinicBooking.v1'.templates.remind), 비어 있으면 기본 문구.
 // 필요한 환경변수(프로젝트 공용): SB_URL, SB_SERVICE_ROLE, COOLSMS_API_KEY, COOLSMS_API_SECRET, SENDER_PHONE
 
 const SUPABASE_URL = Deno.env.get("SB_URL")!;
@@ -18,6 +19,12 @@ const KST = 9 * 3600 * 1000;
 const DAY_MS = 86400 * 1000;
 const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
 const EARLIEST_HOUR_KST = 17;
+const SETTING_KEY = "clinicBooking.v1";
+// ★ admin.html CB_DEFAULT_TEMPLATES.remind와 같은 문구여야 한다. 칸: {이름} {반} {클리닉}
+const DEFAULT_REMIND = "[용산대성N학원 영어과]\n내일 {클리닉} {이름} 학생 영어 클리닉이 있습니다.\n늦지 않게 와 주세요.";
+function fillTemplate(tpl: string, vals: Record<string, string>): string {
+  return Object.entries(vals).reduce((s, [k, v]) => s.split(`{${k}}`).join(v), tpl);
+}
 
 function json(obj: unknown, status = 200): Response {
   return new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json" } });
@@ -85,14 +92,19 @@ Deno.serve(async (_req) => {
   if (claim.status >= 400 || !Array.isArray(claim.data)) return json({ error: "claim_failed" }, 502);
   if (!claim.data.length) return json({ bookings: 0, sent: 0, failed: 0 });
   const ids = [...new Set(claim.data.map((b: any) => b.student_id))];
-  const st = await rest(`students?id=in.(${ids.join(",")})&is_active=eq.true&select=id,name,phone,student_phone`);
+  const [st, setR] = await Promise.all([
+    rest(`students?id=in.(${ids.join(",")})&is_active=eq.true&select=id,name,phone,student_phone,classes(name)`),
+    rest(`app_settings?key=eq.${encodeURIComponent(SETTING_KEY)}&select=value`),
+  ]);
+  const saved = Array.isArray(setR.data) && setR.data[0] ? setR.data[0].value?.templates?.remind : null;
+  const tpl = typeof saved === "string" && saved.trim() ? saved : DEFAULT_REMIND;
   const byId: Record<number, any> = {};
   (Array.isArray(st.data) ? st.data : []).forEach((s: any) => { byId[s.id] = s; });
   let sent = 0, failed = 0;
   for (const b of claim.data) {
     const s = byId[b.student_id];
     if (!s) continue; // 퇴원한 학생
-    const text = `[용산대성N학원 영어과]\n내일 ${slotLabel(Date.parse(b.clinic_at))} ${s.name} 학생 영어 클리닉이 있습니다.\n늦지 않게 와 주세요.`;
+    const text = fillTemplate(tpl, { "이름": s.name || "", "반": s.classes?.name || "", "클리닉": slotLabel(Date.parse(b.clinic_at)) });
     const nums = [...new Set([s.student_phone, s.phone].map((n: string) => String(n || "").replace(/[^0-9]/g, "")).filter(Boolean))];
     for (const n of nums) { (await sendSms(n, text)) ? sent++ : failed++; }
   }
