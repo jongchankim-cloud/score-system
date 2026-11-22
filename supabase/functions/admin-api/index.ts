@@ -18,6 +18,8 @@
 // v19 (2026-11-22): 주차 시험지(학생별 스캔 PDF) — 같은 보관함에 w{weeks.id}/{students.id}.pdf 경로를 허용하고,
 //     storage list에 week_ids, remove에 week_id를 받는다(결과 키는 'w{id}'). 모의고사 경로·동작은 그대로.
 //     스키마: supabase/week-tests.sql (weeks.report_published).
+// v20 (2026-11-22): sign_upload가 본문 없이 Content-Type: application/json으로 보내 Storage가 400으로 거절하던 문제 —
+//     빈 객체 {}를 보낸다. 이 때문에 주차 시험지·모의고사 분석지 업로드가 처음부터 모두 실패했다(보관함 파일 0개).
 
 const SUPABASE_URL = Deno.env.get("SB_URL")!;
 const SERVICE_ROLE = Deno.env.get("SB_SERVICE_ROLE")!;
@@ -126,8 +128,10 @@ async function handleStorage(s: any): Promise<Response> {
   // 업로드용 서명 주소 (같은 경로가 있으면 덮어쓴다)
   if (op === "sign_upload") {
     if (badPath(s.path)) return jres({ error: "bad_path" }, 400);
+    // 본문이 비면 Storage가 'Body cannot be empty when content-type is set to application/json'(400)으로 거절한다 (v20).
+    // supabase-js createSignedUploadUrl도 빈 객체 {}를 보낸다.
     const r = await storageFetch(`object/upload/sign/${REPORT_BUCKET}/${s.path}`, {
-      method: "POST", headers: { ...storageHeaders, "x-upsert": "true" },
+      method: "POST", headers: { ...storageHeaders, "x-upsert": "true" }, body: "{}",
     });
     if (r.status >= 400 || !r.data?.url) return jres({ error: "storage_error", detail: r.data }, r.status >= 400 ? r.status : 502);
     return jres({ url: `${SUPABASE_URL}/storage/v1${r.data.url}` });
