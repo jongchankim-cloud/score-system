@@ -1158,6 +1158,20 @@ const ADMIN_API_URL = 'https://rcpzinsdocmpnfxkfbil.supabase.co/functions/v1/adm
 let adminPassword = '';
 
 // 공통 데이터 API: admin-api Edge Function 경유 (service_role 대행)
+// 문자 발송(send-sms). 함수가 관리자 비밀번호를 확인한 뒤에만 보낸다(2026-11 — 공개 키만으로 학원 번호 문자를 못 보내게).
+// 발송 3경로(클리닉 메모 창 · 성적 문자 · 전체 공지)가 모두 이걸 쓴다. 실패하면 이유를 담아 던진다.
+async function postSms(messages) {
+  const res = await fetch(SMS_FUNCTION_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
+    body: JSON.stringify({ password: adminPassword, messages })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) throw new Error('관리자 확인 실패 — 새로고침 후 다시 로그인해주세요.');
+  if (!res.ok) throw new Error(`서버 오류 (${res.status})`);
+  return data;
+}
+
 async function api(path, method='GET', body=null, prefer=null) {
   const res = await fetch(ADMIN_API_URL, {
     method: 'POST',
@@ -4199,16 +4213,10 @@ async function sendClinicMemoSms() {
   btn.disabled = true; // 두 번 눌러 같은 문자가 두 번 나가지 않게
   showToast('발송 중...');
   try {
-    const res = await fetch(SMS_FUNCTION_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
-      body: JSON.stringify({ messages: [{ to: phone, text }] })
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) { showToast(`❌ 발송 실패 (${res.status})`, 4000); return; }
+    const data = await postSms([{ to: phone, text }]);
     showToast(`✅ 발송 완료 — 성공 ${data.success ?? 0}건 / 실패 ${data.fail ?? 0}건`, 4000);
   } catch(e) {
-    showToast('❌ 발송 오류: ' + e.message);
+    showToast('❌ 발송 오류: ' + e.message, 4000);
   } finally {
     if (_clinicMemoEditId === sid) renderClinicMemoSms();
   }
@@ -5749,14 +5757,9 @@ async function sendScoreSms() {
   showToast('발송 중...');
   const messages = selected.map(t => ({ to: scoreSmsPhone(t), text: composeScoreSms(t) }));
   try {
-    const res = await fetch(SMS_FUNCTION_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
-      body: JSON.stringify({ messages })
-    });
-    const data = await res.json();
-    showToast(`✅ 발송 완료 — 성공 ${data.success}건 / 실패 ${data.fail}건`, 4000);
-  } catch (e) { showToast('❌ 발송 오류: ' + e.message); }
+    const data = await postSms(messages);
+    showToast(`✅ 발송 완료 — 성공 ${data.success ?? 0}건 / 실패 ${data.fail ?? 0}건`, 4000);
+  } catch (e) { showToast('❌ 발송 오류: ' + e.message, 4000); }
 }
 
 // ── 성적 문자 발송 탭의 '전체 공지' (2026-11) ─────────────────────────
@@ -5964,14 +5967,9 @@ async function sendNoticeSms() {
   showToast('발송 중...');
   const messages = selected.map(t => ({ to: noticePhone(t), text: composeNoticeSms(t) }));
   try {
-    const res = await fetch(SMS_FUNCTION_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
-      body: JSON.stringify({ messages })
-    });
-    const data = await res.json();
-    showToast(`✅ 발송 완료 — 성공 ${data.success}건 / 실패 ${data.fail}건`, 4000);
-  } catch (e) { showToast('❌ 발송 오류: ' + e.message); }
+    const data = await postSms(messages);
+    showToast(`✅ 발송 완료 — 성공 ${data.success ?? 0}건 / 실패 ${data.fail ?? 0}건`, 4000);
+  } catch (e) { showToast('❌ 발송 오류: ' + e.message, 4000); }
 }
 
 // ── 모의고사

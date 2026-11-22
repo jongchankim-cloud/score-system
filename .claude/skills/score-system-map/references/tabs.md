@@ -35,7 +35,7 @@
 ```
 반 선택 → load{X}Weeks() → 주차 선택 → load{X}Targets() → 체크박스 목록 렌더
                                                         → toggleAll{X}() 전체선택
-                                                        → send{X}Sms() → SMS_FUNCTION_URL POST { messages }
+                                                        → send{X}Sms() → postSms(messages) → SMS_FUNCTION_URL POST { password: adminPassword, messages }
 ```
 
 - 수신처는 `students.phone`(학부모) / `students.student_phone`(학생) 중 선택. `_scoreSmsRecipient`(성적 문자·전체 공지 공용), `_clinicMemoSmsRecipient`(클리닉 메모 창) 전역이 이를 보관한다.
