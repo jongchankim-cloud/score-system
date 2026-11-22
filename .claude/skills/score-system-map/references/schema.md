@@ -5,7 +5,7 @@
 
 ## 목차
 - [classes](#classes) · [students](#students) · [weeks](#weeks) · [scores](#scores)
-- [mock_exams](#mock_exams) · [mock_scores](#mock_scores) · [memos](#memos) · [school_grades](#school_grades-학교-성적--2026-11-도입)
+- [mock_exams](#mock_exams) · [mock_scores](#mock_scores) · [memos](#memos) · [school_grades](#school_grades-학교-성적--2026-11-도입) · counsel_notes · clinic_bookings
 - [item_config JSON 규약](#item_config-json-규약)
 - [비교 그룹(group_id) 규약](#비교-그룹group_id-규약)
 - [삭제 순서 (외래키)](#삭제-순서-외래키)
@@ -95,6 +95,13 @@
   되돌리는 UPDATE 자체도 이력에 남으므로 잘못 되돌려도 다시 되돌릴 수 있다.
 - 이력은 삭제하지 않는다. 용량이 문제 되면 `changed_at`이 오래된 것부터 지운다 (Free 플랜 500MB 기준 수년치 여유).
 - Supabase Free 플랜이라 플랫폼 백업은 없다. 이 이력이 유일한 되돌리기 수단이다.
+
+## counsel_notes (상담 기록) · clinic_bookings (학생 클리닉 신청) — 2026-11 도입
+스키마·되돌리기·예약 작업: `supabase/counsel-and-clinic.sql`. 둘 다 RLS 켜짐 · anon/authenticated 권한 없음 · `log_row_history` 이력 · `students` ON DELETE CASCADE.
+- `counsel_notes`: `id, student_id, counsel_date(date), target(학부모·학생·기타), method(전화·대면·문자·기타), author(선생님·평일 조교·주말 조교), content, created_at, updated_at`. 관리자 학생 상세 화면에서만 쓴다(admin-api v18).
+- `clinic_bookings`: `id, student_id, week_id(→weeks CASCADE), clinic_day('월'~'일'), clinic_time('HH:MM'), clinic_at(timestamptz), status(booked|cancelled), change_count, reminded_at, created_at, updated_at`, `unique(student_id, week_id)`.
+  학생 쪽은 Supabase 함수 `clinic-book`(세션 쿠키, 문자 발송), 전날 안내는 `clinic-remind`(pg_cron 매일 09:00 UTC = 18:00 KST, reminded_at으로 한 번만). 관리자 배정표·문자가 읽는다(admin-api v18).
+- 신청 설정은 `app_settings` key `clinicBooking.v1` = `{ enabled, teacherPhone, slots: { '<배정표 탭>': [{ day, time }] } }`.
 
 ## item_config JSON 규약
 
