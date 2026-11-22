@@ -548,7 +548,7 @@
           <div class="student-class" id="result-class"></div>
         </div>
 
-        <!-- 클리닉 신청 (2026-11): 선생님이 정해 둔 시간 중에서 고른다. 신청은 학부모께, 변경·취소는 학부모·선생님께 문자 -->
+        <!-- 클리닉 신청 (2026-11): 선생님이 정해 둔 시간 중에서 고른다. 변경·취소는 학부모·선생님께 문자(신청은 문자 없음) -->
         <div class="card" id="clinic-book-card" style="display: none">
           <div class="card-header">
             <h2>클리닉 신청</h2>
@@ -870,7 +870,7 @@
 
       // ── 클리닉 신청 (2026-11) ──
       // 같은 도메인의 /api/clinic-book (vercel.json rewrite → Supabase 함수 clinic-book). 로그인 세션 쿠키로 학생을 확인한다.
-      // 선생님이 관리자 화면에서 정한 시간 중 하나를 고른다. 신청하면 학부모님께, 바꾸거나 취소하면 학부모님·선생님께 문자가 간다.
+      // 선생님이 관리자 화면에서 정한 시간 중 하나를 고른다. 바꾸거나 취소하면 학부모님·선생님께 문자가 간다(처음 신청은 문자 없음).
       const CLINIC_BOOK_URL = "/api/clinic-book";
       let clinicState = null;
       let clinicBusy = false;
@@ -911,7 +911,7 @@
         } else if (!s.canChange) {
           html += `<div class="cb-label">시작했거나 지난 클리닉은 바꿀 수 없어요. 필요하면 선생님께 직접 연락해 주세요.</div>`;
         }
-        html += `<div class="cb-note">신청하면 학부모님께, 시간 변경 · 취소는 학부모님과 선생님께 문자로 알려드려요.<br>클리닉 전날 오후 6시에 안내 문자가 한 번 더 가요. 시간은 클리닉 시작 전까지 바꿀 수 있어요.</div>`;
+        html += `<div class="cb-note">시간을 바꾸거나 취소하면 학부모님과 선생님께 문자로 알려드려요.<br>클리닉 전날 오후 6시에 안내 문자가 가요. 시간은 클리닉 시작 전까지 바꿀 수 있어요.</div>`;
         if (msg) html += `<div class="cb-msg ${ok ? "ok" : "err"}">${escapeHtml(msg)}</div>`;
         body.innerHTML = html;
       }
@@ -945,7 +945,7 @@
         const before = s.booking ? s.booking.label : null;
         const q = before
           ? `클리닉 시간을 바꿀까요?\n${before} → ${x.label}\n\n학부모님과 선생님께 문자가 갑니다.`
-          : `${x.label} 클리닉을 신청할까요?\n\n학부모님께 문자가 갑니다.`;
+          : `${x.label} 클리닉을 신청할까요?`;
         if (!confirm(q)) return;
         const r = await clinicRequest("POST", { day: x.day, time: x.time });
         if (r) renderClinicBooking(before ? `${x.label}(으)로 바꿨어요.` : `${x.label} 클리닉을 신청했어요.`, true);

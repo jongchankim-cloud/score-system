@@ -977,7 +977,7 @@
         </button>
       </div>
       <div class="section-body" id="cb-settings-body" style="display:none">
-        <p style="font-size:12px;color:var(--gray);margin:0 0 12px;line-height:1.7">학생이 성적 확인 화면에서 아래 시간 중 하나를 골라 클리닉을 신청합니다. 신청하면 <strong>학부모님께</strong>, 시간 변경 · 취소 때는 <strong>학부모님과 아래 번호로</strong> 문자가 가고, 클리닉 <strong>전날 오후 6시</strong>에 학생·학부모께 안내 문자가 한 번 더 갑니다. 문구는 맨 아래 '문자 문구'에서 고칠 수 있어요. 신청한 시간은 배정표에 <span class="clinic-booked">신청</span> 표시와 함께 들어가며, 메모에 적힌 요일·시간보다 우선합니다.</p>
+        <p style="font-size:12px;color:var(--gray);margin:0 0 12px;line-height:1.7">학생이 성적 확인 화면에서 아래 시간 중 하나를 골라 클리닉을 신청합니다. 처음 신청할 때는 문자가 가지 않고, 시간 변경 · 취소 때 <strong>학부모님과 아래 번호로</strong> 문자가 가며, 클리닉 <strong>전날 오후 6시</strong>에 학생·학부모께 안내 문자가 갑니다. 문구는 맨 아래 '문자 문구'에서 고칠 수 있어요. 신청한 시간은 배정표에 <span class="clinic-booked">신청</span> 표시와 함께 들어가며, 메모에 적힌 요일·시간보다 우선합니다.</p>
         <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:var(--navy);margin-bottom:12px;cursor:pointer">
           <input type="checkbox" id="cb-enabled" style="width:17px;height:17px"> 학생 클리닉 신청 받기
         </label>
@@ -3489,7 +3489,7 @@ function attrEsc(str) {
 }
 
 // ── 학생 클리닉 신청 설정 (2026-11) ─────────────────────────
-// app_settings 'clinicBooking.v1' = { enabled, teacherPhone, slots: { '<탭>': [{ day, time:'HH:MM' }] }, templates: { book, change, cancel, remind } }.
+// app_settings 'clinicBooking.v1' = { enabled, teacherPhone, slots: { '<탭>': [{ day, time:'HH:MM' }] }, templates: { change, cancel, remind } }.
 // 탭은 배정표와 같은 clinicTabOf(반 이름 '보성' → 보성여고, 나머지는 학년). 학생 화면은 clinic-book 함수가 이 값을 읽는다
 // (★ supabase/functions/clinic-book/index.ts tabOf와 같은 규칙).
 const CLINIC_BOOKING_KEY = 'clinicBooking.v1';
@@ -3498,14 +3498,12 @@ let _cbSettings = null;   // 불러온 설정(화면에서 고친 값 포함) ·
 // 문자 문구(settings.templates). 서버가 칸을 채워 보낸다 — 비어 있으면 서버도 이 기본 문구를 쓴다.
 // ★ supabase/functions/clinic-book DEFAULT_TEMPLATES · clinic-remind DEFAULT_REMIND와 같은 문구여야 한다.
 const CB_DEFAULT_TEMPLATES = {
-  book: '[용산대성N학원 영어과]\n{이름} 학생 클리닉 신청\n{클리닉}',
   change: '[용산대성N학원 영어과]\n{이름} 학생({반}) 클리닉 시간 변경\n{이전 클리닉} → {클리닉}',
   cancel: '[용산대성N학원 영어과]\n{이름} 학생({반}) 클리닉 신청 취소\n({클리닉})',
   remind: '[용산대성N학원 영어과]\n내일 {클리닉} {이름} 학생 영어 클리닉이 있습니다.\n늦지 않게 와 주세요.'
 };
-// 미리보기 예시 시간 — {클리닉}은 신청·바꾼 시간, 취소면 취소한 시간
+// 미리보기 예시 시간 — {클리닉}은 바꾼 시간, 취소면 취소한 시간. 처음 신청은 문자가 없다(2026-11 운영 요청)
 const CB_TEMPLATE_INFO = [
-  { key: 'book', title: '신청했을 때', to: '학부모님', vars: ['이름', '반', '클리닉'], sample: { '클리닉': '11/29(토) 오후 1:00' } },
   { key: 'change', title: '시간을 바꿨을 때', to: '학부모님 · 선생님', vars: ['이름', '반', '이전 클리닉', '클리닉'], sample: { '이전 클리닉': '11/29(토) 오후 1:00', '클리닉': '11/30(일) 오전 11:00' } },
   { key: 'cancel', title: '신청을 취소했을 때', to: '학부모님 · 선생님', vars: ['이름', '반', '클리닉'], note: '{클리닉}은 취소한 시간', sample: { '클리닉': '11/29(토) 오후 1:00' } },
   { key: 'remind', title: '클리닉 전날 오후 6시', to: '학생 · 학부모님', vars: ['이름', '반', '클리닉'], sample: { '클리닉': '11/29(토) 오후 1:00' } }

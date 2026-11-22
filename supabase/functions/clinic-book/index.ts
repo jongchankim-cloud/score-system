@@ -4,11 +4,11 @@
 // 그 학생의 신청만 다룬다. 저장은 clinic_bookings(supabase/counsel-and-clinic.sql), 한 학생 × 한 주차 = 한 건.
 //
 //  GET    (쿠키)               → { enabled, student, week, slots:[{day,time,at,label}], booking, canChange }
-//  POST   { day, time } (쿠키) → 신청 → 학부모(students.phone)께 문자 / 시간 변경 → 학부모 · 선생님(설정 teacherPhone)께 문자
+//  POST   { day, time } (쿠키) → 신청(문자 없음) / 시간 변경 → 학부모(students.phone) · 선생님(설정 teacherPhone)께 문자
 //  DELETE (쿠키)               → 신청 취소 → 학부모 · 선생님께 문자
 //
 // 설정: app_settings key 'clinicBooking.v1' = { enabled, teacherPhone, slots: { '<탭>': [{ day:'토', time:'13:00' }] },
-//         templates: { book, change, cancel, remind } }  — 문자 문구(관리자 화면에서 고침, 비어 있으면 기본 문구)
+//         templates: { change, cancel, remind } }  — 문자 문구(관리자 화면에서 고침, 비어 있으면 기본 문구)
 //   탭은 클리닉 배정표와 같다 — 반 이름에 '보성'이 들어가면 '보성여고', 나머지는 classes.grade.
 //   ★ admin.html clinicTabOf와 같은 규칙. 한쪽만 바꾸면 관리자가 정한 시간이 학생 화면에 안 뜬다.
 // 클리닉 날짜: 그 반의 '이번 주' 주차(시험일이 오늘 이전인 가장 최근 주차)의 시험 다음 날부터 7일 안에서 그 요일.
@@ -30,10 +30,9 @@ const DAYS = ["일", "월", "화", "수", "목", "금", "토"]; // getUTCDay() �
 const KST = 9 * 3600 * 1000;
 const DAY_MS = 86400 * 1000;
 // 문자 기본 문구. 관리자가 '학생 클리닉 신청 설정'에서 고친 문구(settings.templates)가 있으면 그걸 쓴다.
-// 칸: {이름} {반} {클리닉}(신청한·바꾼 시간, 취소면 취소한 시간) {이전 클리닉}(시간 변경 전 시간)
+// 칸: {이름} {반} {클리닉}(바꾼 시간, 취소면 취소한 시간) {이전 클리닉}(시간 변경 전 시간)
 // ★ admin.html CB_DEFAULT_TEMPLATES · clinic-remind DEFAULT_REMIND와 같은 문구여야 한다(관리자 화면 미리보기가 이 문구를 보여준다).
 const DEFAULT_TEMPLATES: Record<string, string> = {
-  book: "[용산대성N학원 영어과]\n{이름} 학생 클리닉 신청\n{클리닉}",
   change: "[용산대성N학원 영어과]\n{이름} 학생({반}) 클리닉 시간 변경\n{이전 클리닉} → {클리닉}",
   cancel: "[용산대성N학원 영어과]\n{이름} 학생({반}) 클리닉 신청 취소\n({클리닉})",
 };
@@ -235,10 +234,10 @@ function publicState(ctx: any) {
   };
 }
 
-// 신청은 학부모께만, 시간 변경·취소는 학부모와 선생님께 (2026-11 운영 요청 — 신청 문자는 선생님께 안 보냄)
+// 시간 변경·취소만 학부모와 선생님께 알린다. 처음 신청은 문자를 보내지 않는다(2026-11 운영 요청).
 async function notify(ctx: any, kind: "new" | "change" | "cancel", label: string, oldLabel?: string) {
-  const tplKey = kind === "new" ? "book" : kind;
-  const text = fillTemplate(templateOf(ctx.settings, tplKey), {
+  if (kind === "new") return { sent: 0, failed: 0 };
+  const text = fillTemplate(templateOf(ctx.settings, kind), {
     "이름": ctx.student.name || "",
     "반": ctx.cls.name || "",
     "클리닉": kind === "cancel" ? (oldLabel || "") : label,
@@ -247,7 +246,7 @@ async function notify(ctx: any, kind: "new" | "change" | "cancel", label: string
   const jobs: Promise<boolean>[] = [];
   if (ctx.student.phone) jobs.push(sendSms(ctx.student.phone, text));
   const teacher = String(ctx.settings.teacherPhone || "").trim();
-  if (teacher && kind !== "new") jobs.push(sendSms(teacher, text));
+  if (teacher) jobs.push(sendSms(teacher, text));
   const r = await Promise.all(jobs);
   return { sent: r.filter(Boolean).length, failed: r.filter((x) => !x).length };
 }
