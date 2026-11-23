@@ -10,7 +10,7 @@
 //  GET ?report=<시험id> (쿠키) → 공개된 본인 모의고사 분석지 PDF의 5분짜리 서명 링크 { url }
 //  GET ?report=w<주차id> (쿠키) → 공개된 본인 주차 시험지(스캔 PDF)의 5분짜리 서명 링크 { url } (2026-11-22)
 //  GET ?result=w<주차id> (쿠키) → 공개된 본인 주차 채점 결과 글 { results: { vocab?, omr? } } (2026-11-22, supabase/week-results.sql)
-//  GET ?paper=w<주차id>&k=<종류>&n=<번호> (쿠키) → 공개된 주차 문제지에서 그 문항의 문제·지문·해설 그림 10분짜리 링크 (2026-11-23, supabase/week-papers.sql)
+//  GET ?paper=w<주차id>&k=<종류>&n=<번호> (쿠키) → 공개된 주차 문제지(docx에서 꺼낸 본문)에서 그 문항의 문제·지문·해설 { key, q, p, a } (2026-11-23, supabase/week-papers.sql)
 //
 // vocab_key 는 PIN 을 확인한 POST 에서만 단어 사이트 DB 에 받아, 서명된 세션 토큰에 넣어 둔다.
 // 그래서 자동 입장(GET)에서도 PIN 없이 단어 사이트 기록을 이어 쓸 수 있다.
@@ -402,18 +402,15 @@ Deno.serve(async (req) => {
         `weeks?id=eq.${weekId}&class_id=eq.${st.class_id}&report_published=is.true&select=id`,
       );
       if (!Array.isArray(wk) || !wk.length) return json({ error: "paper_not_found" }, 404);
-      const pr = await rest(`week_papers?week_id=eq.${weekId}&select=folder,data`);
+      const pr = await rest(`week_papers?week_id=eq.${weekId}&select=data`);
       const row = Array.isArray(pr) ? pr[0] : null;
       const items = row?.data?.items || {};
       const key = row ? paperKey(items, (sp.get("k") || "").slice(0, 20), n) : null;
       if (!key) return json({ error: "paper_item_not_found" }, 404);
       const it = items[key] || {};
-      const size = row.data.size || {};
-      const names = (x: unknown) => (Array.isArray(x) ? x.filter((f) => typeof f === "string" && /^[a-z0-9-]{1,40}\.jpg$/.test(f)) : []);
-      const all = [...names(it.q), ...names(it.p), ...names(it.a)];
-      const signed = await signReports(all.map((f) => `q${row.folder}/${f}`), 600);
-      const pack = (x: unknown) => names(x).map((f) => ({ url: signed[`q${row.folder}/${f}`] || null, w: size[f]?.[0] || null, h: size[f]?.[1] || null })).filter((o) => o.url);
-      return json({ key, q: pack(it.q), p: pack(it.p), a: pack(it.a) });
+      const blocks = Array.isArray(row.data.blocks) ? row.data.blocks : [];
+      const pick = (x: unknown) => (Array.isArray(x) ? x.filter((i) => Number.isInteger(i) && Array.isArray(blocks[i as number])).map((i) => blocks[i as number]) : []);
+      return json({ key, q: pick(it.q), p: pick(it.p), a: pick(it.a) });
     }
     const reportParam = new URL(req.url).searchParams.get("report");
     // 주차 시험지: report=w<주차id> — 같은 반 주차 + 공개된 주차 + 본인 파일일 때만

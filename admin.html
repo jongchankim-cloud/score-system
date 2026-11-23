@@ -409,7 +409,18 @@
   #wp-box { margin-top:14px; }
   #wp-box .btn:disabled { opacity:.45; cursor:not-allowed; }
   .wp-table td { vertical-align:top; }
-  .wp-thumb { width:150px; max-height:220px; object-fit:contain; object-position:top left; border:1px solid var(--border); border-radius:4px; background:var(--white); cursor:zoom-in; display:block; margin-bottom:4px; }
+  .wp-table td:not(:first-child) { min-width:200px; }
+  .wp-table > tbody > tr > td:first-child { white-space:nowrap; }
+  .wd-view { font-size:12.5px; line-height:1.65; color:var(--navy); }
+  .wd-view .wd-p { margin:0 0 4px; }
+  .wd-view .wd-ch { padding-left:1.3em; text-indent:-1.3em; }
+  .wd-view .wd-box { border:1px solid var(--border); border-radius:6px; padding:6px 9px; margin:4px 0 6px; }
+  .wd-view .wd-box.sh { background:#f2f6fb; }
+  .wd-view .wd-tbl { border-collapse:collapse; margin:4px 0 6px; font-size:12px; }
+  .wd-view .wd-tbl td { border:1px solid var(--border); padding:3px 6px; vertical-align:top; }
+  .wd-view sup { font-size:.7em; color:var(--blue, #2f5ea8); font-weight:700; }
+  .wd-mini { max-height:220px; overflow:auto; border:1px solid var(--border); border-radius:6px; padding:6px 8px; background:var(--white); }
+  .wd-peek { max-height:360px; overflow:auto; padding:6px 4px; }
   .mock-header { padding:8px 0 4px; font-size:11px; color:var(--gray); font-weight:600; letter-spacing:0.5px; border-bottom:2px solid var(--border); margin-bottom:4px; }
   .mock-input-row { padding:8px 0; border-bottom:1px solid var(--light-gray); }
   .mock-input-row .student-name { font-size:13px; font-weight:500; color:var(--navy); }
@@ -627,7 +638,7 @@
           <div id="wr-review"></div>
           <div class="wt-other" id="wr-other" style="display:none"></div>
         </div>
-        <!-- 문제지·답지(학생이 틀린 문제 번호를 누르면 문제·해설 그림, 2026-11-23). 함수: '// ── 문제지·답지' 블록 -->
+        <!-- 문제지·답지(docx — 학생이 틀린 문제 번호를 누르면 문제·해설 글자, 2026-11-23). 함수: '// ── 문제지·답지' 블록 -->
         <div class="mrep" id="wp-box">
           <div class="mrep-head">
             <h4>문제지·답지 (틀린 문제 → 문제·해설 보기)</h4>
@@ -635,8 +646,8 @@
           <div id="wp-status"></div>
           <div id="wp-input" style="display:none">
             <div class="wr-input-actions">
-              <label class="btn btn-gold btn-sm">문제지·답지 PDF 고르기<input type="file" id="wp-file" accept="application/pdf,.pdf" multiple style="display:none" onchange="onWpFile(this.files)"></label>
-              <span class="mrep-muted" style="font-size:12px">글자가 들어 있는 PDF(합본 또는 문제지 + 답지 두 파일) · 문항을 찾아 그림으로 잘라 보여 준 뒤 올려요</span>
+              <label class="btn btn-gold btn-sm">문제지·답지 docx 고르기<input type="file" id="wp-file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display:none" onchange="onWpFile(this.files)"></label>
+              <span class="mrep-muted" style="font-size:12px">문제지 뒤에 답지('ANSWER KEY')가 이어진 Word 파일 · 문항별로 나눠 글자로 미리 보여 준 뒤 올려요</span>
             </div>
             <div id="wp-msg" style="font-size:12px;margin-top:4px"></div>
           </div>
@@ -8826,179 +8837,41 @@ async function uploadWr() {
   else loadWrPanel();
 }
 
-// ── 문제지·답지 (2026-11-23) ─────────────────────────────
-// 글자가 들어 있는 문제지·답지 PDF에서 문항 위치를 찾아, 학생이 '틀린 문제'의 번호를 누르면
-// 그 문제(필요하면 위 지문)와 정답·해설을 그림으로 보여 준다. 그림은 관리자 화면이 잘라 보관함 q{주차id}/에 올리고,
-// 어느 문항이 어느 그림인지는 week_papers(주차별 한 행)에 둔다.
-//  · 문제 쪽: 두 단(왼쪽·오른쪽)으로 나눠 읽는다. '[어법 1]' · '[서답형 2]' · '[서답형 3~4]'(지문 묶음) · '3.'(번호만) 머리줄에서
-//    같은 단의 다음 머리줄 앞까지가 한 문항.
-//  · 답지 쪽('ANSWER KEY' · '정답' 제목이 나온 쪽부터): '어법 1' · '3. 요지 |' · '서답형 2.' 머리줄에서 다음 머리줄 앞까지(쪽을 넘을 수 있음).
-//    'IV. 객관식' 같은 큰 제목은 앞 문항의 끝으로만 쓴다.
-//  · 문항 열쇠: 종류가 적힌 머리줄은 '어법:1' · '서술형:2'(서답형도 서술형), 번호만 있으면 ':3'. 학생 쪽은 '종류:번호' → ':번호' 순서로 찾는다.
+// ── 문제지·답지 (docx, 2026-11-23) ─────────────────────────────
+// 학생이 '틀린 문제 보기'에서 번호를 누르면 그 문제(지문이 앞 블록에 있으면 지문도)와 정답·해설을 글자로 보여 준다.
+// 조교가 문제지·답지 docx(한 파일 — 문제지 뒤에 'ANSWER KEY')를 고르면 본문을 꺼내 문항별로 나누고,
+// 밑줄·윗첨자·굵게와 지문 상자(표)를 살린 '본문 조각'(nodes)으로 week_papers(주차별 한 행)에 둔다. 그림·보관함은 쓰지 않는다.
+//  · 문제: '[어법 1]' · '[서답형 2]' · '3.'(번호만) 문단에서 다음 머리 문단 앞까지. '[서답형 3~4]'는 지문 묶음.
+//  · 답지('ANSWER KEY' 문단 뒤): 'Ⅳ. 객관식' 같은 제목 상자로 구역을 나누고, '어법 1' 문단 · '3. 요지 |' · '서답형 2.' 상자에서 다음 머리 앞까지.
+//    'Ⅱ. 해석 구문 해설' 구역의 '01 …' 상자는 해석 문장별 구문 해설로 따로 둔다(explain).
+//  · 문항 열쇠: 종류가 적힌 머리는 '어법:1' · '서술형:2'(서답형도 서술형), 번호만이면 ':3'. 학생 쪽은 wpResolve 규칙으로 찾는다.
+// 본문 조각: { t:'p', r:[[글자, 꼴]], li? } · { t:'tbl', rows:[[ [조각…] ]], sh? } — 꼴: 1 굵게 · 2 밑줄 · 4 윗첨자 · 8 기울임.
+// ★ 조각을 HTML로 그리는 wdHtml은 index.html에 같은 함수가 있다.
 const WP_LABELS = { 어법: '어법', 서답형: '서술형', 서술형: '서술형', 객관식: '객관식', 빈칸: '빈칸', 요약: '요약' };
 function wpLabel(s) { const k = String(s || '').replace(/\s/g, ''); return WP_LABELS[k] || k; }
 function wpNo(s) { return String(s || '').replace(/\s/g, '').replace(/번$/, '').replace(/^0+(?=\d)/, ''); }
 
-// 쪽의 글자를 줄로 묶는다. 두 단 쪽이면 왼쪽·오른쪽 단을 따로 묶는다(같은 높이의 두 단 글이 한 줄로 섞이지 않게).
-async function wpReadPage(pdf, n, oneCol) {
-  const page = await pdf.getPage(n);
-  const vp = page.getViewport({ scale: 1 });
-  const W = vp.width, H = vp.height;
-  const tc = await page.getTextContent();
-  const items = tc.items.filter(i => i.str && i.str.trim()).map(i => {
-    const size = Math.hypot(i.transform[2], i.transform[3]) || Math.hypot(i.transform[0], i.transform[1]) || i.height || 10;
-    return { s: i.str, x: i.transform[4], y: i.transform[5], w: i.width || 0, size };
-  });
-  const mid = W / 2;
-  // 두 단인지: 본문 줄(높이 2pt 단위) 가운데 한가운데 띠(±6pt)를 지나는 글자가 있는 줄이 거의 없으면 두 단
-  const body = items.filter(i => i.y > H * 0.06 && i.y < H * 0.9);
-  const rows = new Map();
-  body.forEach(i => { const k = Math.round(i.y / 2); const r = rows.get(k) || { cross: false }; if (i.x < mid + 6 && i.x + i.w > mid - 6) r.cross = true; rows.set(k, r); });
-  const rowN = rows.size, crossN = [...rows.values()].filter(r => r.cross).length;
-  const twoCol = !oneCol && rowN > 15 && crossN / rowN < 0.08 && body.some(i => i.x > mid + 4) && body.some(i => i.x + i.w < mid - 4);
-  const colOf = i => (twoCol ? (i.x + Math.min(i.w, 40) / 2 < mid ? 0 : 1) : 0);
-  const cols = twoCol ? [[], []] : [[]];
-  items.forEach(i => cols[colOf(i)].push(i));
-  const lines = [];
-  cols.forEach((arr, c) => {
-    arr.sort((a, b) => (b.y - a.y) || (a.x - b.x));
-    let cur = null;
-    arr.forEach(i => {
-      if (cur && Math.abs(cur.y - i.y) <= Math.max(2, Math.min(cur.size, i.size) * 0.45)) { cur.items.push(i); cur.size = Math.max(cur.size, i.size); return; }
-      cur = { col: c, y: i.y, size: i.size, items: [i] };
-      lines.push(cur);
-    });
-  });
-  lines.forEach(l => {
-    l.items.sort((a, b) => a.x - b.x);
-    let t = '', end = null;
-    l.items.forEach(i => { if (end !== null && i.x - end > l.size * 0.18 && !/\s$/.test(t)) t += ' '; t += i.s; end = i.x + i.w; });
-    l.text = t.replace(/\s+/g, ' ').trim();
-    l.x0 = l.items[0].x; l.x1 = Math.max(...l.items.map(i => i.x + i.w));
-    l.top = l.y + l.size * 0.85; l.bottom = l.y - l.size * 0.25;   // PDF 좌표(아래가 0)
-  });
-  lines.sort((a, b) => (a.col - b.col) || (b.y - a.y) || (a.x0 - b.x0));
-  return { n, W, H, twoCol, mid, lines };
-}
-
-// 머리줄 알아보기. kind: 'q'(문항) · 'p'(지문 묶음, '[서답형 3~4]') · 'stop'(큰 제목 — 앞 문항의 끝) · null
-function wpAnchorOf(text, answerPage) {
+// 머리 문단 알아보기. kind: 'q'(문항) · 'p'(지문 묶음, '[서답형 3~4]') · null
+function wpAnchorOf(text, answerPart) {
   const t = String(text || '').trim();
   let m;
-  if (!answerPage) {
+  if (!answerPart) {
     m = t.match(/^\[\s*(어법|서답형|서술형|객관식|빈칸|요약)\s*(\d+)\s*(?:[~∼\-–]\s*(\d+))?\s*\]/);
     if (m) return m[3] ? { kind: 'p', label: wpLabel(m[1]), from: +m[2], to: +m[3] } : { kind: 'q', label: wpLabel(m[1]), no: wpNo(m[2]) };
     m = t.match(/^(\d{1,2})\s*\.\s+\S/);
     if (m) return { kind: 'q', label: '', no: wpNo(m[1]) };
     return null;
   }
-  if (/^(?:[\u2160-\u216B]|I{1,3}|IV|V|VI{1,3}|IX|X)\s*\.\s*\S/.test(t)) return { kind: 'stop' };   // 'Ⅳ. 객관식'(로마 숫자 글자)도
   m = t.match(/^(어법|서답형|서술형)\s*(\d+)(?=\s*(?:\.|\s|$))/);
   if (m) return { kind: 'q', label: wpLabel(m[1]), no: wpNo(m[2]) };
   m = t.match(/^(\d{1,2})\s*\.\s*[^|\d]{1,24}\|/);
   if (m) return { kind: 'q', label: '', no: wpNo(m[1]) };
   return null;
 }
+const WD_STOP = /^(?:[Ⅰ-Ⅻ]|I{1,3}|IV|V|VI{1,3}|IX|X)\s*\.\s*\S/;   // 'Ⅳ. 객관식'(로마 숫자 글자)도
 
-function wpIsAnswerStart(page) {
-  return page.lines.some(l => l.y > page.H * 0.7 && /ANSWER\s*KEY|^정답\s*[·・:]|정답\s*(?:및|과)\s*해설|^해설\s*$/i.test(l.text));
-}
-
-// 문서를 읽어 문항·지문·해설 조각을 찾는다. 조각 = { page, col, x0, x1, top, bottom } (PDF 좌표)
-async function wpAnalyze(pdf, allAnswer) {
-  const pages = [];
-  // 답지 쪽은 한 단으로 읽는다(해설 상자는 쪽 너비 그대로). 답지가 시작되는 쪽을 먼저 찾는다.
-  let answerFrom = allAnswer ? 0 : -1;
-  for (let n = 1; n <= pdf.numPages; n++) {
-    let p = await wpReadPage(pdf, n, answerFrom >= 0);
-    if (answerFrom < 0 && wpIsAnswerStart(p)) { answerFrom = n - 1; p = await wpReadPage(pdf, n, true); }
-    pages.push(p);
-  }
-  if (answerFrom < 0) answerFrom = pages.length;
-  const pad = 6;
-  const content = p => p.lines.filter(l => l.y > p.H * 0.055 && l.y < p.H * 0.93);
-  const colBox = (p, col, answer) => {
-    const ls = content(p).filter(l => l.col === col);
-    const x0 = Math.min(...ls.map(l => l.x0)), x1 = Math.max(...ls.map(l => l.x1));
-    const ex = answer ? 16 : pad;
-    if (!p.twoCol) return { x0: Math.max(0, x0 - ex), x1: Math.min(p.W, x1 + ex) };
-    return col === 0 ? { x0: Math.max(0, x0 - ex), x1: Math.min(p.mid - 2, x1 + ex) } : { x0: Math.max(p.mid + 2, x0 - ex), x1: Math.min(p.W, x1 + ex) };
-  };
-  // 문제 쪽: 단마다 위에서 아래로
-  const blocks = [];
-  pages.slice(0, answerFrom).forEach(p => {
-    const cols = p.twoCol ? [0, 1] : [0];
-    cols.forEach(col => {
-      const ls = content(p).filter(l => l.col === col);
-      if (!ls.length) return;
-      const left = Math.min(...ls.map(l => l.x0));
-      const anchors = [];
-      ls.forEach((l, i) => { const a = l.x0 <= left + 4 ? wpAnchorOf(l.text, false) : null; if (a) anchors.push({ ...a, i, line: l }); });
-      anchors.forEach((a, k) => {
-        const next = anchors[k + 1];
-        const own = ls.slice(a.i, next ? next.i : ls.length);
-        const bottomText = Math.min(...own.map(l => l.bottom));
-        const box = colBox(p, col, false);
-        blocks.push({ ...a, page: p.n, col, text: own.map(l => l.text).join(' '),
-          seg: [{ page: p.n, x0: box.x0, x1: box.x1, top: Math.min(p.H, a.line.top + 9), bottom: Math.max(next ? next.line.top + 12 : 0, bottomText - 8, 0) }] });
-      });
-    });
-  });
-  // 답지 쪽: 쪽을 넘어 이어진다
-  const flat = [];
-  pages.slice(answerFrom).forEach(p => content(p).filter(l => !/ANSWER\s*KEY/i.test(l.text)).forEach(l => flat.push({ p, l })));
-  const answers = [];
-  const starts = [];
-  flat.forEach((f, i) => {
-    const ls = content(f.p);
-    const left = Math.min(...ls.map(l => l.x0));
-    const a = f.l.x0 <= left + 30 ? wpAnchorOf(f.l.text, true) : null;
-    if (a) starts.push({ ...a, i });
-  });
-  starts.forEach((a, k) => {
-    if (a.kind !== 'q') return;
-    const end = k + 1 < starts.length ? starts[k + 1].i : flat.length;
-    const own = flat.slice(a.i, end);
-    const segs = [];
-    own.forEach(f => {
-      let s = segs.find(x => x.page === f.p.n);
-      if (!s) { const box = colBox(f.p, f.l.col, true); s = { page: f.p.n, x0: box.x0, x1: box.x1, top: f.l.top + 14, bottom: f.l.bottom - 12, p: f.p }; segs.push(s); }
-      s.top = Math.max(s.top, f.l.top + 14); s.bottom = Math.min(s.bottom, f.l.bottom - 12);
-    });
-    // 다음 머리줄이 같은 쪽이면 그 위까지만(다음이 큰 제목 띠면 글 끝에서 자른다 — 띠가 넓어 섞이지 않게), 앞이 큰 제목이면 그 띠 아래부터
-    const nx = end < flat.length ? flat[end] : null;
-    const nxStop = k + 1 < starts.length && starts[k + 1].kind === 'stop';
-    const pv = k > 0 && starts[k - 1].kind === 'stop' ? flat[starts[k - 1].i] : null;
-    segs.forEach(s => {
-      if (nx && nx.p.n === s.page && !nxStop) s.bottom = Math.max(s.bottom, nx.l.top + 14);
-      if (pv && pv.p.n === s.page) s.top = Math.min(s.top, pv.l.bottom - 9);
-      s.top = Math.min(s.top, s.p.H); s.bottom = Math.max(0, s.bottom); delete s.p;
-    });
-    answers.push({ label: a.label, no: a.no, text: own.map(f => f.l.text).join(' ').slice(0, 300), seg: segs });
-  });
-  return { pages: pages.map(p => ({ n: p.n, W: p.W, H: p.H, twoCol: p.twoCol, answer: p.n > answerFrom })), answerFrom: answerFrom + 1, blocks, answers };
-}
-
-// 문항 목록: 문항 블록 + (지문 묶음 또는 '위 글·윗글'이면 같은 쪽 첫 블록을 지문으로) + 해설
-function wpItems(an) {
-  const qs = an.blocks.filter(b => b.kind === 'q');
-  const key = (label, no) => `${label}:${no}`;
-  const ansOf = {};
-  an.answers.forEach(a => { ansOf[key(a.label, a.no)] = ansOf[key(a.label, a.no)] || a; });
-  const seen = new Set();
-  return qs.filter(b => { const k = key(b.label, b.no); if (seen.has(k)) return false; seen.add(k); return true; }).map(b => {
-    let passage = an.blocks.find(p => p.kind === 'p' && p.d === b.d && p.label === b.label && +b.no >= p.from && +b.no <= p.to) || null;
-    if (!passage && /위\s*글|윗\s*글|위\s*내용|위의\s*글|underlined|밑줄\s*친\s*㉠/.test(b.text)) {
-      const first = an.blocks.filter(x => x.page === b.page && x.d === b.d).sort((x, y) => (x.col - y.col) || (y.seg[0].top - x.seg[0].top))[0];
-      if (first && first !== b) passage = first;
-    }
-    const a = ansOf[key(b.label, b.no)] || null;
-    return { key: key(b.label, b.no), label: b.label, no: b.no, page: b.page, block: b, passage, answer: a };
-  });
-}
-
-// 학생 쪽 문항(종류·번호) → 문제지 열쇠. 종류가 적힌 머리줄이 그 종류에 하나라도 있으면 번호만 있는 머리줄로 넘어가지 않는다
-// (예: 서답형이 따로 번호 매겨진 문제지에서 '서술형 6'이 객관식 '6.'으로 잘못 가지 않게). ★ parent-login에 같은 함수가 있다.
+// 학생 쪽 문항(종류·번호) → 문제지 열쇠. 종류가 적힌 머리가 그 종류에 하나라도 있으면 번호만 있는 머리로 넘어가지 않는다
+// (예: 서답형이 따로 번호 매겨진 문제지에서 '서술형 6'이 객관식 '6.'으로 잘못 가지 않게). ★ parent-login paperKey와 같은 규칙.
 function wpResolve(items, label, no) {
   const L = wpLabel(label), N = wpNo(no), base = N.replace(/\([^)]*\)$/, '');
   const typed = Object.keys(items || {}).some(k => k.startsWith(L + ':'));
@@ -9007,16 +8880,208 @@ function wpResolve(items, label, no) {
 }
 function wpKeyName(key) { const [l, n] = String(key).split(':'); return l ? `${l} ${n}` : `${n}번`; }
 
-const WP_SCALE = 3;          // 잘라 낼 때 확대 배율 (단 너비 약 780px · 답지 약 1500px)
+// ── docx 읽기 ──
+const WD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+
+// docx(zip)에서 파일 하나를 꺼낸다 — 브라우저 내장 압축 풀기(DecompressionStream)를 써서 따로 받는 도구가 없다
+async function wdUnzipText(buf, want) {
+  const u8 = new Uint8Array(buf), dv = new DataView(buf);
+  let eocd = -1;
+  for (let i = u8.length - 22; i >= Math.max(0, u8.length - 65557); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  if (eocd < 0) throw new Error('not_zip');
+  const n = dv.getUint16(eocd + 10, true);
+  let off = dv.getUint32(eocd + 16, true);
+  const dec = new TextDecoder();
+  for (let k = 0; k < n; k++) {
+    if (dv.getUint32(off, true) !== 0x02014b50) throw new Error('bad_zip');
+    const method = dv.getUint16(off + 10, true), csize = dv.getUint32(off + 20, true);
+    const nlen = dv.getUint16(off + 28, true), xlen = dv.getUint16(off + 30, true), clen = dv.getUint16(off + 32, true), lho = dv.getUint32(off + 42, true);
+    const name = dec.decode(u8.subarray(off + 46, off + 46 + nlen));
+    off += 46 + nlen + xlen + clen;
+    if (name !== want) continue;
+    const start = lho + 30 + dv.getUint16(lho + 26, true) + dv.getUint16(lho + 28, true);
+    const data = u8.slice(start, start + csize);
+    if (method === 0) return dec.decode(data);
+    if (method !== 8 || typeof DecompressionStream === 'undefined') throw new Error('unzip_unsupported');
+    const out = await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer();
+    return dec.decode(out);
+  }
+  throw new Error('no_document');
+}
+
+function wdKids(el, name) { return Array.from(el.childNodes).filter(c => c.nodeType === 1 && c.namespaceURI === WD_NS && (!name || c.localName === name)); }
+// 본문·칸의 문단과 표 (내용 컨트롤 sdt는 풀어서)
+function wdFlat(el) {
+  const out = [];
+  wdKids(el).forEach(c => {
+    if (c.localName === 'sdt') { const sc = wdKids(c, 'sdtContent')[0]; if (sc) out.push(...wdFlat(sc)); }
+    else if (c.localName === 'p' || c.localName === 'tbl') out.push(c);
+  });
+  return out;
+}
+function wdOn(rPr, name) {
+  const e = rPr && wdKids(rPr, name)[0];
+  if (!e) return false;
+  const v = e.getAttributeNS(WD_NS, 'val');
+  return !(v === '0' || v === 'false' || v === 'none');
+}
+function wdRuns(p) {
+  const out = [];
+  Array.from(p.getElementsByTagNameNS(WD_NS, 'r')).forEach(r => {
+    if (r.parentNode && r.parentNode.localName === 'del') return;
+    const rPr = wdKids(r, 'rPr')[0];
+    let f = 0;
+    if (wdOn(rPr, 'b')) f |= 1;
+    if (wdOn(rPr, 'u')) f |= 2;
+    const va = rPr && wdKids(rPr, 'vertAlign')[0];
+    if (va && va.getAttributeNS(WD_NS, 'val') === 'superscript') f |= 4;
+    if (wdOn(rPr, 'i')) f |= 8;
+    let s = '';
+    wdKids(r).forEach(c => {
+      if (c.localName === 't') s += c.textContent;
+      else if (c.localName === 'tab') s += '\t';
+      else if (c.localName === 'br' && !/^(page|column)$/.test(c.getAttributeNS(WD_NS, 'type') || '')) s += '\n';
+      else if (c.localName === 'noBreakHyphen') s += '-';
+    });
+    if (!s) return;
+    const last = out[out.length - 1];
+    if (last && last[1] === f) last[0] += s; else out.push([s, f]);
+  });
+  // 끝의 탭·빈칸은 버린다 (답 쓰는 칸 자리)
+  while (out.length && !out[out.length - 1][0].replace(/[\s\t]+$/, '')) out.pop();
+  if (out.length) out[out.length - 1][0] = out[out.length - 1][0].replace(/[\s\t]+$/, '');
+  return out;
+}
+function wdPlain(el) {
+  if (el.localName === 'p') return wdRuns(el).map(r => r[0]).join('');
+  return Array.from(el.getElementsByTagNameNS(WD_NS, 'p')).map(p => wdRuns(p).map(r => r[0]).join('')).join(' ');
+}
+function wdFirstText(el) {
+  if (el.localName === 'p') return wdPlain(el).replace(/\s+/g, ' ').trim();
+  for (const p of el.getElementsByTagNameNS(WD_NS, 'p')) { const t = wdPlain(p).replace(/\s+/g, ' ').trim(); if (t) return t; }
+  return '';
+}
+function wdShaded(tbl) {
+  return Array.from(tbl.getElementsByTagNameNS(WD_NS, 'shd')).some(s => { const f = (s.getAttributeNS(WD_NS, 'fill') || '').toLowerCase(); return f && f !== 'auto' && f !== 'ffffff'; });
+}
+// 문제지의 답 쓰는 줄('1 번호 →' · '답:' · '✎' · '(A)' 칸)은 학생 화면에 필요 없다
+const WD_BLANK_LINE = /^(?:\d\s*번호\s*→|답\s*:|✎|\(?[A-Da-d]\)?|이름)$/;
+function wdNode(el, clean) {
+  if (el.localName === 'p') {
+    const r = wdRuns(el);
+    const t = r.map(x => x[0]).join('').replace(/\s+/g, ' ').trim();
+    if (!t || (clean && WD_BLANK_LINE.test(t))) return null;
+    const node = { t: 'p', r };
+    const pPr = wdKids(el, 'pPr')[0];
+    if (pPr && wdKids(pPr, 'numPr').length) node.li = 1;
+    return node;
+  }
+  const rows = wdKids(el, 'tr').map(tr => wdKids(tr, 'tc').map(tc => wdFlat(tc).map(c => wdNode(c, clean)).filter(Boolean)));
+  const cells = rows.flat();
+  if (!cells.some(c => c.length)) return null;
+  if (clean && cells.every(c => !c.length || c.every(n => n.t === 'p' && WD_BLANK_LINE.test(n.r.map(x => x[0]).join('').replace(/\s+/g, ' ').trim())))) return null;
+  const node = { t: 'tbl', rows };
+  if (wdShaded(el)) node.sh = 1;
+  return node;
+}
+
+// docx 본문 → 문항·지문·해설
+function wdAnalyze(xml) {
+  const dom = new DOMParser().parseFromString(xml, 'application/xml');
+  const body = dom.getElementsByTagNameNS(WD_NS, 'body')[0];
+  if (!body) throw new Error('no_body');
+  const els = wdFlat(body);
+  let title = '';
+  for (const el of els) { const t = wdFirstText(el).replace(/\s*이름\s*$/, '').trim(); if (t) { title = t.slice(0, 80); break; } }
+  const qBlocks = [], answers = [], explain = {};
+  let part = 'q', section = '', cur = null;
+  for (const el of els) {
+    const t = wdFirstText(el);
+    if (part === 'q') {
+      if (el.localName === 'p' && /^(?:ANSWER\s*KEY|정답\s*(?:및|과)\s*해설)$/i.test(t)) { part = 'a'; cur = null; continue; }
+      const a = el.localName === 'p' ? wpAnchorOf(t, false) : null;
+      if (a) { cur = { ...a, els: [el], cue: t }; qBlocks.push(cur); continue; }
+      if (cur) cur.els.push(el);
+      continue;
+    }
+    if (WD_STOP.test(t)) { section = t; cur = null; continue; }
+    if (/해석/.test(section)) {
+      const m = el.localName === 'tbl' ? t.match(/^0?(\d{1,2})\s+\S/) : null;
+      if (m) explain[m[1]] = el;
+      continue;
+    }
+    const a = wpAnchorOf(t, true);
+    if (a) { cur = { label: a.label, no: a.no, els: [el] }; answers.push(cur); continue; }
+    if (cur) cur.els.push(el);
+  }
+  const nodesOf = (els, clean) => els.map(e => wdNode(e, clean)).filter(Boolean);
+  qBlocks.forEach(b => {
+    b.nodes = nodesOf(b.els, true);
+    b.hasPassage = b.els.some(e => e.localName === 'tbl' && (wdShaded(e) || wdPlain(e).length >= 300));
+    b.cueAbove = /위\s*글|윗\s*글|위\s*내용|위의\s*글|underlined|밑줄\s*친\s*㉠/.test(b.cue);
+  });
+  const key = (l, n) => `${l}:${n}`;
+  const ansOf = {};
+  answers.forEach(a => { const k = key(a.label, a.no); if (!ansOf[k]) ansOf[k] = nodesOf(a.els, false); });
+  const items = [], seen = new Set();
+  qBlocks.forEach((b, i) => {
+    if (b.kind !== 'q') return;
+    const k = key(b.label, b.no);
+    if (seen.has(k)) return;
+    seen.add(k);
+    // 지문: '[서답형 3~4]' 묶음 → 아니면 '위 글·윗글' 문항이면 앞쪽에서 가장 가까운, 자기 지문이 있는 블록
+    let passage = qBlocks.find(p => p.kind === 'p' && p.label === b.label && +b.no >= p.from && +b.no <= p.to) || null;
+    if (!passage && b.cueAbove) {
+      for (let j = i - 1; j >= 0; j--) { const p = qBlocks[j]; if (p.kind === 'q' && !p.cueAbove && p.hasPassage) { passage = p; break; } }
+    }
+    items.push({ key: k, label: b.label, no: b.no, q: b.nodes, p: passage ? passage.nodes : null, pFrom: passage ? (passage.kind === 'p' ? `${wpKeyName(passage.label + ':' + passage.from)}~${passage.to}` : wpKeyName(key(passage.label, passage.no))) : '', a: ansOf[k] || null });
+  });
+  const keys = new Set(items.map(it => it.key));
+  const orphan = Object.keys(ansOf).filter(k => !keys.has(k));
+  const ex = {};
+  Object.keys(explain).forEach(n => { const nd = wdNode(explain[n], false); if (nd) ex[n] = [nd]; });
+  return { title, items, orphan, explain: ex, answerFound: part === 'a' };
+}
+
+// 본문 조각 → HTML (★ index.html wdHtml과 같게)
+function wdRunsHtml(runs) {
+  return (Array.isArray(runs) ? runs : []).map(r => {
+    let h = escapeHtml(String(r[0] ?? '')).replace(/\t+/g, ' ').replace(/\n/g, '<br>');
+    const f = r[1] | 0;
+    if (f & 4) h = `<sup>${h}</sup>`;
+    if (f & 2) h = `<u>${h}</u>`;
+    if (f & 8) h = `<i>${h}</i>`;
+    if (f & 1) h = `<b>${h}</b>`;
+    return h;
+  }).join('');
+}
+function wdHtml(nodes) {
+  return (Array.isArray(nodes) ? nodes : []).map(n => {
+    if (!n || typeof n !== 'object') return '';
+    if (n.t === 'p') {
+      const text = (Array.isArray(n.r) ? n.r : []).map(r => r[0]).join('').trim();
+      return `<p class="wd-p${/^[①-⑩]/.test(text) ? ' wd-ch' : ''}">${n.li ? '• ' : ''}${wdRunsHtml(n.r)}</p>`;
+    }
+    if (n.t === 'tbl') {
+      const rows = Array.isArray(n.rows) ? n.rows : [];
+      if (rows.length === 1 && rows[0].length === 1) return `<div class="wd-box${n.sh ? ' sh' : ''}">${wdHtml(rows[0][0])}</div>`;
+      return `<table class="wd-tbl${n.sh ? ' sh' : ''}">${rows.map(r => `<tr>${(Array.isArray(r) ? r : []).map(c => `<td>${wdHtml(c)}</td>`).join('')}</tr>`).join('')}</table>`;
+    }
+    return '';
+  }).join('');
+}
+
+// ── 관리자 칸 ──
 let _wpCtx = null;           // 이 주차의 문제지 { weekId, classId, ready, row, groupWeeks, omrItems }
-let _wpDoc = null;           // 검토 중 { weekId, items, images, title, share, warnings }
-let _wpSeq = 0, _wpBusy = false, _wpListOpen = false, _wpLast = null;
+let _wpDoc = null;           // 검토 중 { weekId, title, items, explain, orphan, share }
+let _wpSeq = 0, _wpBusy = false, _wpListOpen = false, _wpLast = null, _wpPeek = null;
 
 function resetWpPanel(weekId) {
   if (!document.getElementById('wp-box')) return;
   if (_wpCtx && _wpCtx.weekId === weekId) return;
   _wpSeq++;
   _wpCtx = null;
+  _wpPeek = null;
   holdTableHeight(document.getElementById('wp-box'));
   if (!_wpBusy && _wpDoc && _wpDoc.weekId !== weekId) clearWpReview();
   document.getElementById('wp-status').innerHTML = '';
@@ -9029,7 +9094,7 @@ async function loadWpPanel() {
   if (!weekId || !classId || !document.getElementById('wp-box')) return;
   const seq = ++_wpSeq;
   const [r, wk, om] = await Promise.all([
-    apiReqRetry(`week_papers?week_id=eq.${weekId}&select=week_id,folder,data,updated_at`, 'GET'),
+    apiReqRetry(`week_papers?week_id=eq.${weekId}&select=week_id,data,updated_at`, 'GET'),
     apiReqRetry(`weeks?id=eq.${weekId}&select=id,group_id`, 'GET'),
     apiReqRetry(`week_results?week_id=eq.${weekId}&kind=eq.omr&select=data&limit=1`, 'GET')
   ]);
@@ -9055,6 +9120,13 @@ function wpMissing(items, omrItems) {
   return omrItems.filter(o => !wpResolve(items, o.label, o.no)).map(o => `${o.label} ${o.no}`);
 }
 
+function wpStoredParts(data, key) {
+  const it = data?.items?.[key] || {};
+  const blocks = Array.isArray(data?.blocks) ? data.blocks : [];
+  const pick = x => (Array.isArray(x) ? x : []).map(i => blocks[i]).filter(Boolean);
+  return { q: pick(it.q), p: pick(it.p), a: pick(it.a) };
+}
+
 function renderWpStatus() {
   const ctx = _wpCtx, box = document.getElementById('wp-status');
   if (!ctx || !box) return;
@@ -9062,7 +9134,7 @@ function renderWpStatus() {
   const input = document.getElementById('wp-input');
   if (!ctx.ready) {
     input.style.display = 'none';
-    box.innerHTML = '<div class="mrep-note">문제지 보관 표가 아직 준비되지 않았어요. 서버 설정이 끝나면 여기서 문제지·답지 PDF를 올릴 수 있어요.</div>';
+    box.innerHTML = '<div class="mrep-note">문제지 보관 표가 아직 준비되지 않았어요. 서버 설정이 끝나면 여기서 문제지·답지 docx를 올릴 수 있어요.</div>';
     return;
   }
   input.style.display = '';
@@ -9076,20 +9148,18 @@ function renderWpStatus() {
   const keys = Object.keys(items);
   const withA = keys.filter(k => (items[k].a || []).length).length;
   const miss = wpMissing(items, ctx.omrItems);
-  const shared = row.folder !== ctx.weekId;
   const when = row.updated_at ? escapeHtml(new Date(row.updated_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })) : '';
   const list = keys.map(k => {
     const it = items[k];
+    const btn = (part, label) => `<button class="btn btn-light btn-sm${_wpPeek && _wpPeek.key === k && _wpPeek.part === part ? ' active' : ''}" onclick="peekStoredWp('${escapeAttr(k)}', '${part}')">${label}</button>`;
+    const peek = _wpPeek && _wpPeek.key === k ? `<tr><td colspan="2"><div class="wd-view wd-peek">${wdHtml(wpStoredParts(row.data, k)[_wpPeek.part].flat())}</div></td></tr>` : '';
     return `<tr><td><strong>${escapeHtml(wpKeyName(k))}</strong></td>
-      <td>${(it.q || []).length ? `<button class="btn btn-light btn-sm" onclick="openStoredWp(${row.folder}, '${escapeAttr(it.q[0])}')">문제</button>` : '—'}
-        ${(it.p || []).length ? `<button class="btn btn-light btn-sm" onclick="openStoredWp(${row.folder}, '${escapeAttr(it.p[0])}')">지문</button>` : ''}</td>
-      <td>${(it.a || []).length ? (it.a.map((f, i) => `<button class="btn btn-light btn-sm" onclick="openStoredWp(${row.folder}, '${escapeAttr(f)}')">해설${it.a.length > 1 ? ` ${i + 1}` : ''}</button>`).join(' ')) : '<span class="mrep-warn">없음</span>'}</td></tr>`;
+      <td>${btn('q', '문제')} ${(it.p || []).length ? btn('p', '지문') : ''} ${(it.a || []).length ? btn('a', '해설') : '<span class="mrep-warn">해설 없음</span>'}</td></tr>${peek}`;
   }).join('');
   box.innerHTML = `${last}
     <div class="mrep-summary">
       <div>올린 문제지·답지: 문항 <strong>${keys.length}</strong>개 (해설 ${withA}개)${row.data?.title ? ` · ${escapeHtml(row.data.title)}` : ''} <span class="mrep-muted" style="font-size:11px">${when}</span>
-        ${shared ? `<br><span class="mrep-muted" style="font-size:12px">같은 비교 그룹의 다른 반 주차에서 올린 것을 같이 써요</span>` : ''}
-        ${ctx.omrItems.length ? `<br><span class="${miss.length ? 'mrep-warn' : 'mrep-ok'}" style="font-size:12px">${miss.length ? `채점 결과 문항 중 그림이 없는 것: ${escapeHtml(miss.join(', '))}` : `채점 결과 문항 ${ctx.omrItems.length}개 모두 연결됨`}</span>` : ''}
+        ${ctx.omrItems.length ? `<br><span class="${miss.length ? 'mrep-warn' : 'mrep-ok'}" style="font-size:12px">${miss.length ? `채점 결과 문항 중 문제지에 없는 것: ${escapeHtml(miss.join(', '))}` : `채점 결과 문항 ${ctx.omrItems.length}개 모두 연결됨`}</span>` : ''}
       </div>
       <div class="mrep-actions">
         <button class="btn btn-light btn-sm" onclick="toggleWpList()">${_wpListOpen ? '목록 접기' : '문항 목록'}</button>
@@ -9099,133 +9169,67 @@ function renderWpStatus() {
     ${_wpListOpen ? `<div class="mrep-list"><table class="data-table"><tbody>${list}</tbody></table></div>` : ''}`;
 }
 
-function toggleWpList() { _wpListOpen = !_wpListOpen; renderWpStatus(); }
-
-async function openStoredWp(folder, name) {
-  const w = window.open('', '_blank');
-  const r = await reportStorage({ op: 'sign', path: `q${folder}/${name}` }).catch(() => null);
-  if (!r?.ok || !r.data?.url) { if (w) w.close(); showToast('❌ 그림을 열지 못했어요.'); return; }
-  if (w) w.location.href = r.data.url; else window.open(r.data.url, '_blank');
+function toggleWpList() { _wpListOpen = !_wpListOpen; _wpPeek = null; renderWpStatus(); }
+function peekStoredWp(key, part) {
+  _wpPeek = _wpPeek && _wpPeek.key === key && _wpPeek.part === part ? null : { key, part };
+  renderWpStatus();
 }
 
 async function deleteWp() {
   const ctx = _wpCtx;
   if (!ctx?.row || _wpBusy) return;
-  const row = ctx.row;
-  if (!confirm('이 주차의 문제지·답지를 지울까요?\n학생 화면의 \'문제 보기\'·\'정답·해설 보기\'가 사라져요. (채점 결과·점수는 그대로)')) return;
+  if (!confirm('이 주차의 문제지·답지를 지울까요?\n학생 화면의 \'문제 보기\'·\'정답·해설 보기\'가 사라져요. (채점 결과·점수는 그대로, 같은 그룹 다른 반 주차는 그대로)')) return;
   const r = await apiReqRetry(`week_papers?week_id=eq.${ctx.weekId}`, 'DELETE');
   if (!r.ok) { showToast('❌ 문제지를 지우지 못했어요. 다시 시도해 주세요.', 4000); return; }
-  // 같은 그림을 쓰는 다른 주차가 없으면 그림도 지운다
-  const rest = await apiReqRetry(`week_papers?folder=eq.${row.folder}&select=week_id`, 'GET');
-  if (rest.ok && Array.isArray(rest.data) && !rest.data.length) {
-    const paths = wpFilesOf(row.data).map(f => `q${row.folder}/${f}`);
-    if (paths.length) await reportStorage({ op: 'remove', paths }).catch(() => null);
-  }
   showToast('🗑 문제지·답지를 지웠어요.');
   _wpLast = null;
+  _wpPeek = null;
   loadWpPanel();
 }
 
-function wpFilesOf(data) {
-  const s = new Set();
-  Object.values(data?.items || {}).forEach(it => ['q', 'p', 'a'].forEach(k => (it[k] || []).forEach(f => s.add(f))));
-  return [...s];
-}
-
 function clearWpReview() {
-  if (_wpDoc) Object.values(_wpDoc.images).forEach(im => { if (im.url) URL.revokeObjectURL(im.url); });
   _wpDoc = null;
   const el = document.getElementById('wp-review');
   if (el) el.innerHTML = '';
 }
 
-// 쪽을 한 번씩 그려 조각을 잘라 낸다 (JPEG)
-async function wpRenderImages(doc, jobs, say) {
-  const byPage = new Map();
-  jobs.forEach(j => { const k = `${j.d}:${j.seg.page}`; if (!byPage.has(k)) byPage.set(k, []); byPage.get(k).push(j); });
-  let done = 0;
-  for (const [k, list] of byPage) {
-    const [di, pn] = k.split(':').map(Number);
-    const page = await doc.docs[di].pdf.getPage(pn);
-    const vp = page.getViewport({ scale: WP_SCALE });
-    const c = document.createElement('canvas');
-    c.width = Math.round(vp.width); c.height = Math.round(vp.height);
-    const ctx = c.getContext('2d');
-    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
-    await page.render({ canvasContext: ctx, viewport: vp }).promise;
-    const H = vp.height / WP_SCALE;
-    for (const j of list) {
-      const s = j.seg;
-      const x = Math.max(0, s.x0 * WP_SCALE), y = Math.max(0, (H - s.top) * WP_SCALE);
-      const w = Math.min(c.width - x, (s.x1 - s.x0) * WP_SCALE), h = Math.min(c.height - y, (s.top - s.bottom) * WP_SCALE);
-      const out = document.createElement('canvas');
-      out.width = Math.max(1, Math.round(w)); out.height = Math.max(1, Math.round(h));
-      out.getContext('2d').drawImage(c, x, y, w, h, 0, 0, out.width, out.height);
-      const blob = await new Promise(res => out.toBlob(res, 'image/jpeg', 0.85));
-      doc.images[j.name] = { blob, url: URL.createObjectURL(blob), w: out.width, h: out.height };
-      say(`그림 만드는 중... (${++done}/${jobs.length})`);
-    }
-    c.width = c.height = 0;
-  }
-}
-
 async function onWpFile(files) {
   const input = document.getElementById('wp-file');
-  const list = [...(files || [])].filter(f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
+  const f = files && files[0];
   if (input) input.value = '';
-  if (!list.length || _wpBusy || !_wpCtx?.ready) return;
+  if (!f || _wpBusy || !_wpCtx?.ready) return;
   const weekId = _wpCtx.weekId;
   const msg = document.getElementById('wp-msg');
-  const say = t => { if (msg) msg.innerHTML = `<span class="mrep-progress">${escapeHtml(t)}</span>`; };
   clearWpReview();
+  if (!/\.docx$/i.test(f.name)) {
+    if (msg) msg.innerHTML = '<span class="mrep-warn">docx 파일을 골라 주세요.</span> 한글(hwp)·PDF는 Word 문서(.docx)로 저장한 뒤 올려 주세요.';
+    return;
+  }
   _wpBusy = true;
+  if (msg) msg.innerHTML = '<span class="mrep-progress">문제지를 읽는 중...</span>';
   try {
-    say('문제지를 읽는 중...');
-    await loadPdfTools();
-    const doc = { weekId, docs: [], items: [], images: {}, warnings: [], share: true, title: list.map(f => f.name.replace(/\.pdf$/i, '')).join(' + ').slice(0, 80) };
-    const blocks = [], answers = [];
-    for (const f of list) {
-      const bytes = new Uint8Array(await f.arrayBuffer());
-      const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
-      const d = doc.docs.length;
-      doc.docs.push({ name: f.name, pdf });
-      say(`${f.name} 문항 찾는 중... (${pdf.numPages}쪽)`);
-      // 따로 받은 답지(이름에 답지·해설·정답)는 처음부터 답지로 읽는다
-      const an = await wpAnalyze(pdf, list.length > 1 && /답지|해설|정답|answer/i.test(f.name));
-      an.blocks.forEach(b => { b.d = d; blocks.push(b); });
-      an.answers.forEach(a => { a.d = d; answers.push(a); });
-    }
+    const xml = await wdUnzipText(await f.arrayBuffer(), 'word/document.xml');
+    const an = wdAnalyze(xml);
     if (_wpCtx?.weekId !== weekId) return;
-    const items = wpItems({ blocks, answers });
-    if (!items.length) {
-      if (msg) msg.innerHTML = "<span class=\"mrep-warn\">문항을 찾지 못했어요.</span> 글자가 들어 있는 문제지 PDF('[어법 1]' · '3.' 같은 문항 머리줄이 있는 것)인지 확인해 주세요. 스캔한 그림 PDF는 쓸 수 없어요.";
+    if (!an.items.length) {
+      if (msg) msg.innerHTML = "<span class=\"mrep-warn\">문항을 찾지 못했어요.</span> '[어법 1]' · '3.' 같은 문항 머리가 있는 문제지 docx인지 확인해 주세요.";
       return;
     }
-    // 그림 이름: 문항·지문 블록 b1.jpg …, 해설 조각 a1-1.jpg …
-    const jobs = [];
-    const blockName = new Map();
-    const nameOf = b => { if (!blockName.has(b)) { const name = `b${blockName.size + 1}.jpg`; blockName.set(b, name); jobs.push({ name, d: b.d, seg: b.seg[0] }); } return blockName.get(b); };
-    items.forEach((it, i) => {
-      it.q = [nameOf(it.block)];
-      it.p = it.passage ? [nameOf(it.passage)] : [];
-      it.a = it.answer ? it.answer.seg.map((s, k) => { const name = `a${i + 1}-${k + 1}.jpg`; jobs.push({ name, d: it.answer.d, seg: s }); return name; }) : [];
-    });
-    const keys = new Set(items.map(it => it.key));
-    answers.filter(a => !keys.has(`${a.label}:${a.no}`)).forEach(a => doc.warnings.push(`해설만 있고 문제를 못 찾은 것: ${wpKeyName(`${a.label}:${a.no}`)}`));
-    if (!answers.length) doc.warnings.push("해설(답지)을 찾지 못했어요. 답지를 따로 올릴 때는 파일 이름에 '답지'나 '해설'을 넣어 함께 골라 주세요.");
-    await wpRenderImages(doc, jobs, say);
-    if (_wpCtx?.weekId !== weekId) { Object.values(doc.images).forEach(im => URL.revokeObjectURL(im.url)); return; }
-    doc.items = items.map(it => ({ key: it.key, label: it.label, no: it.no, page: it.page, q: it.q, p: it.p, a: it.a }));
-    _wpDoc = doc;
+    const warnings = [];
+    if (!an.answerFound) warnings.push("답지('ANSWER KEY')를 찾지 못했어요. 문제지 뒤에 답지가 이어진 docx를 올려 주세요.");
+    an.orphan.forEach(k => warnings.push(`해설만 있고 문제를 못 찾은 것: ${wpKeyName(k)}`));
+    _wpDoc = { weekId, title: an.title || f.name.replace(/\.docx$/i, ''), items: an.items, explain: an.explain, warnings, share: true };
     if (msg) msg.innerHTML = '';
     renderWpReview();
     document.getElementById('wp-review').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   } catch (e) {
     console.error(e);
-    if (msg) msg.innerHTML = '<span class="mrep-warn">PDF를 읽지 못했어요.</span> 파일이 망가졌거나 암호가 걸려 있는지 확인해 주세요.';
+    if (msg) msg.innerHTML = e && e.message === 'unzip_unsupported'
+      ? '<span class="mrep-warn">이 브라우저에서는 docx를 읽을 수 없어요.</span> 크롬 최신 버전에서 다시 시도해 주세요.'
+      : '<span class="mrep-warn">docx를 읽지 못했어요.</span> 파일이 망가졌거나 암호가 걸려 있는지 확인해 주세요.';
   } finally {
     _wpBusy = false;
-    if (_wpDoc) renderWpReview();   // 읽는 동안 꺼 둔 올리기 버튼을 켠다
+    if (_wpDoc) renderWpReview();
   }
 }
 
@@ -9234,22 +9238,22 @@ function renderWpReview() {
   if (!el) return;
   if (!doc) { el.innerHTML = ''; return; }
   const ctx = _wpCtx;
-  const im = n => doc.images[n] ? `<img class="wp-thumb" src="${doc.images[n].url}" alt="" onclick="window.open(this.src, '_blank')">` : '';
   const itemsMap = {}; doc.items.forEach(it => { itemsMap[it.key] = it; });
   const miss = ctx ? wpMissing(itemsMap, ctx.omrItems) : [];
-  const rows = doc.items.map(it => `<tr class="${it.a.length ? '' : 'mrep-row-warn'}">
-      <td><strong>${escapeHtml(wpKeyName(it.key))}</strong><br><span class="mrep-muted" style="font-size:11px">${it.page}쪽</span></td>
-      <td>${it.q.map(im).join('')}</td>
-      <td>${it.p.length ? it.p.map(im).join('') : '<span class="mrep-muted">—</span>'}</td>
-      <td>${it.a.length ? it.a.map(im).join('') : '<span class="mrep-warn">해설 없음</span>'}</td></tr>`).join('');
+  const cell = nodes => nodes && nodes.length ? `<div class="wd-view wd-mini">${wdHtml(nodes)}</div>` : '';
+  const rows = doc.items.map(it => `<tr class="${it.a ? '' : 'mrep-row-warn'}">
+      <td><strong>${escapeHtml(wpKeyName(it.key))}</strong></td>
+      <td>${cell(it.q)}</td>
+      <td>${it.p ? `<span class="mrep-muted" style="font-size:11px">${escapeHtml(it.pFrom)}의 지문</span>${cell(it.p)}` : '<span class="mrep-muted">—</span>'}</td>
+      <td>${it.a ? cell(it.a) : '<span class="mrep-warn">해설 없음</span>'}</td></tr>`).join('');
   const groupNames = (ctx?.groupWeeks || []).map(w => escapeHtml(classes.find(c => c.id === w.class_id)?.name || `주차 ${w.id}`));
-  const nImg = Object.keys(doc.images).length;
+  const nEx = Object.keys(doc.explain || {}).length;
   el.innerHTML = `<div class="wr-review">
-    <div class="mrep-preview-head"><span><strong>📄 ${escapeHtml(doc.title)}</strong> · 문항 ${doc.items.length}개 · 그림 ${nImg}장</span>
+    <div class="mrep-preview-head"><span><strong>📄 ${escapeHtml(doc.title)}</strong> · 문항 ${doc.items.length}개${nEx ? ` · 해석 구문 해설 ${nEx}개` : ''}</span>
       <button class="btn btn-light btn-sm" onclick="clearWpReview()">닫기</button></div>
     ${doc.warnings.map(w => `<div class="mrep-warn" style="font-size:12px">⚠ ${escapeHtml(w)}</div>`).join('')}
-    ${ctx?.omrItems.length ? `<div style="font-size:12px;margin:4px 0" class="${miss.length ? 'mrep-warn' : 'mrep-ok'}">${miss.length ? `채점 결과 문항 중 이 문제지에서 못 찾는 것: ${escapeHtml(miss.join(', '))}` : `채점 결과 문항 ${ctx.omrItems.length}개 모두 연결돼요`}</div>` : ''}
-    <div class="mrep-muted" style="font-size:12px;margin:4px 0">그림을 누르면 크게 보여요. 학생이 '틀린 문제 보기'에서 번호를 누르면 이 문제(지문이 다른 곳에 있으면 지문도)와 해설이 그대로 보여요.</div>
+    ${ctx?.omrItems.length ? `<div style="font-size:12px;margin:4px 0" class="${miss.length ? 'mrep-warn' : 'mrep-ok'}">${miss.length ? `채점 결과 문항 중 이 문제지에 없는 것: ${escapeHtml(miss.join(', '))}` : `채점 결과 문항 ${ctx.omrItems.length}개 모두 연결돼요`}</div>` : ''}
+    <div class="mrep-muted" style="font-size:12px;margin:4px 0">학생이 '틀린 문제 보기'에서 번호를 누르면 이 문제(지문이 다른 블록에 있으면 지문도)와 해설이 글자로 보여요. 칸 안은 굴려서 끝까지 볼 수 있어요.</div>
     <div class="mrep-list"><table class="data-table wp-table"><thead><tr><th>문항</th><th>문제</th><th>지문</th><th>정답·해설</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="wt-confirm">
       ${groupNames.length ? `<label><input type="checkbox" ${doc.share ? 'checked' : ''} onchange="_wpDoc.share = this.checked"> 같은 비교 그룹의 다른 반에도 함께 쓰기 (${groupNames.join(', ')})</label>` : ''}
@@ -9259,6 +9263,17 @@ function renderWpReview() {
   </div>`;
 }
 
+// 같은 블록(지문 등)은 한 번만 두고 문항이 번호로 가리킨다
+function wpPack(doc) {
+  const blocks = [], idx = new Map();
+  const put = nodes => { if (!nodes || !nodes.length) return []; const k = JSON.stringify(nodes); if (!idx.has(k)) { idx.set(k, blocks.length); blocks.push(nodes); } return [idx.get(k)]; };
+  const items = {};
+  doc.items.forEach(it => { items[it.key] = { q: put(it.q), p: put(it.p), a: put(it.a) }; });
+  const explain = {};
+  Object.keys(doc.explain || {}).forEach(n => { explain[n] = put(doc.explain[n])[0]; });
+  return { v: 2, title: doc.title, blocks, items, explain };
+}
+
 async function uploadWp() {
   const doc = _wpDoc, ctx = _wpCtx;
   if (!doc || !ctx || _wpBusy || ctx.weekId !== doc.weekId) return;
@@ -9266,35 +9281,14 @@ async function uploadWp() {
   const btn = document.getElementById('wp-upload-btn');
   if (btn) btn.disabled = true;
   const msg = document.getElementById('wp-msg');
-  const say = t => { if (msg) msg.innerHTML = `<span class="mrep-progress">${escapeHtml(t)}</span>`; };
-  const folder = doc.weekId;
-  const names = Object.keys(doc.images);
-  const fail = [];
   try {
-    let n = 0;
-    for (const name of names) {
-      say(`그림 올리는 중... (${++n}/${names.length})`);
-      const s = await reportStorage({ op: 'sign_upload', path: `q${folder}/${name}` }).catch(() => null);
-      const put = s?.ok && s.data?.url ? await putMockReport(s.data.url, doc.images[name].blob) : { ok: false };
-      if (!put.ok) fail.push(name);
-    }
-    if (fail.length) {
-      if (msg) msg.innerHTML = `<span class="mrep-warn">❌ 그림 ${fail.length}장을 올리지 못해 멈췄어요.</span> 인터넷 연결을 확인하고 다시 눌러 주세요.`;
-      return;
-    }
-    const items = {};
-    doc.items.forEach(it => { items[it.key] = { q: it.q, p: it.p, a: it.a }; });
-    const size = {}; names.forEach(nm => { size[nm] = [doc.images[nm].w, doc.images[nm].h]; });
-    const data = { v: 1, title: doc.title, items, size };
-    const targets = [folder, ...(doc.share ? ctx.groupWeeks.map(w => w.id) : [])];
+    const data = wpPack(doc);
+    const targets = [doc.weekId, ...(doc.share ? ctx.groupWeeks.map(w => w.id) : [])];
     const now = new Date().toISOString();
-    say('문항 목록 저장 중...');
-    const r = await apiReqRetry('week_papers?on_conflict=week_id', 'POST', targets.map(w => ({ week_id: w, folder, data, updated_at: now })), 'resolution=merge-duplicates,return=minimal');
-    if (!r.ok) { if (msg) msg.innerHTML = `<span class="mrep-warn">❌ 문항 목록을 저장하지 못했어요. (${r.status || '연결 실패'}) 다시 눌러 주세요.</span>`; return; }
-    // 예전 그림 중 이번에 안 쓰는 것은 지운다 (같은 폴더일 때만 — 다른 주차 폴더는 그 주차가 쓴다)
-    const old = ctx.row && ctx.row.folder === folder ? wpFilesOf(ctx.row.data).filter(f => !doc.images[f]) : [];
-    if (old.length) await reportStorage({ op: 'remove', paths: old.map(f => `q${folder}/${f}`) }).catch(() => null);
-    _wpLast = { weekId: folder, html: escapeHtml(`✅ 문제지·답지 ${doc.items.length}문항 · 그림 ${names.length}장 올림${targets.length > 1 ? ` (같은 그룹 ${targets.length - 1}개 반 주차에도)` : ''}`) };
+    if (msg) msg.innerHTML = '<span class="mrep-progress">저장 중...</span>';
+    const r = await apiReqRetry('week_papers?on_conflict=week_id', 'POST', targets.map(w => ({ week_id: w, data, updated_at: now })), 'resolution=merge-duplicates,return=minimal');
+    if (!r.ok) { if (msg) msg.innerHTML = `<span class="mrep-warn">❌ 문제지를 저장하지 못했어요. (${r.status || '연결 실패'}) 다시 눌러 주세요.</span>`; return; }
+    _wpLast = { weekId: doc.weekId, html: escapeHtml(`✅ 문제지·답지 ${doc.items.length}문항 올림${targets.length > 1 ? ` (같은 그룹 ${targets.length - 1}개 반 주차에도)` : ''}`) };
     showToast(`✅ 문제지·답지 ${doc.items.length}문항을 올렸어요`);
     clearWpReview();
     if (msg) msg.innerHTML = '';

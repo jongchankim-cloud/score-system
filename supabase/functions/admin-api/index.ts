@@ -22,8 +22,7 @@
 //     빈 객체 {}를 보낸다. 이 때문에 주차 시험지·모의고사 분석지 업로드가 처음부터 모두 실패했다(보관함 파일 0개).
 // v21 (2026-11-22): week_results(주차 채점 결과 글 — 단어·해석 / 객관식·어법·서술형) 허용 목록 추가.
 //     스키마: supabase/week-results.sql. 관리자 화면 점수 입력 탭 '채점 결과 (GPT 글)'이 조회·업서트·삭제한다.
-// v22 (2026-11-23): 문제지·답지 그림 — 같은 보관함에 q{weeks.id}/{이름}.jpg 경로를 허용(sign_upload·sign·remove paths)하고,
-//     week_papers(주차별 문항 → 그림 목록) 허용 목록 추가. 스키마: supabase/week-papers.sql (버킷에 image/jpeg 허용 포함).
+// v22 (2026-11-23): week_papers(문제지·답지 docx에서 꺼낸 문항별 본문) 허용 목록 추가. 스키마: supabase/week-papers.sql.
 
 const SUPABASE_URL = Deno.env.get("SB_URL")!;
 const SERVICE_ROLE = Deno.env.get("SB_SERVICE_ROLE")!;
@@ -50,8 +49,7 @@ const READ_ONLY_TABLES = new Set(["data_history"]);
 
 // 모의고사 분석지 보관함 (v16)
 const REPORT_BUCKET = "mock-reports";
-// {시험id}/{학생id}.pdf · w{주차id}/{학생id}.pdf (v19) · q{주차id}/{그림 이름}.jpg (v22, 문제지·답지 그림)
-const REPORT_PATH_RE = /^(?:w?\d+\/\d+\.pdf|q\d+\/[a-z0-9-]{1,40}\.jpg)$/;
+const REPORT_PATH_RE = /^w?\d+\/\d+\.pdf$/;   // {시험id}/{학생id}.pdf · w{주차id}/{학생id}.pdf (v19)
 const REPORT_PREVIEW_SEC = 300; // 관리자 미리보기 링크 유효 시간
 
 const CORS = {
