@@ -210,6 +210,25 @@
       .wres-list li { padding: 1px 0; }
       .wres-list li.ok { color: var(--green); }
       .wres-list li.x { color: var(--red); }
+      .wres-paper-btns { display: flex; gap: 6px; margin-top: 10px; }
+      .wres-paper-btn { flex: 1; border: 1.5px solid var(--accent-ink); background: var(--white); color: var(--accent-ink); border-radius: 8px; padding: 8px 6px; font-size: 13px; font-weight: 700; font-family: "Noto Sans KR", sans-serif; cursor: pointer; }
+      .wres-paper-btn:disabled { opacity: 0.5; cursor: default; }
+      /* 문제지 그림 창 */
+      .wpv { display: none; position: fixed; inset: 0; z-index: 1000; background: var(--white); flex-direction: column; }
+      .wpv.open { display: flex; }
+      .wpv-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--navy); color: var(--white); }
+      .wpv-head b { font-size: 15px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .wpv-tabs { display: flex; gap: 4px; }
+      .wpv-tabs button { border: 1px solid rgba(255, 255, 255, 0.5); background: transparent; color: var(--white); border-radius: 999px; padding: 5px 10px; font-size: 12.5px; font-weight: 600; font-family: "Noto Sans KR", sans-serif; cursor: pointer; }
+      .wpv-tabs button.on { background: var(--white); color: var(--navy); }
+      .wpv-tabs button:disabled { opacity: 0.4; cursor: default; }
+      .wpv-close { border: none; background: transparent; color: var(--white); font-size: 20px; line-height: 1; padding: 4px 6px; cursor: pointer; }
+      .wpv-hint, .wpv-note { font-size: 11.5px; color: var(--gray); padding: 6px 12px 0; }
+      .wpv-note { color: var(--red); font-weight: 600; }
+      .wpv-body { flex: 1; overflow: auto; padding: 8px 8px 24px; -webkit-overflow-scrolling: touch; }
+      .wpv-img { display: block; width: 100%; height: auto; margin: 0 0 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--white); cursor: zoom-in; }
+      .wpv-img.zoom { width: 220%; max-width: none; cursor: zoom-out; }
+      .wpv-sep { font-size: 12px; font-weight: 700; color: var(--accent-ink); margin: 14px 2px 6px; }
       .btn-secondary {
         background: var(--light-gray);
         color: var(--navy);
@@ -1683,7 +1702,105 @@
             ${it.correct ? `<div class="wres-row col"><span class="wres-k">정답</span><div>${wresTxt(it.correct)}</div></div>` : ""}
             ${it.note ? `<div class="wres-reason">${wresTxt(it.note)}</div>` : ""}`;
         }
+        if (weekHasPaper(_wresOpen.weekId)) {
+          html += `<div class="wres-paper-btns">
+            <button class="wres-paper-btn" onclick="openPaper(${si}, ${ii}, 'q', this)">📄 문제 보기</button>
+            <button class="wres-paper-btn" onclick="openPaper(${si}, ${ii}, 'a', this)">💡 정답·해설 보기</button></div>
+            <div class="mock-report-msg" id="wres-paper-msg-${si}"></div>`;
+        }
         box.innerHTML = html;
+      }
+
+      // ── 문제지·답지 그림 (2026-11-23, supabase/week-papers.sql) ──
+      // parent-login이 공개된 주차 중 문제지가 올라간 주차 id를 weekPapers로 보낸다(배포 전이면 버튼이 안 생긴다).
+      // 버튼을 누르면 GET ?paper=w주차id&k=종류&n=번호 로 그 문항의 문제·지문·해설 그림 링크(10분)를 받아 그림 창에 보여 준다.
+      const _paperCache = {};
+      function weekHasPaper(weekId) {
+        return Array.isArray(loginData?.weekPapers) && loginData.weekPapers.includes(weekId);
+      }
+
+      async function openPaper(si, ii, what, btn) {
+        const weekId = _wresOpen?.weekId;
+        const sec = weekId && _wresCache[wresKey(weekId)]?.omr?.sections?.[si];
+        const it = sec?.items?.[ii];
+        if (!it) return;
+        const msg = document.getElementById(`wres-paper-msg-${si}`);
+        if (msg) msg.textContent = "";
+        const ck = `${wresKey(weekId)}:${sec.label}:${it.no}`;
+        let data = _paperCache[ck];
+        if (!data || data.at < Date.now() - 8 * 60 * 1000) {
+          if (btn) btn.disabled = true;
+          try {
+            const res = await fetch(
+              `${PARENT_LOGIN_URL}?paper=w${weekId}&k=${encodeURIComponent(sec.label)}&n=${encodeURIComponent(it.no)}`,
+              { method: "GET" },
+            );
+            const j = await res.json().catch(() => null);
+            if (res.status === 404 && j?.error === "paper_item_not_found") {
+              if (msg) msg.textContent = "이 문제는 문제지 그림이 없어요.";
+              return;
+            }
+            if (!res.ok || !j) throw new Error(String(res.status));
+            data = _paperCache[ck] = { ...j, at: Date.now() };
+          } catch (e) {
+            if (msg) msg.textContent = "문제 그림을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.";
+            return;
+          } finally {
+            if (btn) btn.disabled = false;
+          }
+        }
+        showPaperViewer(`${sec.label} ${it.no}번`, data, what);
+      }
+
+      function paperImgs(list) {
+        return (list || [])
+          .map((o) => `<img class="wpv-img" src="${escapeHtml(o.url)}" alt="" loading="lazy" onclick="this.classList.toggle('zoom')">`)
+          .join("");
+      }
+
+      function showPaperViewer(title, data, what) {
+        const v = document.getElementById("wpv");
+        if (!v) return;
+        v._data = data;
+        v._title = title;
+        const hasA = (data.a || []).length > 0;
+        const tab = what === "a" && hasA ? "a" : "q";
+        const body =
+          tab === "q"
+            ? `${paperImgs(data.q)}${(data.p || []).length ? `<div class="wpv-sep">지문</div>${paperImgs(data.p)}` : ""}`
+            : paperImgs(data.a);
+        v.innerHTML = `<div class="wpv-head">
+            <b>${escapeHtml(title)}</b>
+            <div class="wpv-tabs">
+              <button class="${tab === "q" ? "on" : ""}" onclick="switchPaperTab('q')">문제</button>
+              <button class="${tab === "a" ? "on" : ""}" ${hasA ? "" : "disabled"} onclick="switchPaperTab('a')">정답·해설</button>
+            </div>
+            <button class="wpv-close" onclick="closePaperViewer()" aria-label="닫기">✕</button>
+          </div>
+          ${what === "a" && !hasA ? '<div class="wpv-note">이 문제는 해설 그림이 없어요.</div>' : ""}
+          <div class="wpv-hint">그림을 누르면 크게 볼 수 있어요${tab === "a" ? " · 휴대폰을 가로로 돌리면 해설 글씨가 더 커져요" : ""}</div>
+          <div class="wpv-body">${body}</div>`;
+        v.classList.add("open");
+        document.body.style.overflow = "hidden";
+        v.querySelector(".wpv-body").scrollTop = 0;
+      }
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && document.getElementById("wpv")?.classList.contains("open")) closePaperViewer();
+      });
+
+      function switchPaperTab(tab) {
+        const v = document.getElementById("wpv");
+        if (v && v._data) showPaperViewer(v._title, v._data, tab);
+      }
+
+      function closePaperViewer() {
+        const v = document.getElementById("wpv");
+        if (v) {
+          v.classList.remove("open");
+          v.innerHTML = "";
+        }
+        document.body.style.overflow = "";
       }
 
       function renderChart() {
@@ -1934,6 +2051,8 @@
 
       function logout() {
         Object.keys(_wresCache).forEach((k) => delete _wresCache[k]);
+        Object.keys(_paperCache).forEach((k) => delete _paperCache[k]);
+        closePaperViewer();
         _wresOpen = null;
         currentStudent = null;
         currentWeeks = [];
@@ -1988,5 +2107,7 @@
         if (!resumed) document.getElementById("input-name").focus();
       });
     </script>
+    <!-- 문제지 그림 창 (틀린 문제 → 문제·정답·해설, 2026-11-23) -->
+    <div id="wpv" class="wpv" role="dialog" aria-modal="true"></div>
   </body>
 </html>
