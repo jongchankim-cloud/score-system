@@ -173,6 +173,43 @@
       .mock-report-msg:empty {
         display: none;
       }
+      /* 주차 채점 결과 글 (2026-11-22) */
+      .wres-btns { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+      .wres-btn { background: var(--accent-light); color: var(--navy); }
+      .wres-btn.open { background: var(--navy); color: var(--white); }
+      .wres-loading { font-size: 13px; color: var(--gray); text-align: center; padding: 14px 0; }
+      .wres-panel { margin-top: 12px; }
+      .wres-sum { display: flex; flex-wrap: wrap; gap: 6px 16px; background: var(--cream); border-radius: 10px; padding: 10px 12px; font-size: 13px; color: var(--navy); }
+      .wres-sum b { font-size: 16px; }
+      .wres-h { font-size: 14px; font-weight: 700; color: var(--navy); margin: 18px 0 8px; }
+      .wres-muted { color: var(--gray); font-weight: 500; font-size: 12px; }
+      .wres-word, .wres-sent, .wres-detail { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; font-size: 13.5px; color: var(--navy); line-height: 1.6; background: var(--white); }
+      .wres-word.x { border-left: 4px solid var(--red); }
+      .wres-word.o { border-left: 4px solid var(--green); }
+      .wres-no { display: inline-block; min-width: 24px; font-size: 12px; font-weight: 700; color: var(--gray); margin-right: 4px; }
+      .wres-row { display: flex; gap: 8px; margin-top: 4px; }
+      .wres-row.col { flex-direction: column; gap: 0; margin-top: 8px; }
+      .wres-k { flex: none; min-width: 34px; font-size: 11.5px; font-weight: 600; color: var(--gray); padding-top: 2px; }
+      .wres-reason { font-size: 12px; color: var(--gray); margin-top: 4px; }
+      .wres-blank { color: var(--gray); }
+      .wres-good { font-size: 13px; font-weight: 600; color: var(--green); background: var(--green-light); border-radius: 10px; padding: 10px 12px; }
+      .wres-more { margin-top: 6px; }
+      .wres-more summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--accent-ink); padding: 8px 0; }
+      .wres-sent-top, .wres-detail-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+      .wres-pts { font-size: 13px; font-weight: 700; color: var(--orange); }
+      .wres-pts.full { color: var(--green); }
+      .wres-src { font-size: 13px; margin: 6px 0 0; background: var(--cream); border-radius: 8px; padding: 8px 10px; }
+      .wres-hint { font-size: 12px; color: var(--gray); margin-top: 10px; }
+      .wres-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+      .wres-chip { border: 1.5px solid var(--red); background: var(--red-light); color: var(--red); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 700; font-family: "Noto Sans KR", sans-serif; cursor: pointer; }
+      .wres-chip small { font-size: 11px; font-weight: 600; }
+      .wres-chip.active { background: var(--red); color: var(--white); }
+      .wres-detail { margin-top: 8px; }
+      .wres-detail:empty { display: none; }
+      .wres-list { margin: 2px 0 0; padding: 0; list-style: none; }
+      .wres-list li { padding: 1px 0; }
+      .wres-list li.ok { color: var(--green); }
+      .wres-list li.x { color: var(--red); }
       .btn-secondary {
         background: var(--light-gray);
         color: var(--navy);
@@ -1443,6 +1480,212 @@
         return openReportLink(`w${weekId}`, btn, "week-report-msg", "시험지");
       }
 
+      // ── 주차 채점 결과 글 (2026-11-22, supabase/week-results.sql) ──
+      // parent-login이 '학부모에게 공개'된 이 반 주차 중 이 학생 결과가 있는 것만 weekResults { 주차id: ['vocab','omr'] }로 보낸다.
+      // 내용은 버튼을 누를 때 GET ?result=w주차id 로 받는다(로그인 응답을 무겁게 하지 않게). 서버 배포 전이면 버튼이 안 생긴다.
+      // data 모양은 admin.html wrVocabData / wrOmrData 가 만든다.
+      const WRES_LABEL = {
+        vocab: "📝 단어·해석 채점 결과",
+        omr: "📝 틀린 문제 보기 (객관식·어법·서술형)",
+      };
+      const _wresCache = {}; // '학생id:주차id' → results (같은 기기에서 다른 학생이 로그인해도 섞이지 않게 학생 id를 붙인다)
+      let _wresOpen = null; // { weekId, kind }
+      function wresKey(weekId) {
+        return `${loginData?.student?.id ?? ""}:${weekId}`;
+      }
+
+      function weekResultKinds(weekId) {
+        const k = loginData?.weekResults?.[String(weekId)];
+        return Array.isArray(k) ? ["vocab", "omr"].filter((x) => k.includes(x)) : [];
+      }
+
+      function weekResultButtonsHtml(weekId) {
+        _wresOpen = null; // 주차 카드를 새로 그리면 펼친 것도 닫힌다
+        const kinds = weekResultKinds(weekId);
+        if (!kinds.length) return "";
+        return `<div class="wres-btns">${kinds
+          .map((k) => `<button class="btn wres-btn" data-kind="${k}" onclick="toggleWeekResult(${weekId}, '${k}')">${WRES_LABEL[k]}</button>`)
+          .join("")}</div>
+        <div class="mock-report-msg" id="wres-msg"></div>
+        <div id="wres-body"></div>`;
+      }
+
+      function markWresBtns() {
+        document.querySelectorAll(".wres-btn").forEach((b) =>
+          b.classList.toggle("open", !!_wresOpen && _wresOpen.kind === b.dataset.kind),
+        );
+      }
+
+      async function toggleWeekResult(weekId, kind) {
+        const body = document.getElementById("wres-body");
+        const msg = document.getElementById("wres-msg");
+        if (!body) return;
+        msg.textContent = "";
+        if (_wresOpen && _wresOpen.weekId === weekId && _wresOpen.kind === kind) {
+          _wresOpen = null;
+          body.innerHTML = "";
+          markWresBtns();
+          return;
+        }
+        const me = (_wresOpen = { weekId, kind });
+        markWresBtns();
+        let data = _wresCache[wresKey(weekId)];
+        if (!data) {
+          body.innerHTML = '<div class="wres-loading">불러오는 중...</div>';
+          try {
+            const res = await fetch(`${PARENT_LOGIN_URL}?result=w${weekId}`, { method: "GET" });
+            const j = res.ok ? await res.json() : null;
+            if (!j || !j.results) throw new Error(String(res.status));
+            data = _wresCache[wresKey(weekId)] = j.results;
+          } catch (e) {
+            if (_wresOpen === me) {
+              _wresOpen = null;
+              markWresBtns();
+              body.innerHTML = "";
+              msg.textContent = "채점 결과를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.";
+            }
+            return;
+          }
+        }
+        if (_wresOpen !== me) return; // 그 사이 다른 버튼을 눌렀다
+        const d = data[kind];
+        body.innerHTML = d
+          ? `<div class="wres-panel">${kind === "vocab" ? vocabResultHtml(d) : omrResultHtml(d)}</div>`
+          : '<div class="wres-loading">채점 결과가 없습니다.</div>';
+      }
+
+      function wresNum(n) {
+        return n === null || n === undefined || n === "" ? "-" : String(Math.round(Number(n) * 100) / 100);
+      }
+      function wresTxt(s) {
+        return escapeHtml(s || "")
+          .replace(/\[\s*판독\s*불가\s*\]/g, "(알아보기 어려움)")
+          .replace(/\n/g, "<br>");
+      }
+
+      function vocabResultHtml(d) {
+        const sc = d.score || {};
+        const words = Array.isArray(d.words) ? d.words : [];
+        const sents = Array.isArray(d.sentences) ? d.sentences : [];
+        const wrong = words.filter((w) => w.mark !== "O");
+        const right = words.filter((w) => w.mark === "O");
+        const ans = (w) => (w.blank || !w.answer ? '<span class="wres-blank">(빈칸)</span>' : wresTxt(w.answer));
+        const sum = `<div class="wres-sum">
+          <span>단어 <b>${wresNum(sc.word)}</b> / ${wresNum(sc.wordMax)}</span>
+          <span>해석 <b>${wresNum(sc.sentence)}</b> / ${wresNum(sc.sentenceMax)}</span>
+          <span>합계 <b>${wresNum(sc.total)}</b> / ${wresNum(sc.totalMax)}</span></div>`;
+        const wrongHtml = wrong.length
+          ? `<div class="wres-h">틀린 단어 ${wrong.length}개</div>` +
+            wrong
+              .map(
+                (w) => `<div class="wres-word x">
+            <div><span class="wres-no">${wresNum(w.no)}</span><b>${wresTxt(w.word)}</b></div>
+            <div class="wres-row"><span class="wres-k">내 답</span><span>${ans(w)}</span></div>
+            <div class="wres-row"><span class="wres-k">정답</span><span>${wresTxt(w.correct)}</span></div>
+            ${w.reason && !w.blank ? `<div class="wres-reason">${wresTxt(w.reason)}</div>` : ""}
+          </div>`,
+              )
+              .join("")
+          : words.length
+            ? '<div class="wres-good" style="margin-top:12px">단어를 모두 맞혔어요 👍</div>'
+            : "";
+        const rightHtml = right.length
+          ? `<details class="wres-more"><summary>맞은 단어 ${right.length}개 보기</summary>${right
+              .map(
+                (w) => `<div class="wres-word o">
+            <div><span class="wres-no">${wresNum(w.no)}</span><b>${wresTxt(w.word)}</b></div>
+            <div class="wres-row"><span class="wres-k">내 답</span><span>${ans(w)}</span></div>
+            <div class="wres-row"><span class="wres-k">정답</span><span>${wresTxt(w.correct)}</span></div>
+            ${w.reason ? `<div class="wres-reason">${wresTxt(w.reason)}</div>` : ""}
+          </div>`,
+              )
+              .join("")}</details>`
+          : "";
+        const sentHtml = sents.length
+          ? `<div class="wres-h">문장 해석</div>` +
+            sents
+              .map((x) => {
+                const full = x.max && x.score >= x.max;
+                return `<div class="wres-sent">
+            <div class="wres-sent-top"><span class="wres-no">${wresNum(x.no)}번</span>
+              <span class="wres-pts${full ? " full" : ""}">${wresNum(x.score)} / ${wresNum(x.max)}점${x.percent !== null && x.percent !== undefined ? ` (${wresNum(x.percent)}%)` : ""}</span></div>
+            <div class="wres-src">${wresTxt(x.source)}</div>
+            <div class="wres-row col"><span class="wres-k">내 해석</span><div>${x.blank || !x.answer ? '<span class="wres-blank">(빈칸)</span>' : wresTxt(x.answer)}</div></div>
+            ${x.reason ? `<div class="wres-row col"><span class="wres-k">감점·평가 사유</span><div>${wresTxt(x.reason)}</div></div>` : ""}
+            <div class="wres-row col"><span class="wres-k">올바른 해석</span><div>${wresTxt(x.correct)}</div></div>
+          </div>`;
+              })
+              .join("")
+          : "";
+        return sum + wrongHtml + rightHtml + sentHtml;
+      }
+
+      // 객관식은 틀린 문제, 어법·서술형은 만점이 아닌 문제를 번호로 보여 준다 (부분 점수는 점수와 함께)
+      function omrWrongOf(sec) {
+        return (sec.items || [])
+          .map((it, ii) => ({ it, ii }))
+          .filter(({ it }) => (sec.type === "mc" ? it.ok !== true : Number(it.score ?? 0) < Number(it.max ?? 0)));
+      }
+
+      function omrResultHtml(d) {
+        const secs = Array.isArray(d.sections) ? d.sections : [];
+        const sum = `<div class="wres-sum">${secs
+          .map((s) => `<span>${escapeHtml(s.label)} <b>${wresNum(s.score)}</b> / ${wresNum(s.max)}</span>`)
+          .join("")}${d.total ? `<span>합계 <b>${wresNum(d.total.score)}</b> / ${wresNum(d.total.max)}</span>` : ""}</div>`;
+        const parts = secs.map((s, si) => {
+          const wrong = omrWrongOf(s);
+          const chips = wrong
+            .map(
+              ({ it, ii }) =>
+                `<button class="wres-chip" data-sec="${si}" data-item="${ii}" onclick="showOmrItem(${si}, ${ii})">${escapeHtml(it.no)}번${s.type === "mc" ? "" : ` <small>${wresNum(it.score)}/${wresNum(it.max)}</small>`}</button>`,
+            )
+            .join("");
+          return `<div class="wres-sec"><div class="wres-h">${escapeHtml(s.label)}${wrong.length ? ` <span class="wres-muted">틀린 문제 ${wrong.length}개</span>` : ""}</div>
+            ${wrong.length ? `<div class="wres-chips">${chips}</div><div class="wres-detail" id="wres-detail-${si}"></div>` : '<div class="wres-good">모두 맞혔어요 👍</div>'}</div>`;
+        });
+        return `${sum}<div class="wres-hint">문제 번호를 누르면 내 답과 정답이 보여요</div>${parts.join("")}`;
+      }
+
+      function showOmrItem(si, ii) {
+        const d = _wresOpen && _wresCache[wresKey(_wresOpen.weekId)]?.omr;
+        const sec = d?.sections?.[si];
+        const it = sec?.items?.[ii];
+        const box = document.getElementById(`wres-detail-${si}`);
+        if (!it || !box) return;
+        const same = box.dataset.item === String(ii);
+        document
+          .querySelectorAll(`.wres-chip[data-sec="${si}"]`)
+          .forEach((c) => c.classList.toggle("active", !same && c.dataset.item === String(ii)));
+        if (same) {
+          box.dataset.item = "";
+          box.innerHTML = "";
+          return;
+        }
+        box.dataset.item = String(ii);
+        const blank = '<span class="wres-blank">(빈칸)</span>';
+        let html = `<div class="wres-detail-top"><b>${escapeHtml(sec.label)} ${escapeHtml(it.no)}번</b>${sec.type === "mc" ? "" : ` <span class="wres-pts">${wresNum(it.score)} / ${wresNum(it.max)}점</span>`}</div>`;
+        if (sec.type === "mc") {
+          html += `<div class="wres-row"><span class="wres-k">내 답</span><span>${it.mine ? wresTxt(it.mine) : blank}</span></div>
+            <div class="wres-row"><span class="wres-k">정답</span><span>${wresTxt(it.correct)}</span></div>`;
+        } else if (sec.type === "fill") {
+          const mine = (it.entries || [])
+            .map((e) =>
+              e.blank
+                ? `<li class="x">${blank}</li>`
+                : `<li class="${e.ok === true ? "ok" : e.ok === false ? "x" : ""}">${e.ok === true ? "✓ " : e.ok === false ? "✗ " : ""}${wresTxt(e.num)} → ${wresTxt(e.answer)}</li>`,
+            )
+            .join("");
+          const key = (it.key || []).map((k) => `<li>${wresTxt(k.num)} → ${wresTxt(k.answer)}</li>`).join("");
+          html += `<div class="wres-row col"><span class="wres-k">내 답</span><ul class="wres-list">${mine}</ul></div>
+            ${key ? `<div class="wres-row col"><span class="wres-k">정답</span><ul class="wres-list">${key}</ul></div>` : ""}`;
+        } else {
+          html += `<div class="wres-row col"><span class="wres-k">내 답</span><div>${it.blank || !it.answer ? blank : wresTxt(it.answer)}</div></div>
+            ${it.correct ? `<div class="wres-row col"><span class="wres-k">정답</span><div>${wresTxt(it.correct)}</div></div>` : ""}
+            ${it.note ? `<div class="wres-reason">${wresTxt(it.note)}</div>` : ""}`;
+        }
+        box.innerHTML = html;
+      }
+
       function renderChart() {
         const card = document.getElementById("chart-card");
         card.style.display = "block";
@@ -1667,6 +1910,7 @@
           }
           ${noticeHtml}
           ${weekReportButtonHtml(weekId)}
+          ${weekResultButtonsHtml(weekId)}
         </div>
       </div>`;
         } catch (e) {
@@ -1689,6 +1933,8 @@
       }
 
       function logout() {
+        Object.keys(_wresCache).forEach((k) => delete _wresCache[k]);
+        _wresOpen = null;
         currentStudent = null;
         currentWeeks = [];
         allScores = [];
