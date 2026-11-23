@@ -9,7 +9,9 @@
 //  DELETE               → 쿠키 삭제 (로그아웃)
 //  GET ?report=<시험id> (쿠키) → 공개된 본인 모의고사 분석지 PDF의 5분짜리 서명 링크 { url }
 //  GET ?report=w<주차id> (쿠키) → 공개된 본인 주차 시험지(스캔 PDF)의 5분짜리 서명 링크 { url } (2026-11-22)
-//  GET ?result=w<주차id> (쿠키) → 공개된 본인 주차 채점 결과 글 { results: { vocab?, omr? } } (2026-11-22, supabase/week-results.sql)
+//  GET ?result=w<주차id> (쿠키) → 공개된 본인 주차 채점 결과 글 { results: { vocab?, omr? }, explain? } (2026-11-22, supabase/week-results.sql)
+//                                  explain: 그 주차 문제지·답지(docx)의 해석 구문 해설 { 문장 번호: 본문 조각 } (2026-11-23)
+//  GET ?paper=w<주차id>&k=<종류>&n=<번호> (쿠키) → 공개된 주차 문제지(docx에서 꺼낸 본문)에서 그 문항의 문제·지문·해설 { key, q, p, a } (2026-11-23, supabase/week-papers.sql)
 //
 // vocab_key 는 PIN 을 확인한 POST 에서만 단어 사이트 DB 에 받아, 서명된 세션 토큰에 넣어 둔다.
 // 그래서 자동 입장(GET)에서도 PIN 없이 단어 사이트 기록을 이어 쓸 수 있다.
@@ -230,6 +232,34 @@ async function publishedWeekResults(student: any): Promise<Record<string, string
   }
 }
 
+// 학부모 화면 '틀린 문제 보기'에 '문제 보기' 버튼을 띄울 주차 id 목록 (2026-11-23, supabase/week-papers.sql).
+// 공개된 이 반 주차 중 문제지·답지(week_papers)가 올라간 것만. 표가 없거나 오류면 빈 목록.
+async function publishedWeekPaperIds(student: any): Promise<number[]> {
+  try {
+    const pub = await rest(
+      `weeks?class_id=eq.${student.class_id}&report_published=is.true&select=id`,
+    );
+    if (!Array.isArray(pub) || !pub.length) return [];
+    const rows = await rest(`week_papers?week_id=in.(${pub.map((w: any) => w.id).join(",")})&select=week_id`);
+    return Array.isArray(rows) ? rows.map((r: any) => r.week_id) : [];
+  } catch {
+    return [];
+  }
+}
+
+// 학생 쪽 문항(종류·번호) → 문제지 열쇠. ★ admin.html wpResolve와 같은 규칙:
+// '종류:번호' → (그 종류가 문제지에 따로 없을 때만) ':번호' → 괄호 뗀 번호('13(A)' → '13').
+const PAPER_LABELS: Record<string, string> = { "어법": "어법", "서답형": "서술형", "서술형": "서술형", "객관식": "객관식", "빈칸": "빈칸", "요약": "요약" };
+function paperKey(items: Record<string, unknown>, label: string, no: string): string | null {
+  const k0 = String(label || "").replace(/\s/g, "");
+  const L = PAPER_LABELS[k0] || k0;
+  const N = String(no || "").replace(/\s/g, "").replace(/번$/, "").replace(/^0+(?=\d)/, "");
+  const base = N.replace(/\([^)]*\)$/, "");
+  const typed = Object.keys(items || {}).some((k) => k.startsWith(L + ":"));
+  const cands = typed ? [`${L}:${N}`, `${L}:${base}`] : [`${L}:${N}`, `:${N}`, `${L}:${base}`, `:${base}`];
+  return cands.find((k) => items && (items as any)[k]) || null;
+}
+
 // ── 학생 성적 데이터 묶음 (기존 로직 그대로) ──
 
 async function loadStudentData(student: any) {
@@ -318,6 +348,7 @@ async function loadStudentData(student: any) {
     mockReports: await publishedReportExamIds(student),
     weekReports: await publishedWeekReportIds(student),
     weekResults: await publishedWeekResults(student),
+    weekPapers: await publishedWeekPaperIds(student),
   };
 }
 
@@ -358,7 +389,45 @@ Deno.serve(async (req) => {
       if (!Array.isArray(rs) || !rs.length) return json({ error: "result_not_found" }, 404);
       const results: Record<string, unknown> = {};
       for (const r of rs) results[r.kind] = r.data;
-      return json({ results });
+      // 단어·해석 결과가 있으면 문제지·답지의 해석 구문 해설도 함께 (표가 없거나 오류면 빼고 결과만)
+      let explain: Record<string, unknown> | null = null;
+      if (results.vocab) {
+        try {
+          const pr = await rest(`week_papers?week_id=eq.${weekId}&select=data`);
+          const d = Array.isArray(pr) && pr[0] ? pr[0].data : null;
+          const blocks = Array.isArray(d?.blocks) ? d.blocks : [];
+          if (d?.explain && typeof d.explain === "object") {
+            for (const [n, i] of Object.entries(d.explain)) {
+              if (/^\d{1,2}$/.test(n) && Number.isInteger(i) && Array.isArray(blocks[i as number])) (explain ||= {})[n] = blocks[i as number];
+            }
+          }
+        } catch {
+          explain = null;
+        }
+      }
+      return json(explain ? { results, explain } : { results });
+    }
+    // 문제지·답지 그림: paper=w<주차id>&k=<종류>&n=<번호> — 같은 반 주차 + 공개된 주차일 때만 (2026-11-23)
+    const sp = new URL(req.url).searchParams;
+    const paperParam = sp.get("paper");
+    if (paperParam !== null) {
+      const weekId = Number(paperParam.replace(/^w/, ""));
+      const n = (sp.get("n") || "").slice(0, 20);
+      if (!Number.isInteger(weekId) || weekId <= 0 || !n) return json({ error: "bad_paper" }, 400);
+      const st = rows[0];
+      const wk = await rest(
+        `weeks?id=eq.${weekId}&class_id=eq.${st.class_id}&report_published=is.true&select=id`,
+      );
+      if (!Array.isArray(wk) || !wk.length) return json({ error: "paper_not_found" }, 404);
+      const pr = await rest(`week_papers?week_id=eq.${weekId}&select=data`);
+      const row = Array.isArray(pr) ? pr[0] : null;
+      const items = row?.data?.items || {};
+      const key = row ? paperKey(items, (sp.get("k") || "").slice(0, 20), n) : null;
+      if (!key) return json({ error: "paper_item_not_found" }, 404);
+      const it = items[key] || {};
+      const blocks = Array.isArray(row.data.blocks) ? row.data.blocks : [];
+      const pick = (x: unknown) => (Array.isArray(x) ? x.filter((i) => Number.isInteger(i) && Array.isArray(blocks[i as number])).map((i) => blocks[i as number]) : []);
+      return json({ key, q: pick(it.q), p: pick(it.p), a: pick(it.a) });
     }
     const reportParam = new URL(req.url).searchParams.get("report");
     // 주차 시험지: report=w<주차id> — 같은 반 주차 + 공개된 주차 + 본인 파일일 때만
