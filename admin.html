@@ -400,6 +400,15 @@
   .wr-table td { vertical-align:top; font-size:12.5px; }
   .wr-card { border:1.5px solid var(--orange); border-radius:8px; padding:8px 12px; margin:10px 0; font-size:12.5px; color:var(--navy); }
   .wr-card-head { margin-bottom:4px; }
+  .wr-recheck { border:1.5px solid var(--orange); background:#fff8ef; border-radius:8px; padding:8px 12px; margin:8px 0; font-size:12.5px; color:var(--navy); }
+  .wr-recheck ul { margin:6px 0 0; padding-left:18px; line-height:1.8; }
+  .wr-recheck .done { color:var(--gray); text-decoration:line-through; }
+  .wr-recheck-name { background:none; border:none; padding:0; font:inherit; font-weight:700; color:var(--navy); text-decoration:underline; cursor:pointer; }
+  .wr-datewarn { border:2px solid #d9534f; background:#fff3f2; border-radius:8px; padding:8px 12px; margin:8px 0; font-size:13px; color:#a12d2a; line-height:1.6; }
+  .wr-datewarn label { display:inline-flex; align-items:center; gap:6px; margin-top:4px; color:var(--navy); cursor:pointer; }
+  .wr-queue { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; margin-top:6px; font-size:12.5px; color:var(--navy); background:var(--cream); border-radius:8px; padding:6px 10px; }
+  .wr-queue-item { display:inline-flex; align-items:center; gap:4px; background:var(--white); border:1px solid var(--border); border-radius:6px; padding:2px 6px; }
+  .wr-x { background:none; border:none; color:var(--gray); cursor:pointer; padding:0 2px; font-size:12px; }
   .wr-q { border-top:1px dashed var(--border); padding:8px 0 4px; line-height:1.6; }
   .wr-q-text { white-space:pre-line; margin-top:2px; }
   .wr-q-ctl { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin-top:4px; }
@@ -630,10 +639,11 @@
             <textarea id="wr-text" class="wr-text" rows="4" placeholder="GPT가 준 채점 결과 글을 통째로 붙여 넣으세요 — '단어·해석 채점 결과' 또는 '학생별 기입 답안(객관식·어법·서술형)'"></textarea>
             <div class="wr-input-actions">
               <button class="btn btn-gold btn-sm" onclick="startWrParse()">학생별로 나누기</button>
-              <label class="btn btn-light btn-sm">txt 파일 고르기<input type="file" id="wr-file" accept=".txt,text/plain" style="display:none" onchange="onWrFile(this.files)"></label>
-              <span class="mrep-muted" style="font-size:12px">글 형식은 알아서 구분해요 · 나눈 뒤 확인하고 올려요</span>
+              <label class="btn btn-light btn-sm">txt 파일 고르기<input type="file" id="wr-file" accept=".txt,text/plain" multiple style="display:none" onchange="onWrFile(this.files)"></label>
+              <span class="mrep-muted" style="font-size:12px">글 형식은 알아서 구분해요 · 단어·해석과 객관식·어법·서술형 파일을 한 번에 골라도 하나씩 차례로 검토해요</span>
             </div>
             <div id="wr-parse-msg" style="font-size:12px;margin-top:4px"></div>
+            <div id="wr-queue"></div>
           </div>
           <div id="wr-review"></div>
           <div class="wt-other" id="wr-other" style="display:none"></div>
@@ -7985,12 +7995,16 @@ async function uploadWeekTests() {
 // ── 채점 결과 글 (GPT · 2026-11-22) ─────────────────────────
 // 조교가 GPT 채점 결과 글을 붙여 넣으면 학생별로 나눠 week_results(kind)에 올리고, 점수 칸에도 넣는다.
 //  · 'vocab' 단어·해석 채점 결과: 학생 머리줄 'OOO  |  학생 답안 PDF 1–2쪽  |  …' 뒤에 [1. 단어 채점 결과] · [2. 문장 해석 채점 결과] · [4. 최종 점수]
+//            (2026-11-23 모양) 'OOO | 학생별 채점 분석' / '단어 23/30점 · …' / '기존 점수 …' 뒤에 '[1. 단어 채점 결과] 원본 답안 17쪽',
+//            단어 줄 '01. O word | 제출 … | 정답 … | 신뢰도 … | 사유 …', 해석 '1번 | 85% · 3.4/4점 · …' + '원문  …' · '학생 답안  …' · '평가 사유  …' · '모범 해석  …'
 //  · 'omr'   학생별 기입 답안(객관식·어법·서술형): '공통 정답' 뒤에 '01. 이름' / '객관식 20/20 · 어법 8/10 · …' / 문항별 답안
 // 글 모양이 조금 달라도 읽히도록 느슨하게 맞춘다. 학생 화면에 보이면 안 되는 표시([전사 신뢰도 …] · [사용자 제공] 등)는 지운다.
 const WR_KIND_LABEL = { vocab: '단어·해석', omr: '객관식·어법·서술형' };
 const WR_VOCAB_DROP = /\[(?:전사\s*신뢰도[^\]]*|사용자\s*제공|[^\]]*(?:추가|낱말\s*풀이)[^\]]*|성명\s*판독[^\]]*)?\]/g;
 function wrClean(s, drop = WR_VOCAB_DROP) {
-  return String(s || '').replace(drop, '').replace(/[ \t]+\n/g, '\n').replace(/\n[ \t]+/g, '\n').replace(/[ \t]{2,}/g, ' ').trim();
+  // '[줄 넘침: 또한]'은 줄 밖에 이어 쓴 학생 글 — 표시만 떼고 글은 살린다
+  return String(s || '').replace(/\[\s*줄\s*넘침\s*[:：]\s*([^\]]*)\]/g, '$1').replace(drop, '')
+    .replace(/[ \t]+\n/g, '\n').replace(/\n[ \t]+/g, '\n').replace(/[ \t]{2,}/g, ' ').trim();
 }
 // OMR 답안의 [] 메모(삽입 표시 반영 · 오른쪽 끝 잘림 …)는 옮겨 적은 사람의 메모라 지운다. 판독 불가만 짧게 남긴다.
 function wrCleanOmr(s) {
@@ -8002,11 +8016,27 @@ function wrFmt(n) { return n === null || n === undefined ? '—' : String(wrRoun
 function wrIsSep(l) { return /^\s*[─━—\-=_]{8,}\s*$/.test(l); }
 function wrLines(text) { return String(text || '').replace(/^﻿/, '').replace(/\r\n?/g, '\n').split('\n'); }
 
-function detectWrKind(text) {
+function detectWrKinds(text) {
   const t = String(text || '');
-  if (/\[\s*1\s*\.\s*단어/.test(t)) return 'vocab';
-  if (/^\s*\d+(?:\([A-Za-z]\))?번\s+학생\s+.+\/\s*정답/m.test(t) || /학생\s*답안\s+\d+(?:\.\d+)?\s*\/\s*\d+/.test(t) || /^\s*기입\s*\d+\s+/m.test(t)) return 'omr';
-  return null;
+  return {
+    vocab: /\[\s*1\s*\.\s*단어/.test(t),
+    omr: /^\s*\d+(?:\([A-Za-z]\))?번\s+학생\s+.+\/\s*정답/m.test(t) || /학생\s*답안\s+\d+(?:\.\d+)?\s*\/\s*\d+/.test(t) || /^\s*기입\s*\d+\s+/m.test(t)
+  };
+}
+function detectWrKind(text) {
+  const k = detectWrKinds(text);
+  return k.vocab ? 'vocab' : k.omr ? 'omr' : null;
+}
+
+// 글 제목의 시험 날짜 → 'M.D' ('2026.11.21' · '2026. 11. 16.' · '11.14' · '11월 21일'). 없으면 null
+function wrTitleDate(title) {
+  const t = String(title || '');
+  const m = t.match(/(?:^|\D)20\d{2}\s*[.\-/년]\s*(\d{1,2})\s*[.\-/월]\s*(\d{1,2})(?!\d)/)
+    || t.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/)
+    || t.match(/(?:^|[^\d.])(\d{1,2})\s*[./]\s*(\d{1,2})(?!\d|\s*(?:회|점|%|번|쪽|명|배|강|과|차|단원))/);   // '1.5회차' 같은 건 날짜가 아님
+  if (!m) return null;
+  const mo = parseInt(m[1]), d = parseInt(m[2]);
+  return mo >= 1 && mo <= 12 && d >= 1 && d <= 31 ? `${mo}.${d}` : null;
 }
 
 // '단어 7~10/30점' → { lo:7, hi:10, max:30 }
@@ -8015,14 +8045,18 @@ function wrStated(line, word) {
   return m ? { lo: wrNum(m[1]), hi: wrNum(m[2] ?? m[1]), max: wrNum(m[3]) } : null;
 }
 
-// '70% / 2.8점 (4점 만점)' · '검토 필요 / 배점 4점'
+// '70% / 2.8점 (4점 만점)' · '검토 필요 / 배점 4점' · '85% · 3.4/4점 · 전사 신뢰도 높음' · '검토 필요 · ?/4점'
 function wrSentScore(s) {
   const t = String(s || '');
-  const out = { percent: null, score: null, max: null, review: /검토/.test(t) };
+  const out = { percent: null, score: null, max: null, review: /검토|유보/.test(t) };
   const pm = t.match(/(\d+(?:\.\d+)?)\s*%/); if (pm) out.percent = wrNum(pm[1]);
   const mm = t.match(/(\d+(?:\.\d+)?)\s*점\s*만점/) || t.match(/배점\s*(\d+(?:\.\d+)?)/) || t.match(/만점\s*(\d+(?:\.\d+)?)/);
   if (mm) out.max = wrNum(mm[1]);
-  const sm = t.match(/\/\s*(\d+(?:\.\d+)?)\s*점(?!\s*만점)/); if (sm) out.score = wrNum(sm[1]);
+  const ab = t.match(/(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)\s*점/);   // '3.4/4점' = 얻은 점수/배점
+  const q = t.match(/[?？]\s*\/\s*(\d+(?:\.\d+)?)\s*점/);             // '?/4점' = 점수 미정
+  if (ab) { out.score = wrNum(ab[1]); if (out.max === null) out.max = wrNum(ab[2]); }
+  else if (q) { if (out.max === null) out.max = wrNum(q[1]); }
+  else { const sm = t.match(/\/\s*(\d+(?:\.\d+)?)\s*점(?!\s*만점)/); if (sm) out.score = wrNum(sm[1]); }
   if (out.percent === null && out.score !== null && out.max) out.percent = wrRound(out.score / out.max * 100);
   if (out.score === null && out.percent !== null && out.max) out.score = wrRound(out.percent / 100 * out.max);
   if (out.percent !== null) out.review = false;
@@ -8033,6 +8067,22 @@ function wrParseWordLine(m) {
   const no = parseInt(m[1]);
   const mark = /[oO○]/.test(m[2]) ? 'O' : /[xX×]/.test(m[2]) ? 'X' : '?';
   const rest = m[3];
+  // '|'로 나뉜 줄: 'pessimistic | 제출 비관적인 | 정답 비관적인 | 신뢰도 높음 | 사유 …'
+  const parts = rest.split(/\s*[|│]\s*/);
+  if (parts.length > 1 && parts.slice(1).some(p => /^(제출|정답)/.test(p))) {
+    const w = { no, mark, word: wrClean(parts[0]), answer: '', blank: false, correct: '', reason: '' };
+    parts.slice(1).forEach(p => {
+      const f = p.match(/^(제출|학생\s*답|정답|사유|신뢰도)\s*[-:：]?\s*(.*)$/);
+      if (!f) return;
+      if (/^정답/.test(f[1])) w.correct = f[2].trim();
+      else if (/^사유/.test(f[1])) w.reason = wrClean(f[2]);
+      else if (!/^신뢰도/.test(f[1])) w.answer = f[2];
+    });
+    w.blank = /\[\s*무응답[^\]]*\]/.test(w.answer);
+    w.answer = wrClean(w.answer.replace(/\[\s*무응답[^\]]*\]/g, ''));
+    w.blank = w.blank && !w.answer;
+    return w;
+  }
   const cut = rest.search(/\s[-–—]\s/);
   let word = cut >= 0 ? rest.slice(0, cut) : rest;
   let ans = cut >= 0 ? rest.slice(cut).replace(/^\s[-–—]\s/, '') : '';
@@ -8054,27 +8104,42 @@ function parseVocabGrading(text) {
   }
   const head = lines.slice(0, 40).join('\n');
   const perWord = (head.match(/단어[^\n]*?각\s*(\d+(?:\.\d+)?)\s*점/) || [])[1];
-  // 학생 구역의 시작: '[1. 단어' 줄 바로 앞의 (빈 줄·구분선이 아닌) 줄이 학생 머리줄
+  // 학생 구역의 시작: '[1. 단어' 줄 앞의 학생 머리줄. 그 사이 점수 줄('단어 23/30점 · …' · '기존 점수 …')은 건너뛰고 점수로 읽는다
+  const isScoreLine = l => /^\s*기존\s*점수/.test(l)
+    || /^\s*-?\s*(?:단어|문장\s*해석|해석|합계)[^|\n\d]{0,6}\d+(?:\.\d+)?(?:\s*[~∼]\s*\d+(?:\.\d+)?)?\s*\/\s*\d+/.test(l);
   const starts = [];
   lines.forEach((l, i) => {
     if (!/^\s*\[\s*1\s*\.\s*단어/.test(l)) return;
     let h = i - 1;
+    const scoreLines = [];
+    while (h >= 0 && (!lines[h].trim() || isScoreLine(lines[h])) && !wrIsSep(lines[h]) && scoreLines.length < 4) { if (lines[h].trim()) scoreLines.push(lines[h]); h--; }
     while (h >= 0 && (!lines[h].trim() || wrIsSep(lines[h]))) h--;
-    starts.push({ head: h, body: i });
+    starts.push({ head: h, body: i, scoreLines });
   });
   starts.forEach((s, k) => {
     const end = k + 1 < starts.length ? starts[k + 1].head : lines.length;
     const headLine = s.head >= 0 ? lines[s.head].trim() : '';
-    const st = { name: headLine.split('|')[0].trim(), note: headLine.split('|').slice(1).map(x => x.trim()).filter(Boolean).join(' · '),
-      words: [], sentences: [], stated: {}, review: '' };
+    const st = { name: headLine.split('|')[0].trim(),
+      note: headLine.split('|').slice(1).map(x => x.trim()).filter(x => x && !/^학생별\s*채점\s*분석$/.test(x)).join(' · '),
+      words: [], sentences: [], stated: {}, review: '', pages: {} };
+    s.scoreLines.forEach(l => {
+      if (/^\s*기존\s*점수/.test(l)) return;   // 고치기 전 점수 — 지금 점수 칸과 같으니 따로 쓰지 않는다
+      const w = wrStated(l, '단어'), se = wrStated(l, '해석'), tot = wrStated(l, '합계');
+      if (w) st.stated.word = w;
+      if (se) st.stated.sentence = se;
+      if (tot) st.stated.total = tot;
+    });
     let part = 'word', cur = null, field = null;
     for (let i = s.body; i < end; i++) {
       const l = lines[i];
       if (wrIsSep(l)) continue;
-      const sec = l.match(/^\s*\[\s*(\d)\s*\.\s*([^\]]*)\]/);
+      const sec = l.match(/^\s*\[\s*(\d)\s*\.\s*([^\]]*)\]\s*(.*)$/);
       if (sec) {
         cur = null; field = null;
         part = /단어/.test(sec[2]) ? 'word' : /해석|문장/.test(sec[2]) ? 'sent' : /점수/.test(sec[2]) ? 'final' : 'other';
+        // '[1. 단어 채점 결과] 원본 답안 17쪽' — 다시 볼 시험지 쪽
+        const pg = sec[3].trim();
+        if (pg && /쪽|p\.?\s*\d|페이지/i.test(pg) && (part === 'word' || part === 'sent')) st.pages[part] = pg.slice(0, 40);
         continue;
       }
       if (part === 'word') {
@@ -8088,11 +8153,14 @@ function parseVocabGrading(text) {
       if (part === 'sent') {
         const m = l.match(/^\s*(\d{1,3})\s*[.)]\s*원문\s*[-:]\s*(.*)$/);
         if (m) { cur = { no: parseInt(m[1]), source: m[2].trim(), answer: '', percent: null, score: null, max: null, review: false, reason: '', correct: '' }; st.sentences.push(cur); field = 'source'; continue; }
+        // '1번 | 85% · 3.4/4점 · 전사 신뢰도 높음' — 다음 줄들에 원문·학생 답안·평가 사유·모범 해석
+        const h = l.match(/^\s*(\d{1,2})\s*번\s*(?:[|│]\s*(.*))?$/);
+        if (h) { cur = { no: parseInt(h[1]), source: '', answer: '', percent: null, score: null, max: null, review: false, reason: '', correct: '', ...wrSentScore(h[2] || '') }; st.sentences.push(cur); field = null; continue; }
         if (!cur) continue;
-        const f = l.match(/^\s*(제출된\s*해석|학생\s*해석|평가\s*점수|감점\s*및\s*평가\s*사유|평가\s*사유|감점\s*사유|올바른\s*해석|모범\s*해석)\s*[-:]\s*(.*)$/);
+        const f = l.match(/^\s*(원문|제출된\s*해석|학생\s*해석|학생\s*답안|제출\s*답안|평가\s*점수|감점\s*및\s*평가\s*사유|평가\s*사유|감점\s*사유|올바른\s*해석|모범\s*해석)(?:\s*[-:：]\s*|\s+)(.*)$/);
         if (f) {
           const k = f[1].replace(/\s/g, '');
-          field = /제출|학생/.test(k) ? 'answer' : /점수/.test(k) ? 'score' : /사유/.test(k) ? 'reason' : 'correct';
+          field = k === '원문' ? 'source' : /제출|학생/.test(k) ? 'answer' : /점수/.test(k) ? 'score' : /사유/.test(k) ? 'reason' : 'correct';
           if (field === 'score') Object.assign(cur, wrSentScore(f[2]));
           else cur[field] = f[2].trim();
           continue;
@@ -8423,6 +8491,7 @@ function renderWrStatus() {
         ${pubBtn}
       </div>
     </div>
+    ${total && kinds.some(k => !Object.keys(by[k]).length) ? `<div class="mrep-muted" style="font-size:12px;margin-top:2px">${kinds.filter(k => !Object.keys(by[k]).length).map(k => WR_KIND_LABEL[k]).join(' · ')} 글도 있으면 아래 칸에 붙여 넣거나 txt 파일을 골라 이어서 올려요 — 먼저 올린 결과는 그대로 남아요.</div>` : ''}
     ${_wrListOpen && total ? `<div class="mrep-list"><table class="data-table"><thead><tr><th>학생</th>${kinds.map(k => `<th>${WR_KIND_LABEL[k]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>` : ''}
     <div class="mrep-note">학부모 공개는 위 '학생별 시험지'와 함께 켜고 꺼요. 공개하면 이 주차 점수 화면에 '채점 결과 보기'가 생겨요. 결과를 지워도 점수 칸은 그대로 남아요.</div>`;
 }
@@ -8445,15 +8514,59 @@ async function deleteWrResults(kind, sid) {
   loadWrPanel();
 }
 
+// 한 번에 고른 txt 여러 개 — 하나씩 차례로 검토한다(순서 무관). 하나를 올리면 다음 파일 검토가 이어서 열린다.
+let _wrQueue = [];        // 아직 검토하지 않은 파일 [{ name, text, kind }]
+let _wrTextFile = null;   // 지금 칸에 넣은 파일 { name, text } — 검토 화면에 파일 이름을 보인다
+
 async function onWrFile(files) {
-  const f = files && files[0];
+  const list = Array.from(files || []);
   const input = document.getElementById('wr-file');
   if (input) input.value = '';
-  if (!f) return;
-  if (f.size > 3 * 1024 * 1024) { showToast('❌ 파일이 너무 커요 (3MB 이하 글 파일만).', 4000); return; }
-  const text = await f.text().catch(() => '');
-  document.getElementById('wr-text').value = text;
+  if (!list.length) return;
+  const got = [];
+  for (const f of list) {
+    if (f.size > 3 * 1024 * 1024) { showToast(`❌ ${f.name} — 파일이 너무 커요 (3MB 이하 글 파일만).`, 4000); continue; }
+    const text = await f.text().catch(() => '');
+    if (!text.trim()) { showToast(`❌ ${f.name} — 내용이 없어요.`, 3000); continue; }
+    got.push({ name: f.name, text, kind: detectWrKind(text) });
+  }
+  if (!got.length) return;
+  // 고른 순서와 상관없이 단어·해석 → 객관식·어법·서술형 → 형식 모름 차례로
+  const rank = k => (k === 'vocab' ? 0 : k === 'omr' ? 1 : 2);
+  got.sort((a, b) => rank(a.kind) - rank(b.kind));
+  // 검토 중인 글이 있으면 뒤에 줄 세운다 (정해 둔 맞음/틀림이 사라지지 않게)
+  if (_wr || _wrBusy) {
+    _wrQueue.push(...got);
+    renderWrQueue();
+    showToast(`📎 ${got.length}개 파일은 지금 글을 올리거나 닫은 뒤 이어서 검토해요`, 3500);
+    return;
+  }
+  _wrQueue.push(...got.slice(1));
+  wrLoadFile(got[0]);
+}
+
+function wrLoadFile(f) {
+  _wrTextFile = { name: f.name, text: f.text };
+  document.getElementById('wr-text').value = f.text;
   startWrParse();
+  renderWrQueue();
+}
+
+function nextWrQueue() {
+  if (_wr || _wrBusy || !_wrQueue.length) return;
+  wrLoadFile(_wrQueue.shift());
+}
+
+function dropWrQueue(k) { _wrQueue.splice(k, 1); renderWrQueue(); }
+
+function renderWrQueue() {
+  const el = document.getElementById('wr-queue');
+  if (!el) return;
+  if (!_wrQueue.length) { el.innerHTML = ''; return; }
+  const canStart = !_wr && !_wrBusy;
+  el.innerHTML = `<div class="wr-queue"><span>📎 이어서 검토할 파일 <strong>${_wrQueue.length}</strong>개</span>
+    ${_wrQueue.map((f, k) => `<span class="wr-queue-item">${escapeHtml(f.name)} <span class="mrep-muted">(${escapeHtml(WR_KIND_LABEL[f.kind] || '형식 모름')})</span><button type="button" class="wr-x" title="목록에서 빼기" onclick="dropWrQueue(${k})">✕</button></span>`).join('')}
+    ${canStart ? '<button class="btn btn-gold btn-sm" onclick="nextWrQueue()">다음 파일 검토하기</button>' : '<span class="mrep-muted">지금 글을 올리면 이어서 열려요</span>'}</div>`;
 }
 
 function startWrParse() {
@@ -8465,11 +8578,24 @@ function startWrParse() {
   msg.textContent = '';
   if (!weekId || !classId) return;
   if (!text.trim()) { msg.innerHTML = '<span class="mrep-warn">채점 결과 글을 붙여 넣거나 txt 파일을 골라 주세요.</span>'; return; }
-  const kind = detectWrKind(text);
+  const kinds = detectWrKinds(text);
+  if (kinds.vocab && kinds.omr) {
+    msg.innerHTML = '<span class="mrep-warn">단어·해석 글과 객관식·어법·서술형 글이 한 칸에 섞여 있어요.</span> 칸을 비운 뒤 하나씩 붙여 넣어 주세요. txt 파일은 두 개를 한 번에 골라도 차례로 검토해요.';
+    return;
+  }
+  const kind = kinds.vocab ? 'vocab' : kinds.omr ? 'omr' : null;
   if (!kind) { msg.innerHTML = "<span class=\"mrep-warn\">글 형식을 알아보지 못했어요.</span> GPT가 준 '단어·해석 채점 결과' 또는 '학생별 기입 답안' 글 전체를 붙여 넣어 주세요."; return; }
   const doc = kind === 'vocab' ? parseVocabGrading(text) : parseOmrAnswers(text);
   if (!doc.students.length) { msg.innerHTML = `<span class="mrep-warn">학생별 결과를 찾지 못했어요.</span> ${escapeHtml(doc.warnings.join(' · '))}`; return; }
   doc.weekId = weekId; doc.classId = classId; doc.extra = []; doc.confirmed = false;
+  doc.fileName = _wrTextFile && _wrTextFile.text === text ? _wrTextFile.name : '';
+  // 글 제목 날짜가 지금 연 주차와 다른 주면 올리기 전에 막는다 (11.21 주차에 11.14 글을 올려 점수를 덮어쓸 뻔한 일)
+  const wsel = document.getElementById('score-week');
+  const weekLabel = (wsel.options[wsel.selectedIndex]?.textContent || '').trim();
+  const td = wrTitleDate(doc.title), wd = wrTitleDate(weekLabel);
+  const tk = td && weekStartKey(td), wk = wd && weekStartKey(wd);
+  doc.dateCheck = tk && wk && tk !== wk ? { text: td, week: weekLabel } : null;
+  doc.dateOk = false;
   doc.students.forEach(st => { st.fix = { words: {}, sentences: {} }; });
   if (kind === 'omr') doc.students.forEach(st => st.sections.forEach(s => { if (s.type === 'fill') s.items.forEach(it => wrMarkFill(it, doc.key.fill[it.no])); }));
   wrMatchNames(doc, wrRoster());
@@ -8478,14 +8604,71 @@ function startWrParse() {
   _wr = doc;
   closeWrOther();
   renderWrReview();
+  renderWrQueue();
   document.getElementById('wr-review').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  wrFindOthers(doc);
 }
+
+// 반 명단에 없는 이름 → 다른 반 재원생 중 같은 이름이 한 명뿐이면 그 학생으로 (그 반의 같은 주 주차에 올라간다)
+async function wrFindOthers(doc) {
+  const norm = s => String(s || '').replace(/\s/g, '');
+  const todo = doc.students.filter(st => st.sid === null && /^[가-힣]{2,5}\d{0,2}$/.test(norm(st.name)));
+  if (!todo.length) return;
+  doc.finding = true;
+  if (_wr === doc) renderWrReview();
+  try {
+    const names = [...new Set(todo.map(st => norm(st.name)))];
+    const res = await apiReqRetry(`students?name=in.(${names.map(n => encodeURIComponent(`"${n}"`)).join(',')})&is_active=eq.true&select=id,name,class_id`, 'GET');
+    if (_wr !== doc) return;
+    const found = res.ok && Array.isArray(res.data) ? res.data : [];
+    for (const st of todo) {
+      if (st.sid !== null || _wr !== doc) continue;
+      const cands = found.filter(r => norm(r.name) === norm(st.name) && r.class_id !== doc.classId && !doc.students.some(o => o.sid === r.id));
+      if (cands.length > 1) { st.otherNote = `다른 반에 같은 이름이 ${cands.length}명 있어요 — '다른 반 학생 찾기…'로 골라 주세요`; continue; }
+      if (!cands.length) continue;
+      const x = await wrAddOther(doc, cands[0]);
+      if (_wr !== doc || st.sid !== null) continue;
+      if (x.error) { st.otherNote = `${cands[0].name} 학생은 ${x.error}`; continue; }
+      st.sid = x.id; st.how = 'auto-other';
+    }
+  } finally {
+    doc.finding = false;
+    if (_wr === doc) renderWrReview();
+  }
+}
+
+// 다른 반 학생 → 그 학생 반의 같은 주 주차 { id, name, classId, className, weekId, weekLabel } 또는 { error }
+async function wrAddOther(doc, stu) {
+  const cls = classes.find(c => c.id === stu.class_id);
+  if (!cls) return { error: '반 정보를 찾지 못했어요' };
+  const have = doc.extra.find(e => e.id === stu.id);
+  if (have) return have;
+  if (!doc.hostWeek) {
+    const h = await apiReqRetry(`weeks?id=eq.${doc.weekId}&select=id,label,test_date,group_id`, 'GET');
+    doc.hostWeek = h.ok && Array.isArray(h.data) ? (h.data[0] || null) : null;
+  }
+  doc.classWeeks = doc.classWeeks || {};
+  if (!doc.classWeeks[cls.id]) {
+    const wk = await apiReqRetry(`weeks?class_id=eq.${cls.id}&select=id,class_id,label,test_date,group_id,created_at`, 'GET');
+    if (wk.ok && Array.isArray(wk.data)) doc.classWeeks[cls.id] = wk.data;
+  }
+  if (!doc.hostWeek || !doc.classWeeks[cls.id]) return { error: '주차 정보를 불러오지 못했어요 — 다시 시도해 주세요' };
+  const m = guestMatchWeek(doc.hostWeek, doc.classWeeks[cls.id]);
+  if (!m) return { error: `${cls.name}에 이 주와 같은 주차가 없어요`, noWeek: true, className: cls.name };
+  const x = { id: stu.id, name: stu.name, classId: cls.id, className: cls.name, weekId: m.week.id, weekLabel: m.week.label || m.week.test_date || '' };
+  doc.extra.push(x);
+  return x;
+}
+
+function setWrDateOk(on) { if (!_wr) return; _wr.dateOk = !!on; if (!on) _wr.confirmed = false; renderWrReview(); }
+function scrollWrCard(i) { const el = document.getElementById(`wr-card-${i}`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
 
 function clearWrReview() {
   _wr = null;
   closeWrOther();
   const el = document.getElementById('wr-review');
   if (el) el.innerHTML = '';
+  renderWrQueue();
 }
 
 // 막는 것(학생 미지정·같은 학생 두 번·검토 안 끝남)과 알리기만 하는 것(짐작한 이름·GPT 합계와 다름)
@@ -8494,10 +8677,11 @@ function wrIssues(doc) {
   doc.students.forEach(st => { if (typeof st.sid === 'number') count[st.sid] = (count[st.sid] || 0) + 1; });
   return doc.students.map(st => {
     const block = [], warn = [];
-    if (st.sid === null) block.push('학생을 골라 주세요');
+    if (st.sid === null) block.push(doc.finding ? '다른 반에서 찾는 중…' : st.otherNote ? `학생을 골라 주세요 — ${st.otherNote}` : '학생을 골라 주세요');
     if (typeof st.sid === 'number' && count[st.sid] > 1) block.push('같은 학생이 두 번 골라졌어요');
     if (st.sid === 'skip') return { block, warn, skip: true };
     if (st.how === 'guess') warn.push('이름 일부만 읽혀 짐작했어요 — 맞는지 확인');
+    if (st.how === 'auto-other') { const x = doc.extra.find(e => e.id === st.sid); warn.push(`이 반 명단에 없어 ${x ? x.className : '다른 반'} 학생으로 찾았어요 — 맞는지 확인`); }
     if (doc.kind === 'vocab') {
       const s = wrVocabScores(st);
       if (s.wordOpen + s.sentOpen) block.push(`검토할 문항 ${s.wordOpen + s.sentOpen}개`);
@@ -8556,7 +8740,8 @@ function renderWrReview() {
           const differs = v !== null && v !== undefined && v !== '' && nv !== null && !scoreValEq(v, wrRound(nv));
           return `<span class="${differs ? 'mrep-warn' : ''}">${escapeHtml(it?.label || '')} ${v === null || v === undefined || v === '' ? '—' : escapeHtml(String(v))}${differs ? ` → ${wrFmt(nv)}` : ''}</span>`;
         }).join(' · ') : '<span class="mrep-muted">넣지 않음</span>';
-    const howNote = st.how === 'loose' ? ' <span class="mrep-muted" style="font-size:11px">비슷한 이름</span>' : st.how === 'guess' ? ' <span class="mrep-warn" style="font-size:11px">짐작</span>' : '';
+    const howNote = st.how === 'loose' ? ' <span class="mrep-muted" style="font-size:11px">비슷한 이름</span>' : st.how === 'guess' ? ' <span class="mrep-warn" style="font-size:11px">짐작</span>'
+      : st.how === 'auto-other' ? ' <span class="mrep-muted" style="font-size:11px">다른 반에서 찾음</span>' : '';
     const state = is.skip ? '<span class="mrep-muted">올리지 않아요</span>'
       : [...is.block.map(t => `<span class="mrep-warn">${escapeHtml(t)}</span>`), ...is.warn.map(t => `<span class="mrep-muted">⚠ ${escapeHtml(t)}</span>`)].join('<br>')
         || `<span class="mrep-ok">✓</span>${typeof st.sid === 'number' && have[st.sid] && !ext ? ' <span class="mrep-muted" style="font-size:11px">이미 올린 결과를 바꿔요</span>' : ''}`;
@@ -8570,25 +8755,66 @@ function renderWrReview() {
   const missing = roster.filter(s => !used[s.id]);
   const cards = doc.kind === 'vocab' ? doc.students.map((st, i) => wrVocabReviewCard(st, i)).join('') : '';
   const blockN = issues.filter(x => x.block.length).length;
+  const dateBlock = !!(doc.dateCheck && !doc.dateOk);
+  const gate = blockN || dateBlock;
   const sendN = doc.students.filter(st => typeof st.sid === 'number').length;
+  const dateHtml = doc.dateCheck ? `<div class="wr-datewarn">⚠ 채점 글 날짜는 <strong>${escapeHtml(doc.dateCheck.text)}</strong>인데 지금 연 주차는 <strong>${escapeHtml(doc.dateCheck.week)}</strong>이에요.
+      다른 주 시험 글이면 '닫기'를 누르고 위에서 주차를 바꿔 주세요 — 그대로 올리면 이 주차 점수 칸이 바뀌어요.<br>
+      <label><input type="checkbox" ${doc.dateOk ? 'checked' : ''} onchange="setWrDateOk(this.checked)"> 이 주차(${escapeHtml(doc.dateCheck.week)})에 올리는 게 맞아요</label></div>` : '';
   el.innerHTML = `<div class="wr-review">
-    <div class="mrep-preview-head"><span><strong>📄 ${escapeHtml(WR_KIND_LABEL[doc.kind])} 채점 결과</strong>${doc.title ? ` · ${escapeHtml(doc.title)}` : ''} · 학생 ${doc.students.length}명</span>
+    <div class="mrep-preview-head"><span><strong>📄 ${escapeHtml(WR_KIND_LABEL[doc.kind])} 채점 결과</strong>${doc.title ? ` · ${escapeHtml(doc.title)}` : ''} · 학생 ${doc.students.length}명${doc.fileName ? ` <span class="mrep-muted" style="font-size:12px">(파일 ${escapeHtml(doc.fileName)})</span>` : ''}</span>
       <button class="btn btn-light btn-sm" onclick="clearWrReview()">닫기</button></div>
+    ${dateHtml}
     ${doc.warnings.length ? `<div class="mrep-warn" style="font-size:12px">⚠ ${escapeHtml(doc.warnings.join(' · '))}</div>` : ''}
+    ${wrRecheckHtml(doc)}
     <div class="wr-map"><strong>점수 넣을 칸</strong> ${mapHtml}</div>${mapWarn}
     <div class="mrep-list"><table class="data-table wr-table"><thead><tr><th>채점 글의 이름</th><th>학생</th><th>채점 점수</th><th>지금 점수 칸</th><th>확인할 것</th></tr></thead><tbody>${rows}</tbody></table></div>
     ${missing.length ? `<div class="mrep-muted" style="font-size:12px;margin-top:4px">채점 글에 없는 이 반 학생: ${missing.slice(0, 15).map(s => escapeHtml(s.name)).join(', ')}${missing.length > 15 ? ` 외 ${missing.length - 15}명` : ''}</div>` : ''}
     ${cards}
     <div class="wt-confirm">
-      <label><input type="checkbox" id="wr-confirm" ${doc.confirmed && !blockN ? 'checked' : ''} ${blockN ? 'disabled' : ''} onchange="setWrConfirmed(this.checked)"> 학생 이름${doc.kind === 'vocab' ? '과 검토할 문항' : ''}을 모두 확인했어요</label>
-      <button class="btn btn-gold btn-sm" id="wr-upload-btn" onclick="uploadWr()" ${doc.confirmed && !blockN && sendN && !_wrBusy ? '' : 'disabled'}>결과 올리고 점수 넣기 (${sendN}명)</button>
-      ${blockN ? `<span class="mrep-warn" style="font-size:12px">확인할 학생 ${blockN}명이 남았어요</span>` : ''}
+      <label><input type="checkbox" id="wr-confirm" ${doc.confirmed && !gate ? 'checked' : ''} ${gate ? 'disabled' : ''} onchange="setWrConfirmed(this.checked)"> 학생 이름${doc.kind === 'vocab' ? '과 검토할 문항' : ''}을 모두 확인했어요</label>
+      <button class="btn btn-gold btn-sm" id="wr-upload-btn" onclick="uploadWr()" ${doc.confirmed && !gate && sendN && !_wrBusy ? '' : 'disabled'}>결과 올리고 점수 넣기 (${sendN}명)</button>
+      ${blockN ? `<span class="mrep-warn" style="font-size:12px">확인할 학생 ${blockN}명이 남았어요</span>` : dateBlock ? '<span class="mrep-warn" style="font-size:12px">위에서 주차 날짜를 확인해 주세요</span>' : ''}
     </div>
     <div class="mrep-note">올린 결과는 학부모 공개를 켜야 보여요. 점수 칸에 이미 다른 점수가 있으면 바꾸기 전에 물어봐요.</div>
   </div>`;
 }
 
 const WR_PCTS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 85, 90, 95, 100];
+// 검토할 학생의 표시 이름 — 고른 학생(다른 반이면 반 이름) · 채점 글 이름이 다르면 함께
+function wrWhoHtml(doc, st) {
+  const who = typeof st.sid === 'number' ? wrStudentOf(doc, st.sid) : null;
+  const ext = typeof st.sid === 'number' ? doc.extra.find(x => x.id === st.sid) : null;
+  const name = who ? who.name : st.name;
+  return `<strong>${escapeHtml(name || '(이름 없음)')}</strong>${ext ? ` <span class="mrep-muted">(${escapeHtml(ext.className)})</span>` : ''}`
+    + (who && who.name.replace(/\s/g, '') !== String(st.name || '').replace(/\s/g, '') ? ` <span class="mrep-muted">(채점 글: ${escapeHtml(st.name)})</span>` : '');
+}
+
+// 맨 위 '시험지를 다시 볼 학생' — 누구의 몇 쪽 몇 번을 보면 되는지. 이름을 누르면 아래 정하는 칸으로
+function wrRecheckHtml(doc) {
+  if (doc.kind !== 'vocab') return '';
+  const rows = [];
+  doc.students.forEach((st, i) => {
+    if (st.sid === 'skip') return;
+    const qs = st.words.filter(w => w.mark === '?');
+    const ss = st.sentences.filter(x => x.review);
+    if (!qs.length && !ss.length) return;
+    const groups = [];
+    const add = (pg, t, done) => { let g = groups.find(x => x.pg === pg); if (!g) groups.push(g = { pg, items: [] }); g.items.push({ t, done }); };
+    qs.forEach(w => add(st.pages.word || st.note || '', `단어 ${w.no}번 ${w.word}`, !!st.fix.words[w.no]?.mark));
+    ss.forEach(x => add(st.pages.sent || st.note || '', `해석 ${x.no}번`, st.fix.sentences[x.no]?.percent !== null && st.fix.sentences[x.no]?.percent !== undefined));
+    rows.push({ i, st, groups });
+  });
+  if (!rows.length) return '';
+  const all = rows.flatMap(r => r.groups.flatMap(g => g.items));
+  const left = all.filter(x => !x.done).length;
+  return `<div class="wr-recheck"><div>🔍 <strong>시험지를 다시 볼 학생 ${rows.length}명 · ${all.length}문항</strong>
+      ${left ? `<span class="mrep-warn">남은 문항 ${left}개</span>` : '<span class="mrep-ok">✓ 모두 정했어요</span>'}
+      <span class="mrep-muted">— GPT가 글씨를 확실히 읽지 못했어요. 원본 답안을 보고 아래에서 정해 주세요.</span></div>
+    <ul>${rows.map(r => `<li><button type="button" class="wr-recheck-name" onclick="scrollWrCard(${r.i})">${wrWhoHtml(doc, r.st).replace(/<\/?strong>/g, '')}</button>
+      — ${r.groups.map(g => `${g.pg ? `${escapeHtml(g.pg)}: ` : ''}${g.items.map(x => `<span class="${x.done ? 'done' : ''}">${escapeHtml(x.t)}</span>${x.done ? ' ✓' : ''}`).join(', ')}`).join(' / ')}</li>`).join('')}</ul></div>`;
+}
+
 function wrVocabReviewCard(st, i) {
   if (st.sid === 'skip') return '';
   const qs = st.words.filter(w => w.mark === '?');
@@ -8596,7 +8822,7 @@ function wrVocabReviewCard(st, i) {
   if (!qs.length && !ss.length) return '';
   const wq = qs.map(w => {
     const f = st.fix.words[w.no] || {};
-    return `<div class="wr-q"><div><strong>단어 ${w.no}번</strong> ${escapeHtml(w.word)} <span class="mrep-muted">· 정답 ${escapeHtml(w.correct || '—')} · 읽은 답 ${escapeHtml(w.answer || '(빈칸)')}</span></div>
+    return `<div class="wr-q"><div><strong>단어 ${w.no}번</strong> ${escapeHtml(w.word)}${st.pages.word ? ` <span class="mrep-muted">(${escapeHtml(st.pages.word)})</span>` : ''} <span class="mrep-muted">· 정답 ${escapeHtml(w.correct || '—')} · 읽은 답 ${escapeHtml(w.answer || '(빈칸)')}</span></div>
       <div class="wr-q-ctl">
         <label><input type="radio" name="wr-${i}-w${w.no}" ${f.mark === 'O' ? 'checked' : ''} onchange="setWrWord(${i}, ${w.no}, 'O')"> 맞음</label>
         <label><input type="radio" name="wr-${i}-w${w.no}" ${f.mark === 'X' ? 'checked' : ''} onchange="setWrWord(${i}, ${w.no}, 'X')"> 틀림</label>
@@ -8605,7 +8831,7 @@ function wrVocabReviewCard(st, i) {
   }).join('');
   const sq = ss.map(x => {
     const f = st.fix.sentences[x.no] || {};
-    return `<div class="wr-q"><div><strong>해석 ${x.no}번</strong> <span class="mrep-muted">(${wrFmt(x.max)}점 만점)</span> ${escapeHtml(x.source)}</div>
+    return `<div class="wr-q"><div><strong>해석 ${x.no}번</strong> <span class="mrep-muted">(${wrFmt(x.max)}점 만점${st.pages.sent ? ` · ${escapeHtml(st.pages.sent)}` : ''})</span> ${escapeHtml(x.source)}</div>
       <div class="wr-q-text"><span class="mrep-muted">학생 해석</span> ${escapeHtml(x.answer || '(빈칸)')}</div>
       ${x.reason ? `<div class="wr-q-text"><span class="mrep-muted">GPT 메모</span> ${escapeHtml(x.reason)}</div>` : ''}
       <div class="wr-q-ctl">
@@ -8614,7 +8840,7 @@ function wrVocabReviewCard(st, i) {
         <input type="text" placeholder="감점 사유 (선택 · 학생 화면에 보여요)" value="${escapeAttr(f.reason || '')}" onchange="setWrSentReason(${i}, ${x.no}, this.value)">
       </div></div>`;
   }).join('');
-  return `<div class="wr-card"><div class="wr-card-head"><strong>${escapeHtml(st.name)}</strong> — GPT가 확실히 읽지 못한 문항이에요. 시험지를 보고 정해 주세요.</div>${wq}${sq}</div>`;
+  return `<div class="wr-card" id="wr-card-${i}"><div class="wr-card-head">${wrWhoHtml(_wr, st)}${!st.pages.word && !st.pages.sent && st.note ? ` <span class="mrep-muted">· ${escapeHtml(st.note)}</span>` : ''} — GPT가 확실히 읽지 못한 문항이에요. 시험지를 보고 정해 주세요.</div>${wq}${sq}</div>`;
 }
 
 function setWrMap(cat, key) { if (!_wr) return; _wr.map[cat] = key; renderWrReview(); }
@@ -8684,20 +8910,14 @@ async function pickWrOther(sid) {
   const cls = st && classes.find(c => c.id === st.class_id);
   const msg = document.getElementById('wr-other-msg');
   if (!st || !cls) { msg.innerHTML = '<span class="mrep-warn">학생의 반 정보를 찾지 못했어요.</span>'; return; }
-  let x = doc.extra.find(e => e.id === sid);
-  if (!x) {
-    msg.textContent = `${cls.name}의 같은 주 주차를 찾는 중...`;
-    if (!doc.hostWeek) {
-      const h = await apiReqRetry(`weeks?id=eq.${doc.weekId}&select=id,label,test_date,group_id`, 'GET');
-      doc.hostWeek = h.ok && Array.isArray(h.data) ? (h.data[0] || null) : null;
-    }
-    const wk = await apiReqRetry(`weeks?class_id=eq.${cls.id}&select=id,class_id,label,test_date,group_id,created_at`, 'GET');
-    if (_wrOther !== o || _wr !== doc) return;
-    if (!doc.hostWeek || !wk.ok || !Array.isArray(wk.data)) { msg.innerHTML = '<span class="mrep-warn">❌ 주차 정보를 불러오지 못했어요. 다시 눌러 주세요.</span>'; return; }
-    const m = guestMatchWeek(doc.hostWeek, wk.data);
-    if (!m) { msg.innerHTML = `<span class="mrep-warn">${escapeHtml(cls.name)}에 이 주와 같은 주차가 없어요.</span> 점수 입력 탭 '다른 반 학생 입력'으로 이 학생 점수를 먼저 넣으면 그 반 주차가 생겨요.`; return; }
-    x = { id: st.id, name: st.name, classId: cls.id, className: cls.name, weekId: m.week.id, weekLabel: m.week.label || m.week.test_date || '' };
-    doc.extra.push(x);
+  if (!doc.extra.some(e => e.id === sid)) msg.textContent = `${cls.name}의 같은 주 주차를 찾는 중...`;
+  const x = await wrAddOther(doc, st);
+  if (_wrOther !== o || _wr !== doc) return;
+  if (x.error) {
+    msg.innerHTML = x.noWeek
+      ? `<span class="mrep-warn">${escapeHtml(cls.name)}에 이 주와 같은 주차가 없어요.</span> 점수 입력 탭 '다른 반 학생 입력'으로 이 학생 점수를 먼저 넣으면 그 반 주차가 생겨요.`
+      : `<span class="mrep-warn">❌ ${escapeHtml(x.error)}</span>`;
+    return;
   }
   const target = doc.students[o.i];
   closeWrOther();
@@ -8747,7 +8967,7 @@ async function uploadWr() {
   const doc = _wr;
   if (!doc || _wrBusy || !doc.confirmed) return;
   const issues = wrIssues(doc);
-  if (issues.some(x => x.block.length)) { renderWrReview(); return; }
+  if (issues.some(x => x.block.length) || (doc.dateCheck && !doc.dateOk)) { renderWrReview(); return; }
   const send = doc.students.filter(st => typeof st.sid === 'number');
   if (!send.length) return;
   _wrBusy = true;
@@ -8827,14 +9047,21 @@ async function uploadWr() {
     if (scoreSkipped.length) parts.push(`⚠ 점수를 넣지 못한 학생 ${scoreSkipped.length}명 (${scoreSkipped.join(', ')})`);
     _wrLast = { weekId: doc.weekId, html: parts.map(escapeHtml).join('<br>') };
     showToast(fail.length ? `⚠ ${saved.length}명 올림 · ${fail.length}명 실패` : `✅ 채점 결과 ${saved.length}명 올림`, 3500);
-    if (!fail.length) { clearWrReview(); document.getElementById('wr-text').value = ''; }
+    if (!fail.length) { clearWrReview(); document.getElementById('wr-text').value = ''; _wrTextFile = null; }
   } finally {
     _wrBusy = false;
     if (_wr) renderWrReview();
+    renderWrQueue();
   }
   // 점수 표를 다시 읽어 방금 넣은 점수가 보이게 (같은 반·주차를 보고 있을 때)
-  if (parseInt(document.getElementById('score-week').value) === doc.weekId) await loadScoreInputs();
+  const sameWeek = parseInt(document.getElementById('score-week').value) === doc.weekId;
+  if (sameWeek) await loadScoreInputs();
   else loadWrPanel();
+  // 함께 고른 다음 파일이 있으면 이어서 검토 (같은 주차를 보고 있고 다 올렸을 때만)
+  if (sameWeek && !fail.length && !_wr && !_wrBusy && _wrQueue.length) {
+    showToast(`📎 다음 파일 '${_wrQueue[0].name}' 검토를 이어서 열어요`, 3000);
+    nextWrQueue();
+  }
 }
 
 // ── 문제지·답지 (docx, 2026-11-23) ─────────────────────────────
