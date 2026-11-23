@@ -3156,6 +3156,8 @@ async function autoSaveScoreRow(weekId, sid, name, screen, items, noHw) {
     ['.inp-eval', '.inp-hw'].forEach(sel => { const el = row.querySelector(sel); if (el) el.title = String(el.value).trim() !== '' ? '이번 주차에 저장된 값' : ''; });
   }
   setAutoStatus(weekId, sid, 'saved');
+  // 채점 결과 칸의 '점수 칸과 다름' 표시를 바로 맞춘다
+  if (d.items.length && _wrCtx && _wrCtx.weekId === weekId && _wrCtx.rows.length) renderWrStatus();
   if (d.items.length) {
     clearTimeout(_autoGroupTimer);
     _autoGroupTimer = setTimeout(() => { if (scoreRowEl(weekId, sid)) refreshGroupInfo(); }, 2500);
@@ -8438,10 +8440,12 @@ async function loadWrPanel() {
   const classId = parseInt(document.getElementById('score-class').value);
   if (!weekId || !classId || !document.getElementById('wr-box')) return;
   const seq = ++_wrSeq;
-  const [r, wk] = await Promise.all([
-    apiReqRetry(`week_results?week_id=eq.${weekId}&select=student_id,kind,updated_at`, 'GET'),
+  let [r, wk] = await Promise.all([
+    apiReqRetry(`week_results?week_id=eq.${weekId}&select=student_id,kind,updated_at,cells:data->cells`, 'GET'),
     apiReqRetry(`weeks?id=eq.${weekId}&select=id,report_published`, 'GET')
   ]);
+  // cells(올릴 때 넣은 점수)를 못 읽어도 현황은 보이게 — '점수 칸과 다름' 표시만 빠진다
+  if (!r.ok && seq === _wrSeq) r = await apiReqRetry(`week_results?week_id=eq.${weekId}&select=student_id,kind,updated_at`, 'GET');
   if (seq !== _wrSeq) return;
   const ready = r.ok && Array.isArray(r.data);
   _wrCtx = { weekId, classId, rows: ready ? r.data : [], ready,
@@ -8452,6 +8456,27 @@ async function loadWrPanel() {
 }
 
 function wrRowsOf(kind) { return _wrCtx ? _wrCtx.rows.filter(x => x.kind === kind) : []; }
+
+// 올린 뒤 점수 칸을 손으로 고쳐 채점 결과(올릴 때 넣은 값 cells)와 달라진 학생 — [{ sid, kind, diffs:[{label, cell, res}] }]
+// (cells는 2026-11-23부터 올린 결과에만 있다)
+function wrCellMismatches() {
+  const ctx = _wrCtx;
+  const cache = ctx && scoreCache[ctx.weekId];
+  if (!ctx || !cache) return [];
+  const items = currentItemConfig.filter(it => it.active);
+  const out = [];
+  ctx.rows.forEach(x => {
+    const cells = x.cells !== undefined ? x.cells : x.data?.cells;
+    if (!cells || typeof cells !== 'object') return;
+    const row = cache[x.student_id] || null;
+    const diffs = Object.keys(cells).filter(k => items.some(it => it.key === k)).map(k => {
+      const v = row ? itemVal(row, k) : null;
+      return v === null || v === undefined || v === '' || !scoreValEq(v, cells[k]) ? { label: items.find(it => it.key === k)?.label || k, cell: v, res: cells[k] } : null;
+    }).filter(Boolean);
+    if (diffs.length) out.push({ sid: x.student_id, kind: x.kind, diffs });
+  });
+  return out;
+}
 
 function renderWrStatus() {
   const ctx = _wrCtx;
@@ -8476,8 +8501,14 @@ function renderWrStatus() {
   const when = x => x && x.updated_at ? escapeHtml(new Date(x.updated_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })) : '';
   const names = {}; roster.forEach(s => { names[s.id] = s.name; });
   const ids = [...new Set(ctx.rows.map(x => x.student_id))].sort((a, b) => String(names[a] || '~').localeCompare(String(names[b] || '~'), 'ko'));
+  const mis = wrCellMismatches();
+  const misOf = (sid, k) => mis.find(m => m.sid === sid && m.kind === k);
+  const misText = m => m.diffs.map(d => `${d.label} 칸 ${d.cell === null || d.cell === undefined || d.cell === '' ? '빈칸' : d.cell} · 결과 ${wrFmt(d.res)}`).join(', ');
   const rows = ids.map(sid => `<tr><td><strong>${escapeHtml(names[sid] || `학생 ${sid}`)}</strong>${names[sid] ? '' : ' <span class="mrep-muted" style="font-size:11px">(이 반 명단에 없음)</span>'}</td>
-    ${kinds.map(k => `<td>${by[k][sid] ? `<span class="mrep-ok">올림</span> <span class="mrep-muted" style="font-size:11px">${when(by[k][sid])}</span> <button class="btn btn-danger btn-sm" onclick="deleteWrResults('${k}', ${sid})">삭제</button>` : '<span class="mrep-muted">—</span>'}</td>`).join('')}</tr>`).join('');
+    ${kinds.map(k => `<td>${by[k][sid] ? `<span class="mrep-ok">올림</span> <span class="mrep-muted" style="font-size:11px">${when(by[k][sid])}</span> <button class="btn btn-danger btn-sm" onclick="deleteWrResults('${k}', ${sid})">삭제</button>${misOf(sid, k) ? `<br><span class="mrep-warn" style="font-size:11px">⚠ 점수 칸과 다름 (${escapeHtml(misText(misOf(sid, k)))})</span>` : ''}` : '<span class="mrep-muted">—</span>'}</td>`).join('')}</tr>`).join('');
+  const misHtml = mis.length ? `<div class="mrep-warn" style="font-size:12.5px;margin-top:4px">⚠ 점수 칸이 채점 결과와 다른 학생 ${mis.length}명:
+      ${mis.slice(0, 8).map(m => `${escapeHtml(names[m.sid] || `학생 ${m.sid}`)}(${escapeHtml(misText(m))})`).join(' · ')}${mis.length > 8 ? ` 외 ${mis.length - 8}명` : ''}
+      <br><span class="mrep-muted">학생 화면에는 올린 채점 결과가 보여요. 점수 칸을 고쳤다면 GPT 글도 고쳐 다시 올려 주세요 — 결과와 점수 칸이 함께 맞춰져요.</span></div>` : '';
   const last = _wrLast && _wrLast.weekId === ctx.weekId ? `<div class="mrep-result">${_wrLast.html}</div>` : '';
   const pubBtn = ctx.published
     ? `<button class="btn btn-light btn-sm" onclick="setWeekTestPublished(false)">공개 중단</button>`
@@ -8491,6 +8522,7 @@ function renderWrStatus() {
         ${pubBtn}
       </div>
     </div>
+    ${misHtml}
     ${total && kinds.some(k => !Object.keys(by[k]).length) ? `<div class="mrep-muted" style="font-size:12px;margin-top:2px">${kinds.filter(k => !Object.keys(by[k]).length).map(k => WR_KIND_LABEL[k]).join(' · ')} 글도 있으면 아래 칸에 붙여 넣거나 txt 파일을 골라 이어서 올려요 — 먼저 올린 결과는 그대로 남아요.</div>` : ''}
     ${_wrListOpen && total ? `<div class="mrep-list"><table class="data-table"><thead><tr><th>학생</th>${kinds.map(k => `<th>${WR_KIND_LABEL[k]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>` : ''}
     <div class="mrep-note">학부모 공개는 위 '학생별 시험지'와 함께 켜고 꺼요. 공개하면 이 주차 점수 화면에 '채점 결과 보기'가 생겨요. 결과를 지워도 점수 칸은 그대로 남아요.</div>`;
@@ -8722,7 +8754,8 @@ function renderWrReview() {
     const sum = wrRound(cs.reduce((a, c) => a + (c.max || 0), 0));
     return it && it.max !== null && it.max !== undefined && Math.abs(it.max - sum) > 0.01
       ? `<div class="mrep-warn" style="font-size:12px">⚠ '${escapeHtml(it.label)}' 칸 만점은 ${wrFmt(it.max)}점인데 채점 결과는 ${cs.map(c => escapeHtml(c.label)).join('+')} ${sum}점 만점이에요 — 점수를 그대로 넣어요.</div>` : '';
-  }).join('');
+  }).join('') + (doc.cats.some(c => !doc.map[c.id])
+    ? `<div class="mrep-warn" style="font-size:12px">⚠ ${doc.cats.filter(c => !doc.map[c.id]).map(c => escapeHtml(c.label)).join(' · ')} 점수는 점수 칸에 넣지 않아요 — 학생 화면 채점 결과와 성적표 점수가 다를 수 있어요.</div>` : '');
   const rows = doc.students.map((st, i) => {
     const is = issues[i];
     const opts = [`<option value="" ${st.sid === null ? 'selected' : ''}>— 학생 고르기 —</option>`]
@@ -8776,7 +8809,7 @@ function renderWrReview() {
       <button class="btn btn-gold btn-sm" id="wr-upload-btn" onclick="uploadWr()" ${doc.confirmed && !gate && sendN && !_wrBusy ? '' : 'disabled'}>결과 올리고 점수 넣기 (${sendN}명)</button>
       ${blockN ? `<span class="mrep-warn" style="font-size:12px">확인할 학생 ${blockN}명이 남았어요</span>` : dateBlock ? '<span class="mrep-warn" style="font-size:12px">위에서 주차 날짜를 확인해 주세요</span>' : ''}
     </div>
-    <div class="mrep-note">올린 결과는 학부모 공개를 켜야 보여요. 점수 칸에 이미 다른 점수가 있으면 바꾸기 전에 물어봐요.</div>
+    <div class="mrep-note">올리면 점수 칸도 채점 결과 점수로 맞춰져요(학생 화면 결과와 성적표가 같도록). 점수가 바뀌는 학생이 있으면 올리기 전에 보여 드려요. 올린 결과는 학부모 공개를 켜야 보여요.</div>
   </div>`;
 }
 
@@ -8974,37 +9007,27 @@ async function uploadWr() {
   renderWrReview();
   const msgEl = document.querySelector('#wr-review .wt-confirm');
   const say = t => { if (msgEl) msgEl.innerHTML = `<span class="mrep-progress">${escapeHtml(t)}</span>`; };
-  const fail = [];
-  let scoreOk = 0, scoreChanged = 0, scoreSkipped = [];
+  const nameOf = st => wrStudentOf(doc, st.sid)?.name || st.name;
+  const fail = [], scoreFail = [], noCell = [], saved = [];
+  let scoreOk = 0, scoreChanged = 0, stopMsg = '';
+  const targetOf = st => { const x = doc.extra.find(e => e.id === st.sid); return x ? x.weekId : doc.weekId; };
+  const weekIds = [...new Set(send.map(targetOf))];
+  const mappedKeys = [...new Set(Object.values(doc.map).filter(Boolean))];
   try {
     await flushScoreAutoSave();
-    // ① 결과 올리기 — 주차별로 한 번에
-    const targetOf = st => { const x = doc.extra.find(e => e.id === st.sid); return x ? x.weekId : doc.weekId; };
-    const byWeek = {};
-    send.forEach(st => { (byWeek[targetOf(st)] = byWeek[targetOf(st)] || []).push(st); });
-    const now = new Date().toISOString();
-    const saved = [];
-    for (const w of Object.keys(byWeek)) {
-      say(`채점 결과 올리는 중... (${saved.length}/${send.length})`);
-      const body = byWeek[w].map(st => ({ week_id: parseInt(w), student_id: st.sid, kind: doc.kind, data: doc.kind === 'vocab' ? wrVocabData(doc, st) : wrOmrData(doc, st), updated_at: now }));
-      const r = await apiReqRetry('week_results?on_conflict=week_id,student_id,kind', 'POST', body, 'resolution=merge-duplicates,return=minimal');
-      if (r.ok) saved.push(...byWeek[w]); else byWeek[w].forEach(st => fail.push(wrStudentOf(doc, st.sid)?.name || st.name));
-    }
-    // ② 점수 칸 — 최신 행을 다시 읽어 바뀐 칸만 (다른 점수가 있으면 먼저 묻는다)
-    const mappedKeys = [...new Set(Object.values(doc.map).filter(Boolean))];
-    if (saved.length && mappedKeys.length) {
+    // ① 점수 칸에 넣을 값과 바뀌는 칸을 먼저 계산한다. 학생 화면 채점 결과와 성적표 점수가 늘 같도록
+    //    올리면 점수 칸도 항상 함께 바뀐다(예전의 '기존 점수 두고 빈 칸만'은 없앰 — 결과와 점수가 어긋났다).
+    const jobs = [];
+    if (mappedKeys.length) {
       say('점수 칸 확인 중...');
       const curItems = currentItemConfig.filter(it => it.active);
-      const weekIds = [...new Set(saved.map(targetOf))];
       const wk = await apiReqRetry(`weeks?id=in.(${weekIds.join(',')})&select=id,label,item_config`, 'GET');
       const cfgOf = {}; (wk.ok && Array.isArray(wk.data) ? wk.data : []).forEach(w => { cfgOf[w.id] = normalizeItemConfig(w.item_config).filter(it => it.active); });
-      const jobs = [];
       for (const w of weekIds) {
         const items = cfgOf[w];
-        const sts = saved.filter(st => targetOf(st) === w);
-        if (!items) { sts.forEach(st => scoreSkipped.push(wrStudentOf(doc, st.sid)?.name || st.name)); continue; }
-        const got = await apiReqRetry(`scores?week_id=eq.${w}&student_id=in.(${sts.map(st => st.sid).join(',')})&select=*`, 'GET');
-        if (!got.ok || !Array.isArray(got.data)) { sts.forEach(st => scoreSkipped.push(wrStudentOf(doc, st.sid)?.name || st.name)); continue; }
+        const sts = send.filter(st => targetOf(st) === w);
+        const got = items ? await apiReqRetry(`scores?week_id=eq.${w}&student_id=in.(${sts.map(st => st.sid).join(',')})&select=*`, 'GET') : null;
+        if (!items || !got || !got.ok || !Array.isArray(got.data)) { stopMsg = '❌ 점수 칸을 확인하지 못해 아무것도 올리지 않았어요. 다시 눌러 주세요.'; break; }
         const dbOf = {}; got.data.forEach(r => { dbOf[r.student_id] = r; });
         // 다른 반 주차는 같은 이름의 칸에 넣는다
         const keyIn = key => { if (w === doc.weekId) return items.some(it => it.key === key) ? key : null; const lb = curItems.find(it => it.key === key)?.label; const it = lb ? items.find(x => x.label === lb) : null; return it ? it.key : null; };
@@ -9012,42 +9035,63 @@ async function uploadWr() {
           const sc = wrCatScores(doc, st);
           const vals = {};
           doc.cats.forEach(c => { const k = doc.map[c.id] && keyIn(doc.map[c.id]); if (!k || sc[c.id] === null || sc[c.id] === undefined) return; vals[k] = wrRound((vals[k] || 0) + sc[c.id]); });
-          if (!Object.keys(vals).length) { scoreSkipped.push(wrStudentOf(doc, st.sid)?.name || st.name); return; }
+          if (!Object.keys(vals).length) { noCell.push(nameOf(st)); return; }
           const db = dbOf[st.sid] || null;
           const diffs = Object.keys(vals).filter(k => { const v = db ? itemVal(db, k) : null; return v !== null && v !== undefined && v !== '' && !scoreValEq(v, vals[k]); })
             .map(k => ({ k, label: items.find(it => it.key === k)?.label || '', old: itemVal(db, k), nv: vals[k] }));
           jobs.push({ w, st, items, db, vals, diffs });
         });
       }
-      const withDiff = jobs.filter(j => j.diffs.length);
-      let replace = true;
-      if (withDiff.length) {
-        const lines = withDiff.slice(0, 12).map(j => ` · ${wrStudentOf(doc, j.st.sid)?.name || j.st.name}: ${j.diffs.map(d => `${d.label} ${d.old} → ${d.nv}`).join(', ')}`).join('\n');
-        replace = confirm(`⚠️ 점수 칸에 이미 다른 점수가 있는 학생이 ${withDiff.length}명 있어요.\n\n${lines}${withDiff.length > 12 ? `\n 외 ${withDiff.length - 12}명` : ''}\n\n[확인] 채점 결과 점수로 바꾸기\n[취소] 원래 점수는 그대로 두고 빈 칸만 채우기`);
+    }
+    const withDiff = jobs.filter(j => j.diffs.length);
+    if (!stopMsg && withDiff.length) {
+      const lines = withDiff.slice(0, 12).map(j => ` · ${nameOf(j.st)}: ${j.diffs.map(d => `${d.label} ${d.old} → ${d.nv}`).join(', ')}`).join('\n');
+      if (!confirm(`⚠️ ${withDiff.length}명은 점수 칸이 채점 결과 점수로 바뀌어요.\n\n${lines}${withDiff.length > 12 ? `\n 외 ${withDiff.length - 12}명` : ''}\n\n학생 화면의 채점 결과와 성적표 점수를 같게 맞추려고 함께 바꿔요.\n[확인] 올리기\n[취소] 그만두기 (아무것도 올리지 않아요)`)) {
+        stopMsg = '올리지 않았어요 — 채점 결과도 점수 칸도 그대로예요.';
       }
+    }
+    if (stopMsg) {
+      _wrLast = { weekId: doc.weekId, html: escapeHtml(stopMsg) };
+      showToast(stopMsg, 3500);
+    } else {
+      // ② 결과 올리기 — 주차별로 한 번에. 점수 칸에 넣은 값(cells)도 함께 둬서, 나중에 칸이 달라지면 현황에서 알린다
+      const cellsOf = {}; jobs.forEach(j => { cellsOf[j.st.sid] = j.vals; });
+      const now = new Date().toISOString();
+      for (const w of weekIds) {
+        const sts = send.filter(st => targetOf(st) === w);
+        say(`채점 결과 올리는 중... (${saved.length}/${send.length})`);
+        const body = sts.map(st => ({ week_id: w, student_id: st.sid, kind: doc.kind,
+          data: { ...(doc.kind === 'vocab' ? wrVocabData(doc, st) : wrOmrData(doc, st)), cells: cellsOf[st.sid] || {} }, updated_at: now }));
+        const r = await apiReqRetry('week_results?on_conflict=week_id,student_id,kind', 'POST', body, 'resolution=merge-duplicates,return=minimal');
+        if (r.ok) saved.push(...sts); else sts.forEach(st => fail.push(nameOf(st)));
+      }
+      // ③ 점수 칸 — 결과가 올라간 학생만, 바뀐 칸만
+      const ok = new Set(saved.map(st => st.sid));
+      const todo = jobs.filter(j => ok.has(j.st.sid));
       let n = 0;
-      for (const j of jobs) {
-        say(`점수 넣는 중... (${++n}/${jobs.length})`);
+      for (const j of todo) {
+        say(`점수 넣는 중... (${++n}/${todo.length})`);
         const base = scoreFieldsOf(j.db, j.items);
         const screen = JSON.parse(JSON.stringify(base));
-        Object.keys(j.vals).forEach(k => { if (replace || !j.diffs.some(d => d.k === k)) screen.items[k] = j.vals[k]; });
+        Object.keys(j.vals).forEach(k => { screen.items[k] = j.vals[k]; });
         const d = scoreDiff(base, screen, j.items);
-        if (!d.any) continue;
-        const plan = scoreWritePlan(d, screen, j.db, j.items, j.w, j.st.sid, j.w === doc.weekId ? currentNoHomework : false);
-        if (!plan) continue;
+        const plan = d.any ? scoreWritePlan(d, screen, j.db, j.items, j.w, j.st.sid, j.w === doc.weekId ? currentNoHomework : false) : null;
+        if (!plan) { scoreOk++; continue; }   // 이미 같은 점수
         const r = await apiReqRetry(plan.path, plan.method, plan.body, plan.method === 'POST' ? 'return=representation' : 'return=minimal');
-        if (r.ok) { scoreOk++; if (j.diffs.length && replace) scoreChanged++; }
-        else scoreSkipped.push(wrStudentOf(doc, j.st.sid)?.name || j.st.name);
+        if (r.ok) { scoreOk++; if (j.diffs.length) scoreChanged++; }
+        else scoreFail.push(nameOf(j.st));
       }
-      weekIds.forEach(w => { delete scoreCache[w]; invalidateAfterScoreWrite(w); });
+      if (todo.length) weekIds.forEach(w => { delete scoreCache[w]; invalidateAfterScoreWrite(w); });
+      const parts = [`✅ ${WR_KIND_LABEL[doc.kind]} 채점 결과 ${saved.length}명 올림`];
+      if (mappedKeys.length && saved.length) parts.push(`점수 칸 ${scoreOk}명 맞춤${scoreChanged ? `(${scoreChanged}명은 바꿈)` : ''}`);
+      else if (!mappedKeys.length && saved.length) parts.push('⚠ 점수 넣을 칸을 고르지 않아 점수 칸은 그대로예요 — 학생 화면 점수와 다를 수 있어요');
+      if (fail.length) parts.push(`❌ 결과를 올리지 못한 학생 ${fail.length}명 (${fail.join(', ')}) — 다시 눌러 주세요`);
+      if (scoreFail.length) parts.push(`❌ 점수 칸을 바꾸지 못한 학생 ${scoreFail.length}명 (${scoreFail.join(', ')}) — 같은 글을 다시 올리면 맞춰져요`);
+      if (noCell.length) parts.push(`⚠ 그 주차에 같은 이름의 점수 칸이 없어 점수를 넣지 못한 학생 ${noCell.length}명 (${noCell.join(', ')})`);
+      _wrLast = { weekId: doc.weekId, html: parts.map(escapeHtml).join('<br>') };
+      showToast(fail.length ? `⚠ ${saved.length}명 올림 · ${fail.length}명 실패` : `✅ 채점 결과 ${saved.length}명 올림`, 3500);
+      if (!fail.length) { clearWrReview(); document.getElementById('wr-text').value = ''; _wrTextFile = null; }
     }
-    const parts = [`✅ ${WR_KIND_LABEL[doc.kind]} 채점 결과 ${saved.length}명 올림`];
-    if (mappedKeys.length && saved.length) parts.push(`점수 ${scoreOk}명 입력${scoreChanged ? `(${scoreChanged}명은 바꿈)` : ''}`);
-    if (fail.length) parts.push(`❌ 결과를 올리지 못한 학생 ${fail.length}명 (${fail.join(', ')}) — 다시 눌러 주세요`);
-    if (scoreSkipped.length) parts.push(`⚠ 점수를 넣지 못한 학생 ${scoreSkipped.length}명 (${scoreSkipped.join(', ')})`);
-    _wrLast = { weekId: doc.weekId, html: parts.map(escapeHtml).join('<br>') };
-    showToast(fail.length ? `⚠ ${saved.length}명 올림 · ${fail.length}명 실패` : `✅ 채점 결과 ${saved.length}명 올림`, 3500);
-    if (!fail.length) { clearWrReview(); document.getElementById('wr-text').value = ''; _wrTextFile = null; }
   } finally {
     _wrBusy = false;
     if (_wr) renderWrReview();
