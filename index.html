@@ -210,6 +210,9 @@
       .wres-list li { padding: 1px 0; }
       .wres-list li.ok { color: var(--green); }
       .wres-list li.x { color: var(--red); }
+      .wres-ex { margin-top: 10px; border-top: 1px dashed var(--border); padding-top: 6px; }
+      .wres-ex summary { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--accent-ink); padding: 4px 0; }
+      .wres-ex .wd-view { font-size: 13.5px; line-height: 1.7; margin-top: 4px; }
       .wres-paper-btns { display: flex; gap: 6px; margin-top: 10px; }
       .wres-paper-btn { flex: 1; border: 1.5px solid var(--accent-ink); background: var(--white); color: var(--accent-ink); border-radius: 8px; padding: 8px 6px; font-size: 13px; font-weight: 700; font-family: "Noto Sans KR", sans-serif; cursor: pointer; }
       .wres-paper-btn:disabled { opacity: 0.5; cursor: default; }
@@ -1562,6 +1565,8 @@
             const j = res.ok ? await res.json() : null;
             if (!j || !j.results) throw new Error(String(res.status));
             data = _wresCache[wresKey(weekId)] = j.results;
+            // 문제지·답지(docx)의 해석 구문 해설 — 문장 번호 → 본문 조각 (서버 배포 전이거나 문제지가 없으면 없음)
+            data.__explain = j.explain && typeof j.explain === "object" ? j.explain : null;
           } catch (e) {
             if (_wresOpen === me) {
               _wresOpen = null;
@@ -1575,7 +1580,7 @@
         if (_wresOpen !== me) return; // 그 사이 다른 버튼을 눌렀다
         const d = data[kind];
         body.innerHTML = d
-          ? `<div class="wres-panel">${kind === "vocab" ? vocabResultHtml(d) : omrResultHtml(d)}</div>`
+          ? `<div class="wres-panel">${kind === "vocab" ? vocabResultHtml(d, data.__explain) : omrResultHtml(d)}</div>`
           : '<div class="wres-loading">채점 결과가 없습니다.</div>';
       }
 
@@ -1588,7 +1593,34 @@
           .replace(/\n/g, "<br>");
       }
 
-      function vocabResultHtml(d) {
+      // 해석 문장 → 구문 해설 상자. 번호가 같아도 문장이 다르면(다른 시험의 해설) 보여 주지 않는다 — 원문 앞부분이 해설 상자 글에 들어 있어야 한다.
+      function sentExplainNodes(x, explain) {
+        if (!explain) return null;
+        const norm = (t) => String(t || "").toLowerCase().replace(/[^a-z]/g, "");
+        const head = norm(x.source).slice(0, 40);
+        if (head.length < 12) return null;
+        const textOf = (nodes) => {
+          let out = "";
+          const walk = (n) => {
+            if (!n) return;
+            if (Array.isArray(n)) return n.forEach(walk);
+            if (n.t === "p") out += (Array.isArray(n.r) ? n.r : []).map((r) => r?.[0] ?? "").join("") + " ";
+            else if (n.t === "tbl") (Array.isArray(n.rows) ? n.rows : []).forEach((row) => (Array.isArray(row) ? row : []).forEach(walk));
+          };
+          walk(nodes);
+          return norm(out);
+        };
+        const no = String(parseInt(x.no, 10));
+        const cands = [explain[no], ...Object.keys(explain).filter((k) => k !== no).map((k) => explain[k])];
+        const hit = cands.find((n) => Array.isArray(n) && textOf(n).includes(head));
+        if (!hit) return null;
+        // 상자 첫 문단(번호 + 원문 + 출처)은 위에 원문이 이미 있으니 빼고 보여 준다
+        const box = hit[0] && hit[0].t === "tbl" && hit[0].rows?.[0]?.[0] ? hit[0].rows[0][0] : hit;
+        const first = box[0] && box[0].t === "p" ? norm((box[0].r || []).map((r) => r?.[0] ?? "").join("")) : "";
+        return first.includes(head) ? box.slice(1) : box;
+      }
+
+      function vocabResultHtml(d, explain) {
         const sc = d.score || {};
         const words = Array.isArray(d.words) ? d.words : [];
         const sents = Array.isArray(d.sentences) ? d.sentences : [];
@@ -1638,6 +1670,12 @@
             <div class="wres-row col"><span class="wres-k">내 해석</span><div>${x.blank || !x.answer ? '<span class="wres-blank">(빈칸)</span>' : wresTxt(x.answer)}</div></div>
             ${x.reason ? `<div class="wres-row col"><span class="wres-k">감점·평가 사유</span><div>${wresTxt(x.reason)}</div></div>` : ""}
             <div class="wres-row col"><span class="wres-k">올바른 해석</span><div>${wresTxt(x.correct)}</div></div>
+            ${(() => {
+              const ex = sentExplainNodes(x, explain);
+              return ex && ex.length
+                ? `<details class="wres-ex"><summary>📖 구문 해설 보기</summary><div class="wd-view">${wdHtml(ex)}</div></details>`
+                : "";
+            })()}
           </div>`;
               })
               .join("")

@@ -56,7 +56,7 @@
 
 ## 문제지·답지 (docx, 2026-11-23, `supabase/week-papers.sql`)
 `week_papers`: `id(serial), week_id → weeks ON DELETE CASCADE (unique), data jsonb, created_at, updated_at`. 그림·보관함은 쓰지 않는다.
-- `data = { v:2, title, blocks:[본문 조각 묶음], items:{ '어법:1' | '서술형:2' | ':3'(번호만): { q:[블록 번호], p:[지문], a:[해설] } }, explain:{ '1': 블록 번호 } }` — 본문 조각 `{t:'p', r:[[글자, 꼴]], li?}` · `{t:'tbl', rows:[[[조각…]]], sh?}`(꼴 1 굵게 · 2 밑줄 · 4 윗첨자 · 8 기울임). 같은 지문 블록은 한 번만 두고 번호로 가리킨다. explain은 답지 'Ⅱ. 해석 구문 해설'의 문장별 상자(아직 화면에 안 씀).
+- `data = { v:2, title, blocks:[본문 조각 묶음], items:{ '어법:1' | '서술형:2' | ':3'(번호만): { q:[블록 번호], p:[지문], a:[해설] } }, explain:{ '1': 블록 번호 } }` — 본문 조각 `{t:'p', r:[[글자, 꼴]], li?}` · `{t:'tbl', rows:[[[조각…]]], sh?}`(꼴 1 굵게 · 2 밑줄 · 4 윗첨자 · 8 기울임). 같은 지문 블록은 한 번만 두고 번호로 가리킨다. explain은 답지 'Ⅱ. 해석 구문 해설'의 문장별 상자 — parent-login `?result=w<id>`가 단어·해석 결과와 함께 `explain`(문장 번호 → 본문 조각)으로 준다.
 - 같은 비교 그룹 반 주차에는 같은 data를 각자 한 행으로. 지울 때는 그 주차 행만.
 - admin-api **v22**: 허용 목록 week_papers. parent-login: 공개된 본인 반 주차 중 행이 있는 것을 `weekPapers`(주차 id 목록)로, `GET ?paper=w<id>&k=<종류>&n=<번호>`는 문항 열쇠(`paperKey` — admin `wpResolve`와 같은 규칙)를 찾아 `{key, q, p, a}`(블록 = 본문 조각 배열)를 준다.
 ## mock_scores

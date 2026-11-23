@@ -9,7 +9,8 @@
 //  DELETE               → 쿠키 삭제 (로그아웃)
 //  GET ?report=<시험id> (쿠키) → 공개된 본인 모의고사 분석지 PDF의 5분짜리 서명 링크 { url }
 //  GET ?report=w<주차id> (쿠키) → 공개된 본인 주차 시험지(스캔 PDF)의 5분짜리 서명 링크 { url } (2026-11-22)
-//  GET ?result=w<주차id> (쿠키) → 공개된 본인 주차 채점 결과 글 { results: { vocab?, omr? } } (2026-11-22, supabase/week-results.sql)
+//  GET ?result=w<주차id> (쿠키) → 공개된 본인 주차 채점 결과 글 { results: { vocab?, omr? }, explain? } (2026-11-22, supabase/week-results.sql)
+//                                  explain: 그 주차 문제지·답지(docx)의 해석 구문 해설 { 문장 번호: 본문 조각 } (2026-11-23)
 //  GET ?paper=w<주차id>&k=<종류>&n=<번호> (쿠키) → 공개된 주차 문제지(docx에서 꺼낸 본문)에서 그 문항의 문제·지문·해설 { key, q, p, a } (2026-11-23, supabase/week-papers.sql)
 //
 // vocab_key 는 PIN 을 확인한 POST 에서만 단어 사이트 DB 에 받아, 서명된 세션 토큰에 넣어 둔다.
@@ -388,7 +389,23 @@ Deno.serve(async (req) => {
       if (!Array.isArray(rs) || !rs.length) return json({ error: "result_not_found" }, 404);
       const results: Record<string, unknown> = {};
       for (const r of rs) results[r.kind] = r.data;
-      return json({ results });
+      // 단어·해석 결과가 있으면 문제지·답지의 해석 구문 해설도 함께 (표가 없거나 오류면 빼고 결과만)
+      let explain: Record<string, unknown> | null = null;
+      if (results.vocab) {
+        try {
+          const pr = await rest(`week_papers?week_id=eq.${weekId}&select=data`);
+          const d = Array.isArray(pr) && pr[0] ? pr[0].data : null;
+          const blocks = Array.isArray(d?.blocks) ? d.blocks : [];
+          if (d?.explain && typeof d.explain === "object") {
+            for (const [n, i] of Object.entries(d.explain)) {
+              if (/^\d{1,2}$/.test(n) && Number.isInteger(i) && Array.isArray(blocks[i as number])) (explain ||= {})[n] = blocks[i as number];
+            }
+          }
+        } catch {
+          explain = null;
+        }
+      }
+      return json(explain ? { results, explain } : { results });
     }
     // 문제지·답지 그림: paper=w<주차id>&k=<종류>&n=<번호> — 같은 반 주차 + 공개된 주차일 때만 (2026-11-23)
     const sp = new URL(req.url).searchParams;

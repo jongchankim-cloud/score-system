@@ -74,4 +74,4 @@ result-section ── showResult()
 
 ## 학생 화면(index.html) 문제지·답지 (docx 본문, 2026-11-23)
 
-'틀린 문제 보기' 번호 칸(`showOmrItem`)에 `weekHasPaper(weekId)`(loginData.weekPapers)면 '📄 문제 보기'·'💡 정답·해설 보기' → `openPaper`(GET `?paper=w<id>&k=&n=`, `_paperCache`) → 창 `#wpv` `showPaperViewer`(문제 탭: 문제 + '지문', 정답·해설 탭, `switchPaperTab`, Esc·✕ `closePaperViewer`) — 본문은 `wdHtml`/`paperBlocks`로 글자(14.5px, 밑줄·윗첨자·지문 음영 상자). 문제지에 없는 문항은 '이 문제는 문제지에 없어요.'
+'틀린 문제 보기' 번호 칸(`showOmrItem`)에 `weekHasPaper(weekId)`(loginData.weekPapers)면 '📄 문제 보기'·'💡 정답·해설 보기' → `openPaper`(GET `?paper=w<id>&k=&n=`, `_paperCache`) → 창 `#wpv` `showPaperViewer`(문제 탭: 문제 + '지문', 정답·해설 탭, `switchPaperTab`, Esc·✕ `closePaperViewer`) — 본문은 `wdHtml`/`paperBlocks`로 글자(14.5px, 밑줄·윗첨자·지문 음영 상자). 문제지에 없는 문항은 '이 문제는 문제지에 없어요.' 해석 구문 해설: '단어·해석 채점 결과'(`vocabResultHtml(d, explain)`) 문장 카드 끝 `<details class="wres-ex">` '📖 구문 해설 보기' — `sentExplainNodes`가 원문 앞부분(영문자 40자)이 들어 있는 해설 상자를 찾고(번호 먼저, 다른 시험이면 안 붙임) 첫 문단(원문·출처)은 뺀다.
